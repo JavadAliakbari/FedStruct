@@ -1,0 +1,168 @@
+from ast import Dict
+from operator import itemgetter
+
+import torch
+import numpy as np
+from sklearn import model_selection
+import torch.nn.functional as F
+from torch_geometric.data import Data
+from torch_geometric.typing import OptTensor, Tensor
+
+
+class Graph(Data):
+    def __init__(
+        self,
+        edge_index: OptTensor,
+        x: OptTensor = None,
+        edge_attr: OptTensor = None,
+        y: OptTensor = None,
+        pos: OptTensor = None,
+        node_ids=None,
+        **kwargs
+    ) -> None:
+        if node_ids is None:
+            node_ids = np.arange(len(x))
+
+        node_map, new_edges = Graph.reindex_nodes(node_ids, edge_index)
+        super().__init__(
+            x=x,
+            edge_index=new_edges,
+            edge_attr=edge_attr,
+            y=y,
+            pos=pos,
+            **kwargs,
+        )
+        self.node_ids = node_ids
+        self.node_map = node_map
+        self.inv_map = {v: k for k, v in node_map.items()}
+
+    def get_edges(self):
+        new_edges = np.vstack(
+            (
+                itemgetter(*np.array(self.edge_index[0]))(self.inv_map),
+                itemgetter(*np.array(self.edge_index[1]))(self.inv_map),
+            )
+        )
+
+        return torch.tensor(new_edges)
+
+    def reindex_nodes(nodes, edges):
+        node_map = {node.item(): ind for ind, node in enumerate(nodes)}
+        # node_map = dict.fromkeys(nodes, np.arange(len(nodes)))
+        # new_edges = np.vstack((node_map[edges[0, :]], node_map[edges[1, :]]))
+        new_edges = np.vstack(
+            (
+                itemgetter(*np.array(edges[0]))(node_map),
+                itemgetter(*np.array(edges[1]))(node_map),
+            )
+        )
+
+        return node_map, torch.tensor(new_edges)
+
+    def add_masks(self, train_size=0.5, test_size=0.2):
+        num_nodes = self.num_nodes
+        indices = torch.arange(num_nodes)
+
+        train_indices, test_indices = model_selection.train_test_split(
+            indices,
+            train_size=train_size,
+            test_size=test_size,
+        )
+
+        self.train_mask = torch.isin(indices, train_indices)
+        self.test_mask = torch.isin(indices, test_indices)
+        self.val_mask = ~(self.test_mask | self.train_mask)
+
+    def add_structural_features(self, num_structural_features=100):
+        (
+            node_degree,
+            node_neighbors,
+            structural_features,
+            node_negative_samples,
+        ) = Graph.add_structural_features_(
+            self.get_edges(),
+            self.node_ids,
+            num_structural_features,
+        )
+
+        self.structural_features = structural_features
+        self.degree = node_degree
+        self.node_neighbors = node_neighbors
+        self.negative_samples = node_negative_samples
+        self.num_structural_features = num_structural_features
+
+    def add_structural_features_(
+        edge_index,
+        node_ids=None,
+        num_structural_features=100,
+    ):
+        if node_ids is None:
+            node_ids = np.arange(max(torch.flatten(edge_index)) + 1)
+        node_neighbors = []
+        node_negative_samples = []
+        node_degree = []
+        for node_id in node_ids:
+            neighbors = Graph.find_neighbors_(node_id, edge_index)
+            negative_samples = Graph.find_negative_samples(node_ids, neighbors)
+            degree = len(neighbors)
+
+            node_neighbors.append(neighbors)
+            node_negative_samples.append(negative_samples)
+            node_degree.append(degree)
+
+        node_degree = torch.tensor(np.array(node_degree))
+
+        clipped_degree = torch.clip(node_degree, 0, num_structural_features - 1)
+        # if max(clipped_degree) < num_structural_features:
+        structural_features = F.one_hot(clipped_degree, num_structural_features).float()
+
+        return node_degree, node_neighbors, structural_features, node_negative_samples
+
+    def find_negative_samples(node_ids, neighbors):
+        neighbor_nodes_mask = np.isin(node_ids, neighbors)
+        other_nodes = node_ids[~neighbor_nodes_mask]
+
+        return np.array(other_nodes)
+
+    def find_neigbors(self, node_id, include_node=False):
+        return Graph.find_neighbors_(
+            node_id=node_id,
+            edge_index=self.edge_index,
+            node_map=self.node_map,
+            include_node=include_node,
+        )
+
+    def find_neighbors_(
+        node_id: int,
+        edge_index: Tensor,
+        node_map: Dict = None,
+        include_node=False,
+    ):
+        if node_map is not None:
+            new_node_id = node_map[node_id]
+        else:
+            new_node_id = node_id
+        all_neighbors = np.unique(
+            np.hstack(
+                (
+                    edge_index[1, edge_index[0] == new_node_id],
+                    edge_index[0, edge_index[1] == new_node_id],
+                )
+            )
+        )
+
+        if not include_node:
+            all_neighbors = np.setdiff1d(all_neighbors, new_node_id)
+
+        if len(all_neighbors) == 0:
+            return all_neighbors
+
+        if node_map is not None:
+            inv_map = {v: k for k, v in node_map.items()}
+            res = itemgetter(*all_neighbors)(inv_map)
+            if len(all_neighbors) == 1:
+                return [res]
+            else:
+                return list(res)
+        else:
+            return all_neighbors

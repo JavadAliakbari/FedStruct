@@ -1,0 +1,10 @@
+*.venv
+*.vscode
+*__pycache__
+*dataowner
+*global_result
+*.ipynb_checkpoints
+*local_result
+.DS_Store
+*.png
+*.log
