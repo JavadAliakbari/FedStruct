@@ -3,24 +3,27 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 from torch_geometric.data import Data
-from torch_geometric.utils import to_networkx
+from torch_geometric.utils import to_networkx, remove_isolated_nodes
 
 # from src.utils.Louvian_networkx2 import find_community
 
 
-def plot_graph(data, node_color=[]) -> None:
-    G = to_networkx(data)
-    G.remove_nodes_from(list(nx.isolates(G)))
+def plot_graph(edge_index, num_nodes, node_color=[], pos=None) -> None:
+    edge_index = remove_isolated_nodes(edge_index)[0]
+    graph = Data(edge_index=edge_index, num_nodes=num_nodes)
+    G = to_networkx(graph)
+    if pos is None:
+        pos = nx.spectral_layout(G)
     options = {
         "font_size": 5,
-        "node_size": 50,
+        "node_size": 200,
         # "node_color": "white",
         "edgecolors": "black",
         "linewidths": 1,
         "width": 1,
     }
 
-    nx.draw_networkx(G, node_color=node_color, **options)
+    nx.draw_networkx(G, node_color=node_color, pos=pos, arrows=False, **options)
 
     # Set margins for the axes so that nodes aren't clipped
     ax = plt.gca()

@@ -13,7 +13,6 @@ from src.utils.graph import Graph
 from src.utils.plot_graph import plot_graph
 
 
-
 def plot_communities(graph, community):
     subgraphs = create_subgraps(graph, community)
     for s in subgraphs:
@@ -85,9 +84,7 @@ def make_groups_smaller_than_max(community_groups, group_len_max) -> dict:
 
 
 def assign_nodes_to_subgraphs(community_groups, max_subgraph_nodes):
-    subgraph_node_ids = {
-        subgraph_id: [] for subgraph_id in range(config.num_subgraphs)
-    }
+    subgraph_node_ids = {subgraph_id: [] for subgraph_id in range(config.num_subgraphs)}
     subgraphs = cycle(subgraph_node_ids.keys())
     current_subgraph = next(subgraphs)
 
@@ -178,29 +175,43 @@ def create_subgraps(graph, subgraph_node_ids: dict):
     return subgraphs
 
 
+def random_assign(graph, max_subgraph_nodes):
+    node_ids = graph.node_ids
+    idx = torch.randperm(node_ids.shape[0])
+    subgraph_node_ids = {}
+    for i in range(config.num_subgraphs):
+        if i < config.num_subgraphs - 1:
+            subgraph_node_ids[i] = node_ids[
+                idx[i * max_subgraph_nodes : (i + 1) * max_subgraph_nodes]
+            ]
+        else:
+            subgraph_node_ids[i] = node_ids[idx[i * max_subgraph_nodes :]]
+
+    return subgraph_node_ids
+
+
 def louvain_graph_cut(graph):
-    # edges = dataset.edge_index.numpy().T
+    # community_map = find_community(graph)
 
-    community_map = find_community(graph)
+    # community_groups = create_community_groups(community_map=community_map)
 
-    community_groups = create_community_groups(community_map=community_map)
-    # plot_communities(graph, community_groups)
+    # group_len_max = graph.num_nodes // config.num_subgraphs + config.delta
 
-    group_len_max = graph.num_nodes // config.num_subgraphs + config.delta
+    # community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
 
-    community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
-
-    sorted_community_groups = {
-        k: v
-        for k, v in sorted(
-            community_groups.items(), key=lambda item: len(item[1]), reverse=True
-        )
-    }
+    # sorted_community_groups = {
+    #     k: v
+    #     for k, v in sorted(
+    #         community_groups.items(), key=lambda item: len(item[1]), reverse=True
+    #     )
+    # }
 
     max_subgraph_nodes = graph.num_nodes // config.num_subgraphs
-    subgraph_node_ids = assign_nodes_to_subgraphs(
-        sorted_community_groups, max_subgraph_nodes
-    )
+    # subgraph_node_ids = assign_nodes_to_subgraphs(
+    #     sorted_community_groups, max_subgraph_nodes
+    # )
+
+    subgraph_node_ids = random_assign(graph, max_subgraph_nodes)
 
     subgraphs = create_subgraps(graph, subgraph_node_ids)
 

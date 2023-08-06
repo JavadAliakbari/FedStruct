@@ -7,6 +7,12 @@ from sklearn import model_selection
 import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.typing import OptTensor, Tensor
+from torch_geometric.utils import degree
+from sklearn.preprocessing import StandardScaler, normalize
+
+
+from src.models.Node2Vec import find_node2vect_embedings
+from src.utils.GDV import GDV
 
 
 class Graph(Data):
@@ -73,7 +79,11 @@ class Graph(Data):
         self.test_mask = torch.isin(indices, test_indices)
         self.val_mask = ~(self.test_mask | self.train_mask)
 
-    def add_structural_features(self, num_structural_features=100):
+    def add_structural_features(
+        self,
+        structure_type="degree",
+        num_structural_features=100,
+    ):
         (
             node_degree,
             node_neighbors,
@@ -82,7 +92,8 @@ class Graph(Data):
         ) = Graph.add_structural_features_(
             self.get_edges(),
             self.node_ids,
-            num_structural_features,
+            structure_type=structure_type,
+            num_structural_features=num_structural_features,
         )
 
         self.structural_features = structural_features
@@ -94,29 +105,75 @@ class Graph(Data):
     def add_structural_features_(
         edge_index,
         node_ids=None,
+        structure_type="degree",
         num_structural_features=100,
     ):
         if node_ids is None:
             node_ids = np.arange(max(torch.flatten(edge_index)) + 1)
         node_neighbors = []
         node_negative_samples = []
-        node_degree = []
         for node_id in node_ids:
             neighbors = Graph.find_neighbors_(node_id, edge_index)
             negative_samples = Graph.find_negative_samples(node_ids, neighbors)
-            degree = len(neighbors)
 
             node_neighbors.append(neighbors)
             node_negative_samples.append(negative_samples)
-            node_degree.append(degree)
 
-        node_degree = torch.tensor(np.array(node_degree))
+        node_degree = node_degree = degree(edge_index[0]).long()
 
-        clipped_degree = torch.clip(node_degree, 0, num_structural_features - 1)
-        # if max(clipped_degree) < num_structural_features:
-        structural_features = F.one_hot(clipped_degree, num_structural_features).float()
+        if structure_type == "degree":
+            structural_features = Graph.calc_degree_features(
+                edge_index, num_structural_features
+            )
+        elif structure_type == "GDV":
+            structural_features = Graph.calc_GDV(edge_index)
+        elif structure_type == "node2vec":
+            structural_features = find_node2vect_embedings(
+                edge_index,
+                embedding_dim=num_structural_features,
+                epochs=50,
+            )
 
         return node_degree, node_neighbors, structural_features, node_negative_samples
+
+    def calc_degree_features(edge_index, num_structural_features=100):
+        node_degree = degree(edge_index[0]).long()
+        clipped_degree = torch.clip(node_degree, 0, num_structural_features - 1)
+        structural_features = F.one_hot(clipped_degree, num_structural_features).float()
+
+        return structural_features
+
+    def calc_GDV(edge_index):
+        gdv = GDV()
+        structural_features = gdv.count5(edges=edge_index)
+        sc = StandardScaler()
+        structural_features = sc.fit_transform(structural_features)
+        structural_features = torch.tensor(structural_features, dtype=torch.float32)
+
+        return structural_features
+
+    def find_class_neighbors(self):
+        class_groups, negative_class_groups = Graph.find_class_neighbors_(
+            self.get_edges(),
+            self.y,
+            self.node_ids,
+        )
+
+        self.class_groups = class_groups
+        self.negative_class_groups = negative_class_groups
+
+    def find_class_neighbors_(edge_index, y, node_ids=None):
+        if node_ids is None:
+            node_ids = np.arange(max(torch.flatten(edge_index)) + 1)
+
+        classes = torch.unique(y).numpy()
+        class_groups = {}
+        negative_class_groups = {}
+        for class_id in classes:
+            class_groups[class_id] = node_ids[y == class_id]
+            negative_class_groups[class_id] = node_ids[y != class_id]
+
+        return class_groups, negative_class_groups
 
     def find_negative_samples(node_ids, neighbors):
         neighbor_nodes_mask = np.isin(node_ids, neighbors)

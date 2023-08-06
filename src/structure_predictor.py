@@ -1,54 +1,81 @@
-from ast import List
-from itertools import compress
+from itertools import product
+import logging
 
 import torch
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from torch.nn.functional import normalize
+from torch_geometric.nn import MessagePassing
 
 from src.utils import config
 from src.utils.graph import Graph
 from src.models.structure_model import JointModel
-from src.models.GNN_models import GraphSAGE, calc_accuracy, test
+
+# from src.models.structure_model2 import JointModel
+from src.models.GNN_models import GNN, MLP, calc_accuracy
 
 
 class StructurePredictor:
-    def __init__(self, id, edge_index, node_ids):
+    def __init__(self, id, edge_index, node_ids, y=None, logger=None):
+        self.LOGGER = logger or logging
+
         self.id = id
         self.edge_index = edge_index
         self.node_ids = node_ids
+        self.y = y
+
+        self.message_passing = MessagePassing(aggr="mean")
+
+        num_classes = max(y).item() + 1
+        self.cls = MLP([64, 32, num_classes], dropout=0.1)
 
     def prepare_data(self):
         self.graph = Graph(
             edge_index=self.edge_index,
             node_ids=self.node_ids,
+            y=self.y,
         )
 
-        self.graph.add_structural_features()
+        self.graph.add_structural_features(
+            structure_type=config.structure_type,
+            num_structural_features=config.num_structural_features,
+        )
+
+        if self.graph.y is not None:
+            self.graph.find_class_neighbors()
         self.graph.add_masks()
 
-    def set_model(self, num_clients, num_features, num_classes):
-        client_layer_sizes = [num_features] + config.classifier_layer_sizes
-        structure_layer_sizes = [
-            self.graph.num_structural_features
-        ] + config.structure_layers_size
-
+    def set_model(self, client_models, server_model, sd_layer_size, num_classes):
         self.model = JointModel(
-            num_clients=num_clients,
-            client_layer_sizes=client_layer_sizes,
-            structure_layer_sizes=structure_layer_sizes,
-            num_classes=num_classes,
+            clients=client_models,
+            structure_layer_sizes=sd_layer_size,
+            # num_classes=num_classes,
+            linear_layer=True,
+            dropout=config.dropout,
+            logger=self.LOGGER,
         )
 
-        self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=config.lr, weight_decay=5e-4
+        self.server_model = server_model
+
+        parameters = list(self.server_model.parameters()) + list(
+            self.model[f"structure_model"].parameters()
         )
+
+        self.optimizer = torch.optim.Adam(parameters, lr=config.lr, weight_decay=5e-4)
         self.criterion = torch.nn.CrossEntropyLoss()
 
-    def initialize_structural_graph(self, num_clients, num_features, num_classes):
+    def initialize_structural_graph(
+        self, client_models, server_model, sd_layer_size, num_classes
+    ):
         self.prepare_data()
-        self.set_model(num_clients, num_features, num_classes)
+        self.set_model(
+            client_models,
+            server_model,
+            sd_layer_size,
+            num_classes=num_classes,
+        )
 
     def reset_parameters(self):
         self.model.reset_parameters()
@@ -60,108 +87,150 @@ class StructurePredictor:
         self.model.load_state_dict(weights)
 
     def cosine_similarity(h1, h2):
-        return (
-            torch.dot(h1, h2)
-            / (torch.norm(h1) + 0.000001)
-            / (torch.norm(h2) + 0.000001)
+        return torch.dot(h1, h2) / (
+            (torch.norm(h1) + 0.000001) * (torch.norm(h2) + 0.000001)
         )
 
-    def find_negative_samples(node_ids, neighbors, negative_samples_ratio=0.2):
-        neighbor_nodes_mask = torch.isin(node_ids, neighbors)
-        other_nodes = node_ids[~neighbor_nodes_mask]
-        negative_size = negative_samples_ratio * other_nodes.shape[0]
-        negative_samples_masks = torch.multinomial(other_nodes, negative_size)
-        negative_samples = other_nodes[negative_samples_masks]
-
-        return negative_samples
-
-    # def calc_loss(self, embeddings, negative_samples_ratio=0.2):
-    #     loss = torch.zeros(embeddings.shape[0], dtype=torch.float32)
-    #     node_ids = self.graph.node_ids.numpy()
-    #     for node_index, node_id in enumerate(node_ids):
-    #         node_mask = self.graph.node_ids == node_id
-    #         neighbors = list(compress(self.graph.node_neighbors, node_mask))[0]
-
-    #         neighbor_nodes_mask = np.isin(node_ids, neighbors)
-    #         other_nodes = node_ids[~neighbor_nodes_mask]
-    #         negative_size = len(neighbors)
-    #         # negative_size = int(negative_samples_ratio * other_nodes.shape[0])
-    #         negative_samples = np.random.choice(other_nodes, negative_size)
-    #         negative_samples_mask = np.isin(node_ids, negative_samples)
-
-    #         # negative_samples = StructurePredictor.find_negative_samples(self.graph.node_ids,neighbors,negative_samples_ratio=0.2,)
-
-    #         h1 = embeddings[node_mask].squeeze(0)
-    #         neighbors_embedding = embeddings[neighbor_nodes_mask]
-    #         negative_samples_embedding = embeddings[negative_samples_mask]
-    #         loss_list = torch.zeros(
-    #             (len(neighbors) + negative_size), dtype=torch.float32
-    #         )
-    #         ind = 0
-    #         for h2 in neighbors_embedding:
-    #             neighbor_loss = 1 - StructurePredictor.cosine_similarity(h1, h2)
-    #             loss_list[ind] += neighbor_loss
-    #             ind += 1
-
-    #         for h2 in negative_samples_embedding:
-    #             negative_loss = StructurePredictor.cosine_similarity(h1, h2)
-    #             loss_list[ind] += negative_loss
-    #             ind += 1
-
-    #         if loss_list.shape[0] > 0:
-    #             node_loss = loss_list.mean()
-    #         else:
-    #             node_loss = torch.tensor([0], dtype=torch.float32)
-    #         loss[node_index] = node_loss
-
-    #     return loss
-
-    def calc_loss(self, embeddings, negative_samples_ratio=0.2):
-        loss = torch.zeros(embeddings.shape[0], dtype=torch.float32)
+    def calc_loss(self, embeddings):
         node_ids = self.graph.node_ids.numpy()
+        edge_index = self.graph.edge_index
 
-        for node_index, node_id in enumerate(node_ids):
-            neighbors = self.graph.node_neighbors[node_id]
+        normalized_embeddings = normalize(embeddings, dim=1)
+
+        neighbors_embeddings = self.message_passing.propagate(
+            edge_index, x=normalized_embeddings
+        )
+
+        negative_edge_index = []
+        negative_sample_size = 10
+        # negative_samples_list = []
+        for node_id in node_ids:
             other_nodes = self.graph.negative_samples[node_id]
 
-            negative_size = max(5, self.graph.degree[node_id].item())
-            negative_samples = np.random.choice(other_nodes, negative_size)
+            negative_samples = np.random.choice(other_nodes, negative_sample_size)
+            # negative_samples_list.append(negative_samples)
+            negative_edge_index += list(product(negative_samples, [node_id]))
 
-            h1 = embeddings[node_id].squeeze(0)
-            neighbors_embedding = embeddings[neighbors]
-            negative_samples_embedding = embeddings[negative_samples]
-            loss_list = torch.zeros((2 * negative_size), dtype=torch.float32)
-            ind = 0
-            for h2 in neighbors_embedding:
-                neighbor_loss = 1 - StructurePredictor.cosine_similarity(h1, h2)
-                loss_list[ind] += neighbor_loss
-                ind += 1
+        negative_edge_index = torch.tensor(np.array(negative_edge_index).T)
+        negative_embeddings = self.message_passing.propagate(
+            negative_edge_index, x=normalized_embeddings
+        )
 
-            for h2 in negative_samples_embedding:
-                negative_loss = StructurePredictor.cosine_similarity(h1, h2)
-                loss_list[ind] += negative_loss
-                ind += 1
+        diff = negative_embeddings - neighbors_embeddings
 
-            if loss_list.shape[0] > 0:
-                node_loss = loss_list.mean()
-            else:
-                node_loss = torch.tensor([0], dtype=torch.float32)
-            loss[node_index] = node_loss
+        # loss1 = torch.einsum("ij,ij->i", neighbors_embeddings, normalized_embeddings)
+        # loss2 = torch.einsum("ij,ij->i", negative_embeddings, normalized_embeddings)
+        loss = (1 + torch.einsum("ij,ij->i", diff, normalized_embeddings)) / 2
+
+        return loss
+
+    def calc_loss2(self, embeddings):
+        node_ids = self.graph.node_ids.numpy()
+
+        loss_list = torch.zeros(len(node_ids), dtype=torch.float32)
+        negative_sample_size = 5
+        negative_mass_probability = self.graph.degree / sum(self.graph.degree)
+
+        for node_idx, node_id in enumerate(node_ids):
+            node_embedding = embeddings[node_id]
+            neighbor_embeddings = embeddings[
+                np.array(self.graph.node_neighbors[node_id])
+            ]
+            neighbor_loss = torch.log(
+                torch.sigmoid(
+                    torch.einsum(
+                        "j,ij->i",
+                        node_embedding,
+                        neighbor_embeddings,
+                    )
+                ),
+            ).sum()
+
+            node_negative_sample_size = (
+                self.graph.degree[node_id] * negative_sample_size
+            )
+            negative_samples = np.random.choice(
+                node_ids,
+                # negative_sample_size,
+                node_negative_sample_size,
+                p=negative_mass_probability,
+                replace=False,
+            )
+
+            negative_embeddings = embeddings[negative_samples]
+            negative_loss = torch.log(
+                torch.sigmoid(
+                    torch.einsum(
+                        "j,ij->i",
+                        node_embedding,
+                        negative_embeddings,
+                    )
+                ),
+            ).sum()
+
+            loss_list[node_idx] = neighbor_loss - negative_loss
+
+        return loss_list
+
+    def calc_hetero_loss(self, embeddings):
+        node_ids = self.graph.node_ids.numpy()
+        y = self.graph.y.numpy()
+
+        normalized_embeddings = normalize(embeddings, dim=1)
+
+        neighbor_edge_index = []
+        negative_edge_index = []
+        sample_size = 15
+        for node_id, class_ in zip(node_ids, y):
+            class_nodes = self.graph.class_groups[class_]
+            nieghbor_class_nodes = class_nodes[class_nodes != node_id]
+            other_nodes = self.graph.negative_class_groups[class_]
+
+            if class_ != 0:
+                neighbor_samples = np.random.choice(nieghbor_class_nodes, sample_size)
+                neighbor_edge_index += list(product(neighbor_samples, [node_id]))
+
+            negative_samples = np.random.choice(other_nodes, 3 * sample_size)
+            negative_edge_index += list(product(negative_samples, [node_id]))
+
+        neighbor_edge_index = torch.tensor(np.array(neighbor_edge_index).T)
+        neighbor_embeddings = self.message_passing.propagate(
+            neighbor_edge_index, x=normalized_embeddings
+        )
+
+        negative_edge_index = torch.tensor(np.array(negative_edge_index).T)
+        negative_embeddings = self.message_passing.propagate(
+            negative_edge_index, x=normalized_embeddings
+        )
+
+        diff = negative_embeddings - neighbor_embeddings
+
+        # loss1 = torch.einsum("ij,ij->i", neighbor_embeddings, normalized_embeddings)
+        # loss2 = torch.einsum("ij,ij->i", negative_embeddings, normalized_embeddings)
+        loss = (1 + torch.einsum("ij,ij->i", diff, normalized_embeddings)) / 2
 
         return loss
 
     def train(self, subgraphs=[]):
         self.model.train()
         out = self.model(subgraphs, self.graph)
-        loss = self.calc_loss(out[f"structure_model"])
+        loss1 = self.calc_hetero_loss(out[f"structure_model"])
+        # loss = torch.zeros(self.graph.num_nodes, dtype=torch.float32)
+        loss2 = self.calc_loss(out[f"structure_model"])
+        loss = loss1 + loss2
 
-        return out, loss
+        return out, loss1
+
+    @torch.no_grad()
+    def get_embeddings(self):
+        return self.model([], self.graph)[f"structure_model"]
 
     def fit(
         self,
         epochs=config.gen_epochs,
         plot=False,
         bar=False,
+        predict=False,
     ):
         if bar:
             bar = tqdm(total=epochs, position=0)
@@ -176,9 +245,24 @@ class StructurePredictor:
             train_loss.backward()
             self.optimizer.step()
 
+            if predict:
+                x = self.get_embeddings()
+                y = self.y
+                masks = (
+                    self.graph.train_mask,
+                    self.graph.val_mask,
+                    self.graph.test_mask,
+                )
+                cls_val_acc, cls_val_loss = self.cls.fit(x, y, masks, 100)
+            else:
+                cls_val_acc = 0
+                cls_val_loss = 0
+
             metrics = {
                 "Train Loss": round(train_loss.item(), 4),
                 "Val Loss": round(val_loss.item(), 4),
+                "CLS Val Acc": round(cls_val_acc, 4),
+                "CLS Val Loss": round(cls_val_loss.item(), 4),
             }
 
             if bar:
@@ -190,7 +274,6 @@ class StructurePredictor:
             res.append(metrics)
 
         # Test
-        # test_accuracy = test(self.GNN, self.prepared_data)
         if plot:
             dataset = pd.DataFrame.from_dict(res)
             dataset.set_index("Epoch", inplace=True)
@@ -198,13 +281,51 @@ class StructurePredictor:
                 [
                     "Train Loss",
                     "Val Loss",
+                    "CLS Val Loss",
+                    "CLS Val Acc",
                 ]
             ].plot()
             plt.title(f"classifier loss client {self.id}")
 
         return res
 
+    def test_cls(self):
+        x = self.get_embeddings()
+        y = self.y
+        test_acc = self.cls.test(x[self.graph.test_mask], y[self.graph.test_mask])
+        return test_acc
+
+    @torch.no_grad()
+    def test(self, clients):
+        self.model.eval()
+        metrics = {}
+        subgraphs = []
+        for client in clients:
+            subgraphs.append(client.subgraph)
+        out = self.model(subgraphs, self.graph)
+
+        for client in clients:
+            y = client.subgraph.y
+            test_mask = client.subgraph.test_mask
+
+            y_pred = out[f"client{client.id}"]
+
+            test_acc = calc_accuracy(
+                y_pred[test_mask].argmax(dim=1),
+                y[test_mask],
+            )
+
+            result = {
+                "Test Acc": round(test_acc, 4),
+            }
+
+            metrics[f"Client{client.id}"] = result
+
+        return metrics
+
     def joint_train(self, clients, epochs=1):
+        # return self.model.fit2(self.graph, clients, epochs)
+
         metrics = {}
         subgraphs = []
         for client in clients:
@@ -212,6 +333,10 @@ class StructurePredictor:
 
         for epoch in range(epochs):
             self.optimizer.zero_grad()
+            server_weights = self.server_model.state_dict()
+            for id in range(self.model.num_clients):
+                self.model[f"client{id}"].load_state_dict(server_weights)
+
             loss_list = torch.zeros(len(subgraphs), dtype=torch.float32)
             out, structure_loss = self.train(subgraphs)
             for ind, client in enumerate(clients):
@@ -225,7 +350,7 @@ class StructurePredictor:
 
                 cls_train_loss = self.criterion(y_pred[train_mask], y[train_mask])
                 str_train_loss = client_structure_loss[train_mask].mean()
-                train_loss = cls_train_loss + str_train_loss
+                train_loss = cls_train_loss + config.sd_ratio * str_train_loss
                 loss_list[ind] = train_loss
 
                 train_acc = calc_accuracy(
@@ -261,6 +386,23 @@ class StructurePredictor:
 
             total_loss = loss_list.mean()
             total_loss.backward()
+            grads = None
+            for ind, client in enumerate(clients):
+                client_parameters = list(self.model[f"client{client.id}"].parameters())
+                client_grads = [
+                    client_parameter.grad for client_parameter in client_parameters
+                ]
+                ratio = subgraphs[ind].num_nodes / self.graph.num_nodes
+                if grads is None:
+                    grads = [ratio * grad for grad in client_grads]
+                else:
+                    for i in range(len(client_grads)):
+                        grads[i] += ratio * client_grads[i]
+
+            server_parameters = list(self.server_model.parameters())
+            for i in range(len(grads)):
+                server_parameters[i].grad = grads[i]
+
             self.optimizer.step()
             metrics["Total Loss"] = round(total_loss.item(), 4)
             metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)

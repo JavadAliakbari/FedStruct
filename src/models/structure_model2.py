@@ -1,5 +1,4 @@
 import logging
-import operator
 from ast import List
 from copy import deepcopy
 from itertools import product
@@ -18,8 +17,7 @@ from src.GNN_classifier import GNNClassifier
 from src.utils import config
 from src.utils.graph import Graph
 from src.utils.graph_partinioning import louvain_graph_cut
-from src.models.GNN_models import calc_accuracy
-from src.models.GNN_models import GNN
+from src.models.GNN_models import GNN, MLP, calc_accuracy
 
 
 class JointModel(torch.nn.Module):
@@ -29,9 +27,9 @@ class JointModel(torch.nn.Module):
         self,
         clients,
         structure_layer_sizes,
+        num_classes=None,
         client_layer_sizes=None,
         dropout=config.dropout,
-        linear_layer=False,
         last_layer="softmax",
         logger=None,
     ):
@@ -43,20 +41,13 @@ class JointModel(torch.nn.Module):
         self.last_layer = last_layer
         self.models = nn.ParameterDict()
         if isinstance(clients, int):
-            assert len(client_layer_sizes) - 1 == len(
-                structure_layer_sizes
-            ), "Number of layers must be equal"
             self.num_clients = num_clients
-            out_dims = client_layer_sizes
-            in_dims = list(map(operator.add, client_layer_sizes, structure_layer_sizes))
 
             for id in range(self.num_clients):
-                model = GNN(
-                    in_dims=in_dims,
-                    out_dims=out_dims,
+                model = MLP(
+                    layer_sizes=client_layer_sizes,
                     dropout=dropout,
-                    linear_layer=linear_layer,
-                    last_layer=last_layer,
+                    softmax=False,
                 )
 
                 self.models[f"client{id}"] = model
@@ -73,6 +64,12 @@ class JointModel(torch.nn.Module):
             dropout=dropout,
             last_layer="linear",
         )
+
+        if self.num_clients > 0:
+            self.linear = nn.Linear(
+                self.models[f"client{id}"][-1].out_features + structure_layer_sizes[-1],
+                num_classes,
+            )
 
         self.optimizers = self.create_optimizers()
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -121,38 +118,20 @@ class JointModel(torch.nn.Module):
 
         H = deque()
         for client_id in range(num_subgraphs):
-            H.append(subgraphs[client_id].x)
+            x = subgraphs[client_id].x
+            h = self.models[f"client{client_id}"](x)
+            H.append(h)
 
-        S = structure_graph.structural_features
-
-        for layer_id in range(self.num_layers):
-            for client_id in range(num_subgraphs):
-                node_ids = subgraphs[client_id].node_ids
-                edge_index = subgraphs[client_id].edge_index
-                x_s = S[node_ids].clone()
-                x = torch.hstack((H.popleft(), x_s))
-                h = self.models[f"client{client_id}"][layer_id](x, edge_index).relu()
-                h = F.dropout(h, p=self.dropout, training=self.training)
-                H.append(h)
-
-            edge_index = structure_graph.edge_index
-            model = self.models["structure_model"][layer_id]
-            S = model(S, edge_index)
-
-            if layer_id != self.num_layers - 1:
-                S = nn.functional.relu(S)
-                S = F.dropout(S, p=self.dropout, training=self.training)
+        x = structure_graph.structural_features
+        edge_index = structure_graph.edge_index
+        model = self.models["structure_model"]
+        S = model(x, edge_index)
 
         for client_id in range(num_subgraphs):
             node_ids = subgraphs[client_id].node_ids
-            edge_index = subgraphs[client_id].edge_index
             x_s = S[node_ids].clone()
             x = torch.hstack((H.popleft(), x_s))
-            model = self.models[f"client{client_id}"]
-            if model.linear_layer:
-                h = model[self.num_layers](x)
-            else:
-                h = model[self.num_layers](x, edge_index)
+            h = self.linear(x)
             H.append(h)
 
         out = {}
@@ -275,7 +254,7 @@ class JointModel(torch.nn.Module):
                     metrics[f"client{client.id}"] = result["Val Acc"]
 
                 if epoch == epochs - 1:
-                    self.LOGGER.info(f"SDSW results for client{client.id}:")
+                    self.LOGGER.info(f"JTSW results for client{client.id}:")
                     self.LOGGER.info(f"{result}")
 
             total_loss = loss_list.mean()
@@ -308,12 +287,12 @@ class JointModel(torch.nn.Module):
         test_metrics = self.test(clients, graph)
         for client in clients:
             test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
-            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
+            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
 
             GNNClassifier.plot_results(
                 plot_results[f"Client{client.id}"],
                 client.id,
-                type="SDSW",
+                type="JTSW",
             )
 
     @torch.no_grad()

@@ -3,14 +3,23 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import SAGEConv
-
-from src.utils import config
-from src.utils.graph import Graph
+from sklearn.metrics import f1_score
 
 
 def calc_accuracy(pred_y, y):
     """Calculate accuracy."""
     return ((pred_y == y).sum() / len(y)).item()
+
+
+@torch.no_grad()
+def calc_f1_score(pred_y, y):
+    # P = pred_y[y == 1]
+    # Tp = ((P == 1).sum() / len(P)).item()
+
+    f1score = f1_score(
+        pred_y.data, y.data, average="weighted", labels=np.unique(pred_y)
+    )
+    return f1score
 
 
 @torch.no_grad()
@@ -23,46 +32,173 @@ def test(model, data):
     acc = calc_accuracy(out.argmax(dim=1)[data.test_mask], label[data.test_mask])
     return acc
 
-class GraphSAGE(torch.nn.Module):
-    """GraphSAGE"""
 
-    def __init__(self, dim_in, dim_h, dim_out, dropout=0.5, last_layer="softmax"):
+class GNN(torch.nn.Module):
+    """Graph Neural Network"""
+
+    def __init__(
+        self,
+        in_dims,
+        out_dims=None,
+        dropout=0.5,
+        linear_layer=False,
+        last_layer="softmax",
+    ):
         super().__init__()
-        self.sage1 = SAGEConv(dim_in, dim_h[0])
-        self.sage2 = SAGEConv(dim_h[0], dim_h[1])
-        self.sage3 = SAGEConv(dim_h[1], dim_out)
-        # self.dense = Linear(dim_h[1], dim_out)
+        if out_dims is not None:
+            assert len(in_dims) == len(out_dims), "Number of layers must be equal"
+            input_dims = in_dims
+            output_dims = out_dims
+        else:
+            input_dims = in_dims[:-1]
+            output_dims = in_dims[1:]
 
+        self.num_layers = len(input_dims)
+        self.linear_layer = linear_layer
         self.dropout = dropout
         self.last_layer = last_layer
 
+        self.layers = self.create_models(input_dims, output_dims)
+
+    def __getitem__(self, item):
+        return self.layers[item]
+
+    def create_models(self, in_dims, out_dims):
+        layers = nn.ParameterList()
+        for layer_num in range(self.num_layers):
+            if layer_num == self.num_layers - 1 and self.linear_layer:
+                layer = nn.Linear(in_dims[layer_num], out_dims[layer_num])
+            else:
+                layer = SAGEConv(in_dims[layer_num], out_dims[layer_num], aggr="max")
+            layers.append(layer)
+
+        return layers
+
     def reset_parameters(self) -> None:
-        self.sage1.reset_parameters()
-        self.sage2.reset_parameters()
-        self.sage3.reset_parameters()
+        for layers in self.layers:
+            layers.reset_parameters()
 
     def state_dict(self):
         weights = {}
-        # for leyer_name, layer_weights in self.sage1.named_parameters():
-        weights["sage1"] = self.sage1.state_dict()
-        weights["sage2"] = self.sage2.state_dict()
-        weights["sage3"] = self.sage3.state_dict()
+        for id, layer in enumerate(self.layers):
+            weights[f"layer{id}"] = layer.state_dict()
         return weights
 
     def load_state_dict(self, weights: dict) -> None:
-        self.sage1.load_state_dict(weights["sage1"])
-        self.sage2.load_state_dict(weights["sage2"])
-        self.sage3.load_state_dict(weights["sage3"])
+        for id, layer in enumerate(self.layers):
+            layer.load_state_dict(weights[f"layer{id}"])
 
     def forward(self, x, edge_index):
-        h = self.sage1(x, edge_index).relu()
-        h = F.dropout(h, p=self.dropout, training=self.training)
-        h = self.sage2(h, edge_index).relu()
-        out = self.sage3(h, edge_index)
-        
+        h = x
+        for layer in self.layers[:-1]:
+            h = layer(h, edge_index).relu()
+            h = F.dropout(h, p=self.dropout, training=self.training)
+
+        if self.linear_layer:
+            out = self.layers[-1](h)
+        else:
+            out = self.layers[-1](h, edge_index)
+
         if self.last_layer == "softmax":
             return F.softmax(out, dim=1)
         elif self.last_layer == "relu":
             return F.relu(out)
         else:
             return out
+
+
+class MLP(nn.Module):
+    def __init__(
+        self,
+        layer_sizes,
+        dropout=0.5,
+        softmax=True,
+    ):
+        super().__init__()
+
+        self.num_layers = len(layer_sizes) - 1
+        self.dropout = dropout
+        self.softmax = softmax
+
+        self.layers = self.create_models(layer_sizes)
+
+    def __getitem__(self, item):
+        return self.layers[item]
+
+    def create_models(self, layer_sizes):
+        layers = nn.ParameterList()
+        for layer_num in range(self.num_layers):
+            layer = nn.Linear(layer_sizes[layer_num], layer_sizes[layer_num + 1])
+            layers.append(layer)
+
+        return layers
+
+    def reset_parameters(self) -> None:
+        for layers in self.layers:
+            layers.reset_parameters()
+
+    def state_dict(self):
+        weights = {}
+        for id, layer in enumerate(self.layers):
+            weights[f"layer{id}"] = layer.state_dict()
+        return weights
+
+    def load_state_dict(self, weights: dict) -> None:
+        for id, layer in enumerate(self.layers):
+            layer.load_state_dict(weights[f"layer{id}"])
+
+    def forward(self, x):
+        h = x
+        for layer in self.layers[:-1]:
+            h = layer(h).relu()
+            h = F.dropout(h, p=self.dropout, training=self.training)
+
+        out = self.layers[-1](h)
+
+        if self.softmax:
+            out = F.softmax(out, dim=1)
+        return out
+
+    def fit(self, x, y, masks, epochs, verbose=False):
+        train_mask, val_mask, test_mask = masks
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.005, weight_decay=5e-4)
+
+        self.train()
+        for epoch in range(epochs + 1):
+            # Training
+            optimizer.zero_grad()
+            out = self(x)
+            loss = criterion(out[train_mask], y[train_mask])
+            acc = calc_accuracy(out[train_mask].argmax(dim=1), y[train_mask])
+            f1_score = calc_f1_score(out[train_mask].argmax(dim=1), y[train_mask])
+            loss.backward()
+            optimizer.step()
+
+            # Validation
+            val_loss = criterion(out[val_mask], y[val_mask])
+            val_acc = calc_accuracy(out[val_mask].argmax(dim=1), y[val_mask])
+            val_f1_score = calc_f1_score(out[val_mask].argmax(dim=1), y[val_mask])
+
+            # Print metrics every 10 epochs
+            if verbose:
+                if epoch % 10 == 0:
+                    print(
+                        f"Epoch {epoch:>3} | Train Loss: {loss:.3f} | Train Acc:"
+                        f" {acc*100:>6.2f}% | Val Loss: {val_loss:.2f} | "
+                        f"F1 Score: {f1_score*100:.2f}% | "
+                        f"Val Acc: {val_acc*100:.2f}% | "
+                        f"Val F1 Score: {val_f1_score*100:.2f}%",
+                        end="\r",
+                    )
+
+        if verbose:
+            print("\n")
+
+        return val_acc, val_loss
+        # return loss, val_loss, acc, val_acc, TP, val_TP
+
+    def test(self, x, y):
+        out = self(x)
+        test_accuracy = calc_accuracy(out.argmax(dim=1), y)
+        return test_accuracy
