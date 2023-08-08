@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler, normalize
 
 
 from src.models.Node2Vec import find_node2vect_embedings
-from src.utils.GDV import GDV
+from src.utils.GDV2 import GDV
 
 
 class Graph(Data):

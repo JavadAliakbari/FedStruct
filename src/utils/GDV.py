@@ -59,7 +59,7 @@ class GDV:
         pass
 
     def adjacent(self, a, b):
-        if b in self.adj[a]:
+        if b in self.set_adj[a]:
             return True
         return False
 
@@ -84,10 +84,12 @@ class GDV:
         m = edges.shape[1]
 
         self.adj = []
+        self.set_adj = []
         deg = []
         for i in range(n):
-            neighbors = find_neighbors_(i, edges)
+            neighbors = find_neighbors_(i, edges).tolist()
             self.adj.append(neighbors)
+            self.set_adj.append(set(neighbors))
             deg.append(len(neighbors))
 
         # deg, adj, _, _ =  Graph.add_structural_features_(edges)
@@ -119,7 +121,7 @@ class GDV:
                     for n3 in range(n2 + 1, deg[x]):
                         c = self.adj[x][n3]
                         # st = (
-                        #     # self.adjacent(a, b)
+                        #     self.adjacent(a, b)
                         #     + self.adjacent(a, c)
                         #     + self.adjacent(b, c)
                         # )
@@ -143,9 +145,9 @@ class GDV:
             common_neighbors = np.intersect1d(self.adj[x], self.adj[y])
             tri[i] = len(common_neighbors)
 
-        tri = [
-            val / 2 for val in tri
-        ]  # every triangle counts twice becase of (x,y) (y,x)
+        # tri = [
+        #     val / 2 for val in tri
+        # ]  # every triangle counts twice becase of (x,y) (y,x)
 
         C5 = n * [0]
         neigh = n * [0]
@@ -172,7 +174,7 @@ class GDV:
                     for j in range(i + 1, nn):
                         zz = neigh[j]
                         if self.adjacent(z, zz):
-                            neigh[nn2] = zz
+                            neigh2[nn2] = zz
                             nn2 += 1
 
                     for i2 in range(nn2):
@@ -308,7 +310,7 @@ class GDV:
                         if not self.adjacent(a, c) or not self.adjacent(b, c):
                             continue
                         orbit[x][14] += 1
-                        f_70 += common3.get(Triple(a, b, c, n), 0) - 1
+                        f_70 += common3.get(Triple(a, b, c, n).key, 0) - 1
                         if tri[xa] > 2 and tri[xb] > 2:
                             f_71 += common3.get(Triple(x, a, b, n).key, 0) - 1
                         if tri[xa] > 2 and tri[xc] > 2:
@@ -334,7 +336,18 @@ class GDV:
                             continue
                         orbit[x][13] += 1
                         if tri[xb] > 1 and tri[xc] > 1:
-                            f_69 += common3.get(Triple(x, b, c, n).key, 0) - 1
+                            f_69 += (
+                                len(
+                                    np.intersect1d(
+                                        np.intersect1d(
+                                            self.adj[x], self.adj[b], assume_unique=True
+                                        ),
+                                        self.adj[c],
+                                        assume_unique=True,
+                                    )
+                                )
+                                - 1
+                            )
                         # f_68 += (
                         #     common3.get(Triple(a, b, c, n).key, 0) - 1
                         # )  # exception

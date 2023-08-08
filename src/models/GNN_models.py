@@ -69,7 +69,7 @@ class GNN(torch.nn.Module):
             if layer_num == self.num_layers - 1 and self.linear_layer:
                 layer = nn.Linear(in_dims[layer_num], out_dims[layer_num])
             else:
-                layer = SAGEConv(in_dims[layer_num], out_dims[layer_num], aggr="max")
+                layer = SAGEConv(in_dims[layer_num], out_dims[layer_num], aggr="mean")
             layers.append(layer)
 
         return layers
