@@ -429,7 +429,7 @@ def create_homophilic_graph2(num_patterns, circular_pos=False):
     random_feature = 0
     for _ in range(num_patterns):
         random_structure = np.random.randint(0, 2)
-        random_feature = np.random.randint(0, 2)
+        # random_feature = np.random.randint(0, 2)
         if random_structure == 0:
             edge_index_, node_ids_, x_, y_, lock_, pos_ = create_pattern1(
                 random_feature

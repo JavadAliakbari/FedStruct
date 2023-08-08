@@ -9,7 +9,9 @@ from torch.utils.data import DataLoader
 from src.models.GNN_models import MLP, calc_accuracy, calc_f1_score
 from src.classifier import Classifier
 from src.utils.graph import Graph
-from src.utils import config
+from src.utils.config_parser import Config
+
+config = Config()
 
 
 class MLPClassifier(Classifier):
@@ -29,15 +31,15 @@ class MLPClassifier(Classifier):
         if dim_in is None:
             dim_in = self.graph.num_features
 
-        in_dims = [dim_in] + config.classifier_layer_sizes + [self.num_classes]
+        in_dims = [dim_in] + config.model.classifier_layer_sizes + [self.num_classes]
         self.model = MLP(
             layer_sizes=in_dims,
-            dropout=config.dropout,
+            dropout=config.model.dropout,
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=config.lr, weight_decay=5e-4
+            self.model.parameters(), lr=config.model.lr, weight_decay=5e-4
         )
 
     def prepare_data(

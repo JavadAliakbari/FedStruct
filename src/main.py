@@ -10,7 +10,7 @@ from torch_geometric.datasets import (
 )
 from torch_geometric.utils import degree, to_undirected, remove_self_loops
 
-from src.utils import config
+from src.utils.config_parser import Config
 from src.utils.create_graph import create_homophilic_graph2
 from src.utils.logger import get_logger
 from src.utils.graph_partinioning import louvain_graph_cut
@@ -27,17 +27,21 @@ random.seed(4)
 np.random.seed(4)
 torch.manual_seed(4)
 
+config = Config()
+
 
 def set_up_system():
-    _LOGGER = get_logger(name=config.dataset, log_on_file=True)
+    _LOGGER = get_logger(name=config.dataset.dataset_name, log_on_file=True)
 
     try:
-        dataset = Planetoid(root=f"/tmp/{config.dataset}", name=config.dataset)
-        # dataset = WikipediaNetwork(
-        #     root=f"/tmp/{config.dataset}", geom_gcn_preprocess=True, name=config.dataset
-        # )
+        # dataset = Planetoid(root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name)
+        dataset = WikipediaNetwork(
+            root=f"/tmp/{config.dataset.dataset_name}",
+            geom_gcn_preprocess=True,
+            name=config.dataset.dataset_name,
+        )
         # dataset = HeterophilousGraphDataset(
-        #     root=f"/tmp/{config.dataset}", name=config.dataset
+        #     root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name
         # )
     except:
         _LOGGER.info("dataset name does not exist!")
@@ -75,20 +79,21 @@ def set_up_system():
     server.train_local_mlp()
     _LOGGER.info(f"Server test accuracy: {server.test_local_mlp():.4f}")
     server.train_local_mlps()
-    server.train_FLSW(config.epoch_classifier, model_type="MLP")
-    server.train_FLSG_MLP(3 * config.epoch_classifier)
+    server.train_FLSW(config.model.epoch_classifier, model_type="MLP")
+    server.train_FLSG_MLP(3 * config.model.epoch_classifier)
 
     _LOGGER.info("GNN")
     server.train_local_gnn()
     _LOGGER.info(f"Server test accuracy: {server.test_local_gnn():0.4f}")
     server.train_local_gnns()
     server.train_FLSW()
-    server.train_FLSG(3 * config.epoch_classifier)
-    server.train_SDSW(500)
-    server.train_SDSG(500)
+    server.train_FLSG(3 * config.model.epoch_classifier)
+    server.train_SDSW(config.model.epoch_classifier)
+    server.train_SDSG(3 * config.model.epoch_classifier)
 
     # server.train_sd_ptor()
 
 
-set_up_system()
-# plt.show()
+if __name__ == "__main__":
+    set_up_system()
+    # plt.show()

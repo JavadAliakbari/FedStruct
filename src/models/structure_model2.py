@@ -14,10 +14,12 @@ from torch_geometric.nn import MessagePassing
 from tqdm import tqdm
 from src.GNN_classifier import GNNClassifier
 
-from src.utils import config
+from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.utils.graph_partinioning import louvain_graph_cut
 from src.models.GNN_models import GNN, MLP, calc_accuracy
+
+config = Config()
 
 
 class JointModel(torch.nn.Module):
@@ -29,7 +31,7 @@ class JointModel(torch.nn.Module):
         structure_layer_sizes,
         num_classes=None,
         client_layer_sizes=None,
-        dropout=config.dropout,
+        dropout=config.model.dropout,
         last_layer="softmax",
         logger=None,
     ):
@@ -86,7 +88,9 @@ class JointModel(torch.nn.Module):
             #     continue
             parameters = list(layers.parameters())
             # parameters += list(self.models[f"structure_model"].parameters())
-            optimizer = torch.optim.Adam(parameters, lr=config.lr, weight_decay=5e-4)
+            optimizer = torch.optim.Adam(
+                parameters, lr=config.model.lr, weight_decay=5e-4
+            )
             optimizers[model_name] = optimizer
 
         return optimizers
@@ -356,7 +360,7 @@ if __name__ == "__main__":
     )
 
     graph.add_masks(train_size=0.5, test_size=0.2)
-    graph.add_structural_features(config.num_structural_features)
+    graph.add_structural_features(config.structure_model.num_structural_features)
 
     num_classes = dataset.num_classes
 
@@ -365,15 +369,15 @@ if __name__ == "__main__":
 
     GNN = JointModel(
         num_clients=num_clients,
-        client_layer_sizes=[graph.num_features] + config.classifier_layer_sizes,
-        structure_layer_sizes=[config.num_structural_features]
-        + config.classifier_layer_sizes,
+        client_layer_sizes=[graph.num_features] + config.model.classifier_layer_sizes,
+        structure_layer_sizes=[config.structure_model.num_structural_features]
+        + config.model.classifier_layer_sizes,
         num_classes=num_classes,
     )
 
     criterion = torch.nn.CrossEntropyLoss()
     parameters = list(GNN.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=config.lr, weight_decay=5e-4)
+    optimizer = torch.optim.Adam(parameters, lr=config.model.lr, weight_decay=5e-4)
 
     GNN.forward(subgraphs, graph)
     a = 2

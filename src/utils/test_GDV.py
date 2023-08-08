@@ -5,7 +5,7 @@ import numpy as np
 from torch_geometric.datasets import TUDataset, Planetoid, WikipediaNetwork
 from torch_geometric.utils import degree, to_undirected, remove_self_loops
 
-from src.utils import config
+from src.utils.config_parser import Config
 from src.utils.GDV import GDV as GDV1
 
 from src.utils.GDV2 import GDV as GDV2
@@ -16,6 +16,8 @@ from src.utils.create_graph import (
     create_homophilic_graph,
     create_homophilic_graph2,
 )
+
+config = Config()
 
 if __name__ == "__main__":
     edges = [
@@ -65,10 +67,10 @@ if __name__ == "__main__":
     # edge_index = create_homophilic_graph2(num_patterns).edge_index
 
     edge_index = Planetoid(
-        root=f"/tmp/{config.dataset}", name=config.dataset
+        root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name
     ).edge_index
     # dataset = WikipediaNetwork(
-    #     root=f"/tmp/{config.dataset}", geom_gcn_preprocess=True, name=config.dataset
+    #     root=f"/tmp/{config.dataset.dataset_name}", geom_gcn_preprocess=True, name=config.dataset.dataset_name
     # )
 
     edge_index = to_undirected(edge_index)

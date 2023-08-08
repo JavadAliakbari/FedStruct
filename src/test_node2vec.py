@@ -10,7 +10,6 @@ from sklearn.manifold import TSNE
 from torch_geometric.nn.models import Node2Vec
 from torch_geometric.datasets import TUDataset, Planetoid
 
-from src.utils import config
 from src.utils.graph import Graph
 from src.models.GNN_models import MLP
 from src.models.Node2Vec import find_node2vect_embedings

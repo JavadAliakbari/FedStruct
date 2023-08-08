@@ -1,11 +1,13 @@
 import logging
 import operator
 
-from src.utils import config
+from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.GNN_classifier import GNNClassifier
 from src.MLP_classifier import MLPClassifier
 from src.models.GNN_models import GNN, MLP
+
+config = Config()
 
 
 class Client:
@@ -43,14 +45,14 @@ class Client:
         return self.subgraph.node_ids
 
     def create_local_sd_model(self, sd_dims):
-        cls_dims = [self.subgraph.num_features] + config.classifier_layer_sizes
+        cls_dims = [self.subgraph.num_features] + config.model.classifier_layer_sizes
         in_dims = list(map(operator.add, cls_dims, sd_dims))
-        out_dims = config.classifier_layer_sizes + [self.num_classes]
+        out_dims = config.model.classifier_layer_sizes + [self.num_classes]
         self.local_sd_model = GNN(
             in_dims=in_dims,
             out_dims=out_dims,
             linear_layer=True,
-            dropout=config.dropout,
+            dropout=config.model.dropout,
             last_layer="softmax",
         )
         # self.local_sd_model = MLP(
@@ -78,8 +80,8 @@ class Client:
     ) -> None:
         classifier.prepare_data(
             graph=graph,
-            batch_size=config.batch_size,
-            num_neighbors=config.num_samples,
+            batch_size=config.model.batch_size,
+            num_neighbors=config.model.num_samples,
             shuffle=True,
         )
 
@@ -102,7 +104,7 @@ class Client:
     def train_local_gnn(self) -> None:
         self.initialize_gnn()
         return self.fit_gnn(
-            config.epoch_classifier,
+            config.model.epoch_classifier,
             bar=True,
             plot=True,
             type="local",
@@ -127,7 +129,7 @@ class Client:
     ) -> None:
         classifier.prepare_data(
             graph=graph,
-            batch_size=config.batch_size,
+            batch_size=config.model.batch_size,
         )
 
         classifier.set_classifiers(dim_in=dim_in)
@@ -149,7 +151,7 @@ class Client:
     def train_local_mlp(self) -> None:
         self.initialize_mlp()
         return self.fit_mlp(
-            config.epoch_classifier,
+            config.model.epoch_classifier,
             bar=True,
             plot=True,
             type="local",

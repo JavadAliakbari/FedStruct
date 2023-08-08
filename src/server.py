@@ -6,12 +6,14 @@ import torch
 from tqdm import tqdm
 from src.classifier import Classifier
 
-from src.utils import config
+from src.utils.config_parser import Config
 from src.client import Client
 from src.utils.graph import Graph
 from src.GNN_classifier import GNNClassifier
 from src.MLP_classifier import MLPClassifier
 from src.structure_predictor import StructurePredictor
+
+config = Config()
 
 
 class Server(Client):
@@ -92,7 +94,9 @@ class Server(Client):
         self.sd_predictor.load_state_dict(weights)
 
     def initialize_sd_predictor(self) -> None:
-        sd_dims = [config.num_structural_features] + config.structure_layers_size
+        sd_dims = [
+            config.structure_model.num_structural_features
+        ] + config.structure_model.structure_layers_size
 
         self.create_local_sd_model(sd_dims)
         server_model = self.get_local_sd_model()
@@ -116,7 +120,7 @@ class Server(Client):
         return self.sd_predictor.fit(epochs=epochs, bar=bar, plot=plot, predict=predict)
 
     def train_sd_predictor(
-        self, epochs=config.epoch_classifier, bar=True, plot=True, predict=False
+        self, epochs=config.model.epoch_classifier, bar=True, plot=True, predict=False
     ) -> None:
         self.initialize_sd_predictor()
         return self.fit_sd_predictor(epochs, bar=bar, plot=plot, predict=predict)
@@ -165,7 +169,7 @@ class Server(Client):
 
             self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
 
-    def train_FLSW(self, epochs=config.epoch_classifier, model_type="GNN"):
+    def train_FLSW(self, epochs=config.model.epoch_classifier, model_type="GNN"):
         self.LOGGER.info("FLSW starts!")
         criterion = torch.nn.CrossEntropyLoss()
         plot_results = {}
@@ -232,11 +236,11 @@ class Server(Client):
             for client in self.clients:
                 if model_type == "GNN":
                     client.set_gnn_weights(weights)
-                    res = client.fit_gnn(config.epochs_local)
+                    res = client.fit_gnn(config.model.epochs_local)
                     new_weights = client.get_gnn_weights()
                 elif model_type == "MLP":
                     client.set_mlp_weights(weights)
-                    res = client.fit_mlp(config.epochs_local)
+                    res = client.fit_mlp(config.model.epochs_local)
                     new_weights = client.get_mlp_weights()
 
                 sum_weights = Server.add_weights(sum_weights, new_weights)
@@ -298,7 +302,9 @@ class Server(Client):
         GNN_model = self.gnn_classifier
         server_parameters = list(GNN_model.parameters())
 
-        optimizer = torch.optim.Adam(server_parameters, lr=config.lr, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(
+            server_parameters, lr=config.model.lr, weight_decay=5e-4
+        )
         criterion = torch.nn.CrossEntropyLoss()
 
         for client in self.clients:
@@ -435,7 +441,9 @@ class Server(Client):
         mlp_model = self.mlp_classifier
         server_parameters = list(mlp_model.parameters())
 
-        optimizer = torch.optim.Adam(server_parameters, lr=config.lr, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(
+            server_parameters, lr=config.model.lr, weight_decay=5e-4
+        )
         criterion = torch.nn.CrossEntropyLoss()
 
         for client in self.clients:

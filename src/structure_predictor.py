@@ -9,12 +9,14 @@ import matplotlib.pyplot as plt
 from torch.nn.functional import normalize
 from torch_geometric.nn import MessagePassing
 
-from src.utils import config
+from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.models.structure_model import JointModel
 
 # from src.models.structure_model2 import JointModel
 from src.models.GNN_models import GNN, MLP, calc_accuracy
+
+config = Config()
 
 
 class StructurePredictor:
@@ -39,8 +41,8 @@ class StructurePredictor:
         )
 
         self.graph.add_structural_features(
-            structure_type=config.structure_type,
-            num_structural_features=config.num_structural_features,
+            structure_type=config.structure_model.structure_type,
+            num_structural_features=config.structure_model.num_structural_features,
         )
 
         if self.graph.y is not None:
@@ -53,7 +55,7 @@ class StructurePredictor:
             structure_layer_sizes=sd_layer_size,
             # num_classes=num_classes,
             linear_layer=True,
-            dropout=config.dropout,
+            dropout=config.model.dropout,
             logger=self.LOGGER,
         )
 
@@ -63,7 +65,9 @@ class StructurePredictor:
             self.model[f"structure_model"].parameters()
         )
 
-        self.optimizer = torch.optim.Adam(parameters, lr=config.lr, weight_decay=5e-4)
+        self.optimizer = torch.optim.Adam(
+            parameters, lr=config.model.lr, weight_decay=5e-4
+        )
         self.criterion = torch.nn.CrossEntropyLoss()
 
     def initialize_structural_graph(
@@ -227,7 +231,7 @@ class StructurePredictor:
 
     def fit(
         self,
-        epochs=config.gen_epochs,
+        epochs=config.model.gen_epochs,
         plot=False,
         bar=False,
         predict=False,
@@ -350,7 +354,9 @@ class StructurePredictor:
 
                 cls_train_loss = self.criterion(y_pred[train_mask], y[train_mask])
                 str_train_loss = client_structure_loss[train_mask].mean()
-                train_loss = cls_train_loss + config.sd_ratio * str_train_loss
+                train_loss = (
+                    cls_train_loss + config.structure_model.sd_ratio * str_train_loss
+                )
                 loss_list[ind] = train_loss
 
                 train_acc = calc_accuracy(

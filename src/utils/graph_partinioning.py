@@ -8,9 +8,11 @@ from sknetwork.clustering import Louvain
 from torch_geometric.utils import subgraph
 from torch_geometric.utils.convert import to_scipy_sparse_matrix
 
-from src.utils import config
+from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.utils.plot_graph import plot_graph
+
+config = Config()
 
 
 def plot_communities(graph, community):
@@ -27,10 +29,10 @@ def plot_subgraphs(graph, subgraphs):
         nodes_list.append(nodes)
 
     node_color = []
-    rate = 1 / (config.num_subgraphs - 1)
+    rate = 1 / (config.subgraph.num_subgraphs - 1)
     for node in range(graph.num_nodes):
         node_color.append(0.25)
-        for i in range(config.num_subgraphs):
+        for i in range(config.subgraph.num_subgraphs):
             if node in nodes_list[i]:
                 node_color[-1] = i * rate
 
@@ -93,13 +95,13 @@ def assign_nodes_to_subgraphs(community_groups, max_subgraph_nodes):
     for community in community_groups.keys():
         while (
             len(subgraph_node_ids[current_subgraph]) + len(community_groups[community])
-            >= max_subgraph_nodes + config.delta
+            >= max_subgraph_nodes + config.subgraph.delta
             or len(subgraph_node_ids[current_subgraph]) >= max_subgraph_nodes
         ):
             current_subgraph = next(subgraphs)
             # define counter to avoid stuck in the loop forever
             counter += 1
-            if counter == config.num_subgraphs:
+            if counter == config.subgraph.num_subgraphs:
                 return subgraph_node_ids
         subgraph_node_ids[current_subgraph] += community_groups[community]
         counter = 0
@@ -179,8 +181,8 @@ def random_assign(graph, max_subgraph_nodes):
     node_ids = graph.node_ids
     idx = torch.randperm(node_ids.shape[0])
     subgraph_node_ids = {}
-    for i in range(config.num_subgraphs):
-        if i < config.num_subgraphs - 1:
+    for i in range(config.subgraph.num_subgraphs):
+        if i < config.subgraph.num_subgraphs - 1:
             subgraph_node_ids[i] = node_ids[
                 idx[i * max_subgraph_nodes : (i + 1) * max_subgraph_nodes]
             ]
@@ -195,7 +197,7 @@ def louvain_graph_cut(graph):
 
     # community_groups = create_community_groups(community_map=community_map)
 
-    # group_len_max = graph.num_nodes // config.num_subgraphs + config.delta
+    # group_len_max = graph.num_nodes // config.subgraph.num_subgraphs + config.subgraph.delta
 
     # community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
 
@@ -206,7 +208,7 @@ def louvain_graph_cut(graph):
     #     )
     # }
 
-    max_subgraph_nodes = graph.num_nodes // config.num_subgraphs
+    max_subgraph_nodes = graph.num_nodes // config.subgraph.num_subgraphs
     # subgraph_node_ids = assign_nodes_to_subgraphs(
     #     sorted_community_groups, max_subgraph_nodes
     # )

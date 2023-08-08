@@ -12,8 +12,10 @@ from src.server import Server
 from src.utils.create_graph import create_heterophilic_graph2, create_homophilic_graph2
 from src.utils.graph import Graph
 from src.utils.logger import get_logger
-from src.utils import config
+from src.utils.config_parser import Config
 from src.models.GNN_models import MLP
+
+config = Config()
 
 np.random.seed(4)
 torch.manual_seed(4)
@@ -41,9 +43,9 @@ def plot(x):
 
 
 if __name__ == "__main__":
-    # dataset = Planetoid(root=f"/tmp/{config.dataset}", name=config.dataset)
+    # dataset = Planetoid(root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name)
     # dataset = WikipediaNetwork(
-    #     root=f"/tmp/{config.dataset}", geom_gcn_preprocess=True, name=config.dataset
+    #     root=f"/tmp/{config.dataset.dataset_name}", geom_gcn_preprocess=True, name=config.dataset.dataset_name
     # )
 
     # node_ids = torch.arange(dataset[0].num_nodes)
@@ -55,13 +57,15 @@ if __name__ == "__main__":
     #     node_ids=node_ids,
     # )
     # _LOGGER = get_logger(
-    #     name=f"SD_{config.dataset}_{config.structure_type}", log_on_file=True
+    #     name=f"SD_{config.dataset.dataset_name}_{config.structure_type}", log_on_file=True
     # )
 
     num_patterns = 50
     graph = create_homophilic_graph2(num_patterns)
     # graph = create_heterophilic_graph2(num_patterns)
-    _LOGGER = get_logger(name=f"SD_Costum_{config.structure_type}", log_on_file=True)
+    _LOGGER = get_logger(
+        name=f"SD_Costum_{config.structure_model.structure_type}", log_on_file=True
+    )
 
     graph.add_masks()
 
@@ -85,7 +89,13 @@ if __name__ == "__main__":
 
     message_passing = MessagePassing(aggr="mean")
     for i in range(20):
-        cls = MLP(layer_sizes=[config.num_structural_features, 64, num_classes])
+        cls = MLP(
+            layer_sizes=[
+                config.structure_model.num_structural_features,
+                64,
+                num_classes,
+            ]
+        )
         masks = (graph.train_mask, graph.val_mask, graph.test_mask)
         vall_acc, val_loss = cls.fit(x, y, masks, epochs=100, verbose=False)
         _LOGGER.info(f"epoch: {i} vall accuracy: {vall_acc}")
