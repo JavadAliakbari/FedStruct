@@ -4,4 +4,4 @@
   conda env create -f ./SDSFL.yml -n SDSFL  
   conda activate SDSFL  
 3. You can change hyper-parameters in ~/config/config.py according to different testing scenarios;
-4. Run the whole pipline with 'python ~/nips_code/src/system_test.py'.
+4. Run the whole pipline with 'python ~/src/main.py'.
