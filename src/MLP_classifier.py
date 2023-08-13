@@ -6,10 +6,11 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from src.models.GNN_models import MLP, calc_accuracy, calc_f1_score
-from src.classifier import Classifier
+from src.utils.utils import *
 from src.utils.graph import Graph
+from src.classifier import Classifier
 from src.utils.config_parser import Config
+from src.models.GNN_models import MLP, calc_accuracy, calc_f1_score
 
 config = Config()
 
@@ -35,6 +36,8 @@ class MLPClassifier(Classifier):
         self.model = MLP(
             layer_sizes=in_dims,
             dropout=config.model.dropout,
+            softmax=True,
+            batch_normalization=True,
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -63,7 +66,7 @@ class MLPClassifier(Classifier):
         self.train_loader = DataLoader(
             list(zip(train_x, train_y)), batch_size=batch_size, shuffle=True
         )
-        self.valid_loader = DataLoader(
+        self.val_loader = DataLoader(
             list(zip(val_x, val_y)), batch_size=batch_size, shuffle=False
         )
 
@@ -72,12 +75,24 @@ class MLPClassifier(Classifier):
     def fit(
         self,
         epochs: int,
+        batch=False,
         plot=False,
         bar=False,
         type="local",
     ):
         if bar:
             bar = tqdm(total=epochs, position=0)
+
+        if batch:
+            train_loader = self.train_loader
+            val_loader = self.val_loader
+        else:
+            train_x = self.graph.x[self.graph.train_mask]
+            train_y = self.graph.y[self.graph.train_mask]
+            val_x = self.graph.x[self.graph.val_mask]
+            val_y = self.graph.y[self.graph.val_mask]
+            train_loader = [(train_x, train_y)]
+            val_loader = [(val_x, val_y)]
         res = []
         for epoch in range(epochs):
             (
@@ -87,7 +102,7 @@ class MLPClassifier(Classifier):
                 val_loss,
                 val_acc,
                 val_TP,
-            ) = self.batch_training()
+            ) = self.batch_training(train_loader, val_loader)
 
             metrics = {
                 "Train Loss": round(loss.item(), 4),
@@ -111,11 +126,11 @@ class MLPClassifier(Classifier):
             self.LOGGER.info(metrics)
 
         if plot:
-            MLPClassifier.plot_results(res, self.id, type, model_type="MLP")
+            plot_metrics(res, self.id, type, model_type="MLP")
 
         return res
 
-    def batch_training(self):
+    def batch_training(self, train_loader, val_loader):
         # Train on batches
         total_loss = torch.tensor([0], dtype=torch.float32, requires_grad=False)
         total_acc = 0
@@ -125,7 +140,7 @@ class MLPClassifier(Classifier):
         total_val_TP = 0
         train_count = 1e-6
         val_count = 1e-6
-        for train_x, train_y in self.train_loader:
+        for train_x, train_y in train_loader:
             self.optimizer.zero_grad()
 
             self.model.train()
@@ -146,7 +161,7 @@ class MLPClassifier(Classifier):
 
         self.model.eval()
         with torch.no_grad():
-            for val_x, val_y in self.valid_loader:
+            for val_x, val_y in val_loader:
                 out = self.model(val_x)
                 val_loss = self.criterion(out, val_y)
                 val_acc = calc_accuracy(out.argmax(dim=1), val_y)

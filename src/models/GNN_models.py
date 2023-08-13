@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import SAGEConv
+from torch_geometric.nn import SAGEConv, GCNConv, GATConv
 from sklearn.metrics import f1_score
 
 
@@ -43,6 +43,7 @@ class GNN(torch.nn.Module):
         dropout=0.5,
         linear_layer=False,
         last_layer="softmax",
+        batch_normalization=False,
     ):
         super().__init__()
         if out_dims is not None:
@@ -57,6 +58,7 @@ class GNN(torch.nn.Module):
         self.linear_layer = linear_layer
         self.dropout = dropout
         self.last_layer = last_layer
+        self.batch_normalization = batch_normalization
 
         self.layers = self.create_models(input_dims, output_dims)
 
@@ -65,31 +67,46 @@ class GNN(torch.nn.Module):
 
     def create_models(self, in_dims, out_dims):
         layers = nn.ParameterList()
+        if self.batch_normalization:
+            self.batch_layer = nn.BatchNorm1d(in_dims[0])
         for layer_num in range(self.num_layers):
             if layer_num == self.num_layers - 1 and self.linear_layer:
                 layer = nn.Linear(in_dims[layer_num], out_dims[layer_num])
             else:
                 layer = SAGEConv(in_dims[layer_num], out_dims[layer_num], aggr="mean")
+                # layer = GCNConv(in_dims[layer_num], out_dims[layer_num], aggr="mean")
+                # layer = GATConv(in_dims[layer_num], out_dims[layer_num], aggr="mean")
             layers.append(layer)
 
         return layers
 
     def reset_parameters(self) -> None:
+        if self.batch_normalization:
+            self.batch_layer.reset_parameters()
         for layers in self.layers:
             layers.reset_parameters()
 
     def state_dict(self):
         weights = {}
+        if self.batch_normalization:
+            weights["batch_layer"] = self.batch_layer.state_dict()
+
         for id, layer in enumerate(self.layers):
             weights[f"layer{id}"] = layer.state_dict()
         return weights
 
     def load_state_dict(self, weights: dict) -> None:
+        if self.batch_normalization:
+            self.batch_layer.load_state_dict(weights["batch_layer"])
+
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
 
     def forward(self, x, edge_index):
         h = x
+        if self.batch_normalization:
+            h = self.batch_layer(h)
+
         for layer in self.layers[:-1]:
             h = layer(h, edge_index).relu()
             h = F.dropout(h, p=self.dropout, training=self.training)
@@ -113,12 +130,14 @@ class MLP(nn.Module):
         layer_sizes,
         dropout=0.5,
         softmax=True,
+        batch_normalization=False,
     ):
         super().__init__()
 
         self.num_layers = len(layer_sizes) - 1
         self.dropout = dropout
         self.softmax = softmax
+        self.batch_normalization = batch_normalization
 
         self.layers = self.create_models(layer_sizes)
 
@@ -127,6 +146,8 @@ class MLP(nn.Module):
 
     def create_models(self, layer_sizes):
         layers = nn.ParameterList()
+        if self.batch_normalization:
+            self.batch_layer = nn.BatchNorm1d(layer_sizes[0])
         for layer_num in range(self.num_layers):
             layer = nn.Linear(layer_sizes[layer_num], layer_sizes[layer_num + 1])
             layers.append(layer)
@@ -134,21 +155,29 @@ class MLP(nn.Module):
         return layers
 
     def reset_parameters(self) -> None:
+        if self.batch_normalization:
+            self.batch_layer.reset_parameters()
         for layers in self.layers:
             layers.reset_parameters()
 
     def state_dict(self):
         weights = {}
+        if self.batch_normalization:
+            weights["batch_layer"] = self.batch_layer.state_dict()
         for id, layer in enumerate(self.layers):
             weights[f"layer{id}"] = layer.state_dict()
         return weights
 
     def load_state_dict(self, weights: dict) -> None:
+        if self.batch_normalization:
+            self.batch_layer.load_state_dict(weights["batch_layer"])
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
 
     def forward(self, x):
         h = x
+        if self.batch_normalization:
+            h = self.batch_layer(h)
         for layer in self.layers[:-1]:
             h = layer(h).relu()
             h = F.dropout(h, p=self.dropout, training=self.training)

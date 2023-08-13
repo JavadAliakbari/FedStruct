@@ -31,10 +31,16 @@ config = Config()
 
 
 def set_up_system():
-    _LOGGER = get_logger(name=config.dataset.dataset_name, log_on_file=True)
+    # _LOGGER = get_logger(name=config.dataset.dataset_name, log_on_file=True)
+    _LOGGER = get_logger(
+        name=f"accuracy_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
+        log_on_file=True,
+    )
 
     try:
-        # dataset = Planetoid(root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name)
+        # dataset = Planetoid(
+        #     root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name
+        # )
         dataset = WikipediaNetwork(
             root=f"/tmp/{config.dataset.dataset_name}",
             geom_gcn_preprocess=True,
@@ -59,37 +65,48 @@ def set_up_system():
         node_ids=node_ids,
     )
 
-    # num_patterns = 100
-    # graph = create_homophilic_graph2(num_patterns)
+    # num_patterns = 10
+    # graph = create_homophilic_graph2(num_patterns, use_random_features=True)
     # num_classes = max(graph.y).item() + 1
+
+    # a = edge_index.numpy().T
+    # np.savetxt(
+    #     f"{config.dataset.dataset_name}.edgelist",
+    #     a,
+    #     newline="\n",
+    #     fmt="%d",
+    # )
 
     graph.add_masks(train_size=0.5, test_size=0.2)
 
-    # plot_graph(graph.edge_index, graph.num_nodes)
-    # plt.show()
-
     subgraphs = louvain_graph_cut(graph)
 
-    server = Server(graph, num_classes, logger=_LOGGER)
+    MLP_server = Server(graph, num_classes, classifier_type="MLP", logger=_LOGGER)
 
     for subgraph in subgraphs:
-        server.add_client(subgraph)
+        MLP_server.add_client(subgraph)
 
-    _LOGGER.info("MLP")
-    server.train_local_mlp()
-    _LOGGER.info(f"Server test accuracy: {server.test_local_mlp():.4f}")
-    server.train_local_mlps()
-    server.train_FLSW(config.model.epoch_classifier, model_type="MLP")
-    server.train_FLSG_MLP(3 * config.model.epoch_classifier)
+    GNN_server = Server(graph, num_classes, classifier_type="GNN", logger=_LOGGER)
 
-    _LOGGER.info("GNN")
-    server.train_local_gnn()
-    _LOGGER.info(f"Server test accuracy: {server.test_local_gnn():0.4f}")
-    server.train_local_gnns()
-    server.train_FLSW()
-    server.train_FLSG(3 * config.model.epoch_classifier)
-    server.train_SDSW(config.model.epoch_classifier)
-    server.train_SDSG(3 * config.model.epoch_classifier)
+    for subgraph in subgraphs:
+        GNN_server.add_client(subgraph)
+
+    # _LOGGER.info("MLP")
+    # MLP_server.train_local_classifier(config.model.epoch_classifier)
+    # _LOGGER.info(f"Server test accuracy: {MLP_server.test_local_classifier():.4f}")
+    # MLP_server.train_local_classifiers(config.model.epoch_classifier)
+    # MLP_server.train_FLSW(config.model.epoch_classifier)
+    # MLP_server.train_FLSG(config.model.epoch_classifier)
+
+    # _LOGGER.info("GNN")
+    # GNN_server.train_local_classifier(config.model.epoch_classifier)
+    # _LOGGER.info(f"Server test accuracy: {GNN_server.test_local_classifier():0.4f}")
+    # GNN_server.train_local_classifiers(config.model.epoch_classifier)
+    # GNN_server.train_FLSW(config.model.epoch_classifier)
+    # GNN_server.train_FLSG(config.model.epoch_classifier)
+    GNN_server.train_SD_Server(config.model.epoch_classifier)
+    GNN_server.train_SDSW(config.model.epoch_classifier)
+    GNN_server.train_SDSG(config.model.epoch_classifier)
 
     # server.train_sd_ptor()
 

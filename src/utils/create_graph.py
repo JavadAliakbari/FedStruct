@@ -414,7 +414,9 @@ def create_homophilic_graph(num_nodes, num_edges, num_patterns):
     return graph
 
 
-def create_homophilic_graph2(num_patterns, circular_pos=False):
+def create_homophilic_graph2(
+    num_patterns, circular_pos=False, use_random_features=False
+):
     num_nodes = 12 * num_patterns
     offset = 0
     base_edge_index = []
@@ -429,7 +431,8 @@ def create_homophilic_graph2(num_patterns, circular_pos=False):
     random_feature = 0
     for _ in range(num_patterns):
         random_structure = np.random.randint(0, 2)
-        # random_feature = np.random.randint(0, 2)
+        if use_random_features:
+            random_feature = np.random.randint(0, 2)
         if random_structure == 0:
             edge_index_, node_ids_, x_, y_, lock_, pos_ = create_pattern1(
                 random_feature

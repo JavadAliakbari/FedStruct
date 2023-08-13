@@ -2,13 +2,15 @@ import yaml
 
 
 class Config:
-    def __init__(self, path="./config/config.yml"):
+    def __init__(self, path="src/config/config.yml"):
         self.config = Config.load_config(path)
 
         self.dataset = Dataset(self.config["dataset"])
         self.subgraph = Subgraph(self.config["subgraph"])
         self.model = Model(self.config["model"])
         self.structure_model = StructureModel(self.config["structure_model"])
+
+        a = 2
 
     def load_config(path):
         with open(path) as f:
@@ -41,12 +43,11 @@ class Model:
     def load_config(self, model):
         self.num_samples = model["num_samples"]
         self.batch_size = model["batch_size"]
-        self.latent_dim = model["latent_dim"]
-        self.steps = model["steps"]
+        # self.steps = model["steps"]
         self.epochs_local = model["epochs_local"]
         self.lr = model["lr"]
         self.weight_decay = model["weight_decay"]
-        self.hidden = model["hidden"]
+        # self.hidden = model["hidden"]
         self.dropout = model["dropout"]
         self.gen_epochs = model["gen_epochs"]
         self.epoch_classifier = model["epoch_classifier"]
@@ -62,3 +63,4 @@ class StructureModel:
         self.structure_layers_size = structure_model["structure_layers_size"]
         self.structure_type = structure_model["structure_type"]
         self.num_structural_features = structure_model["num_structural_features"]
+        self.loss = structure_model["loss"]

@@ -9,6 +9,7 @@ from torch_geometric.data import Data
 from torch_geometric.typing import OptTensor, Tensor
 from torch_geometric.utils import degree
 from sklearn.preprocessing import StandardScaler, normalize
+from torch_geometric.nn import MessagePassing
 
 
 from src.models.Node2Vec import find_node2vect_embedings
@@ -24,7 +25,7 @@ class Graph(Data):
         y: OptTensor = None,
         pos: OptTensor = None,
         node_ids=None,
-        **kwargs
+        **kwargs,
     ) -> None:
         if node_ids is None:
             node_ids = np.arange(len(x))
@@ -64,6 +65,14 @@ class Graph(Data):
         )
 
         return node_map, torch.tensor(new_edges)
+
+    def get_masks(self):
+        return (self.train_mask, self.val_mask, self.test_mask)
+
+    def set_masks(self, masks):
+        self.train_mask = masks[0]
+        self.val_mask = masks[1]
+        self.test_mask = masks[2]
 
     def add_masks(self, train_size=0.5, test_size=0.2):
         num_nodes = self.num_nodes
@@ -119,7 +128,7 @@ class Graph(Data):
             node_neighbors.append(neighbors)
             node_negative_samples.append(negative_samples)
 
-        node_degree = node_degree = degree(edge_index[0]).long()
+        node_degree = degree(edge_index[0]).long()
 
         if structure_type == "degree":
             structural_features = Graph.calc_degree_features(
@@ -133,6 +142,11 @@ class Graph(Data):
                 embedding_dim=num_structural_features,
                 epochs=50,
             )
+        elif structure_type == "mp":
+            d = Graph.calc_degree_features(edge_index, num_structural_features)
+            structural_features = Graph.calc_mp(edge_index, d)
+        # elif structure_type == "struc2vec":
+        #     structural_features = Graph.calc_stuc2vec()
 
         return node_degree, node_neighbors, structural_features, node_negative_samples
 
@@ -151,6 +165,27 @@ class Graph(Data):
         structural_features = torch.tensor(structural_features, dtype=torch.float32)
 
         return structural_features
+
+    def calc_mp(edge_index, degree, iteration=2):
+        message_passing = MessagePassing(aggr="mean")
+
+        x = degree
+        for _ in range(iteration):
+            x = message_passing.propagate(edge_index, x=x)
+
+        return x
+
+    # def calc_stuc2vec():
+    #     with open(f"chameleon.emb", "r") as f:
+    #         lines = []
+    #         for line in f:
+    #             lines.append([float(x) for x in line.split()])
+    #         # lines = f.readlines()
+    #         x = np.zeros((int(lines[0][0]), int(lines[0][1])), dtype=np.float32)
+    #         for line in lines[1:]:
+    #             x[int(line[0])] = np.array(line[1:])
+
+    #     return torch.Tensor(x)
 
     def find_class_neighbors(self):
         class_groups, negative_class_groups = Graph.find_class_neighbors_(

@@ -1,24 +1,16 @@
 import logging
 import operator
 from ast import List
-from copy import deepcopy
-from itertools import product
 from collections import deque
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.datasets import TUDataset, Planetoid
-import numpy as np
-from torch.nn.functional import normalize
-from torch_geometric.nn import MessagePassing
-from tqdm import tqdm
-from src.GNN_classifier import GNNClassifier
 
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.utils.graph_partinioning import louvain_graph_cut
-from src.models.GNN_models import calc_accuracy
 from src.models.GNN_models import GNN
 
 config = Config()
@@ -76,35 +68,36 @@ class JointModel(torch.nn.Module):
             last_layer="linear",
         )
 
-        self.optimizers = self.create_optimizers()
-        self.criterion = torch.nn.CrossEntropyLoss()
-
-        self.message_passing = MessagePassing(aggr="mean")
-
     def __getitem__(self, item):
         return self.models[item]
 
-    def create_optimizers(self):
-        optimizers = {}
-        for model_name, layers in self.models.items():
-            # if not model_name.startswith("client"):
-            #     continue
-            parameters = list(layers.parameters())
-            # parameters += list(self.models[f"structure_model"].parameters())
-            optimizer = torch.optim.Adam(
-                parameters, lr=config.model.lr, weight_decay=5e-4
-            )
-            optimizers[model_name] = optimizer
+    def __setitem__(self, key, item):
+        self.models[key] = item
 
-        return optimizers
+    def __repr__(self):
+        return repr(self.models)
+
+    def __len__(self):
+        return len(self.models)
+
+    def __iter__(self):
+        return iter(self.models)
+
+    def keys(self):
+        return self.models.keys()
+
+    def values(self):
+        return self.models.values()
+
+    def items(self):
+        return self.models.items()
+
+    def pop(self, *args):
+        return self.models.pop(*args)
 
     def reset_parameters(self) -> None:
         for model in self.models.values():
             model.reset_parameters()
-
-    def reset_optimizers(self) -> None:
-        for optimizer in self.optimizers.values():
-            optimizer.zero_grad()
 
     def state_dict(self):
         model_weights = {}
@@ -133,7 +126,7 @@ class JointModel(torch.nn.Module):
             for client_id in range(num_subgraphs):
                 node_ids = subgraphs[client_id].node_ids
                 edge_index = subgraphs[client_id].edge_index
-                x_s = S[node_ids].clone()
+                x_s = S[node_ids]
                 x = torch.hstack((H.popleft(), x_s))
                 h = self.models[f"client{client_id}"][layer_id](x, edge_index).relu()
                 h = F.dropout(h, p=self.dropout, training=self.training)
@@ -150,7 +143,7 @@ class JointModel(torch.nn.Module):
         for client_id in range(num_subgraphs):
             node_ids = subgraphs[client_id].node_ids
             edge_index = subgraphs[client_id].edge_index
-            x_s = S[node_ids].clone()
+            x_s = S[node_ids]
             x = torch.hstack((H.popleft(), x_s))
             model = self.models[f"client{client_id}"]
             if model.linear_layer:
@@ -171,202 +164,6 @@ class JointModel(torch.nn.Module):
                 out[f"client{client_id}"] = x
 
         return out
-
-    def cosine_similarity(h1, h2):
-        return torch.dot(h1, h2) / (
-            (torch.norm(h1) + 0.000001) * (torch.norm(h2) + 0.000001)
-        )
-
-    def calc_loss(self, embeddings, graph, negative_samples_ratio=0.2):
-        loss = torch.zeros(embeddings.shape[0], dtype=torch.float32)
-        node_ids = graph.node_ids.numpy()
-
-        normalized_embeddings = normalize(embeddings, dim=1)
-
-        edge_index = graph.edge_index
-        neighbors_embeddings = self.message_passing.propagate(
-            edge_index, x=normalized_embeddings
-        )
-
-        negative_edge_index = []
-        negative_samples_list = []
-        for node_id in node_ids:
-            other_nodes = graph.negative_samples[node_id]
-
-            neighbor_size = graph.degree[node_id].item()
-            negative_size = max(5, neighbor_size)
-            negative_samples = np.random.choice(other_nodes, negative_size)
-            negative_samples_list.append(negative_samples)
-            negative_edge_index += list(product(negative_samples, [node_id]))
-
-        negative_edge_index = torch.tensor(np.array(negative_edge_index).T)
-        negative_embeddings = self.message_passing.propagate(
-            negative_edge_index, x=normalized_embeddings
-        )
-
-        diff = negative_embeddings - neighbors_embeddings
-
-        loss = (1 + torch.einsum("ij,ij->i", diff, normalized_embeddings)) / 2
-
-        return loss
-
-    def train_model(self, graph: Graph, subgraphs=[]):
-        self.train()
-        out = self.forward(subgraphs, graph)
-        loss = self.calc_loss(out[f"structure_model"], graph)
-
-        return out, loss
-
-    def fit(self, graph, clients, epochs=1):
-        metrics = {}
-        subgraphs = []
-        plot_results = {}
-        for client in clients:
-            subgraphs.append(client.subgraph)
-            plot_results[f"Client{client.id}"] = []
-
-        bar = tqdm(total=epochs, position=0)
-        for epoch in range(epochs):
-            self.reset_optimizers()
-            out, structure_loss = self.train_model(graph, subgraphs)
-            loss_list = torch.zeros(len(subgraphs), dtype=torch.float32)
-            total_loss = 0
-            for ind, client in enumerate(clients):
-                node_ids = client.get_nodes()
-                y = client.subgraph.y
-                train_mask = client.subgraph.train_mask
-                val_mask = client.subgraph.val_mask
-
-                client_structure_loss = structure_loss[node_ids].clone()
-                y_pred = out[f"client{client.id}"].clone()
-
-                cls_train_loss = self.criterion(y_pred[train_mask], y[train_mask])
-                str_train_loss = client_structure_loss[train_mask].mean()
-                train_loss = cls_train_loss + str_train_loss
-                loss_list[ind] = train_loss
-
-                train_acc = calc_accuracy(
-                    y_pred[train_mask].argmax(dim=1),
-                    y[train_mask],
-                )
-
-                # Validation
-                self.eval()
-                with torch.no_grad():
-                    if val_mask.any():
-                        cls_val_loss = self.criterion(y_pred[val_mask], y[val_mask])
-                        str_val_loss = client_structure_loss[val_mask].mean()
-                        val_loss = cls_val_loss + str_val_loss
-
-                        val_acc = calc_accuracy(
-                            y_pred[val_mask].argmax(dim=1), y[val_mask]
-                        )
-                    else:
-                        cls_val_loss = 0
-                        val_acc = 0
-
-                    result = {
-                        "Train Loss": round(cls_train_loss.item(), 4),
-                        "Train Acc": round(train_acc, 4),
-                        "Val Loss": round(cls_val_loss.item(), 4),
-                        "Val Acc": round(val_acc, 4),
-                        "Total Train Loss": round(train_loss.item(), 4),
-                        "Total Val Loss": round(val_loss.item(), 4),
-                        "Epoch": epoch,
-                    }
-
-                    plot_results[f"Client{client.id}"].append(result)
-                    metrics[f"client{client.id}"] = result["Val Acc"]
-
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"SDSW results for client{client.id}:")
-                    self.LOGGER.info(f"{result}")
-
-            total_loss = loss_list.mean()
-            total_loss.backward()
-
-            for optimizer in self.optimizers.values():
-                optimizer.step()
-
-            with torch.no_grad():
-                metrics["Total Loss"] = round(total_loss.item(), 4)
-                metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
-
-                model_weights = self.state_dict()
-                sum_weights = None
-                for client in clients:
-                    sum_weights = JointModel.add_weights(
-                        sum_weights, model_weights[f"client{client.id}"]
-                    )
-
-                mean_weights = JointModel.calc_mean_weights(sum_weights, len(clients))
-                for client in clients:
-                    model_weights[f"client{id}"] = mean_weights
-
-                self.load_state_dict(model_weights)
-
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
-
-        test_metrics = self.test(clients, graph)
-        for client in clients:
-            test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
-            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
-
-            GNNClassifier.plot_results(
-                plot_results[f"Client{client.id}"],
-                client.id,
-                type="SDSW",
-            )
-
-    @torch.no_grad()
-    def add_weights(sum_weights, weights):
-        if sum_weights is None:
-            sum_weights = deepcopy(weights)
-        else:
-            for layer_name, layer_parameters in weights.items():
-                for component_name, component_parameters in layer_parameters.items():
-                    sum_weights[layer_name][component_name] = (
-                        sum_weights[layer_name][component_name] + component_parameters
-                    )
-        return sum_weights
-
-    @torch.no_grad()
-    def calc_mean_weights(sum_weights, count):
-        for layer_name, layer_parameters in sum_weights.items():
-            for component_name, component_parameters in layer_parameters.items():
-                sum_weights[layer_name][component_name] = component_parameters / count
-
-        return sum_weights
-
-    @torch.no_grad()
-    def test(self, clients, graph):
-        self.eval()
-        metrics = {}
-        subgraphs = []
-        for client in clients:
-            subgraphs.append(client.subgraph)
-        out = self.forward(subgraphs, graph)
-
-        for client in clients:
-            y = client.subgraph.y
-            test_mask = client.subgraph.test_mask
-
-            y_pred = out[f"client{client.id}"]
-
-            test_acc = calc_accuracy(
-                y_pred[test_mask].argmax(dim=1),
-                y[test_mask],
-            )
-
-            result = {
-                "Test Acc": round(test_acc, 4),
-            }
-
-            metrics[f"Client{client.id}"] = result
-
-        return metrics
 
 
 if __name__ == "__main__":

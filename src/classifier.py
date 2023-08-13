@@ -33,23 +33,11 @@ class Classifier:
     def parameters(self):
         return self.model.parameters()
 
-    def plot_results(res, client_id, type="local", model_type="GNN"):
-        dataset = pd.DataFrame.from_dict(res)
-        dataset.set_index("Epoch", inplace=True)
+    def get_model_grads(self):
+        client_parameters = list(self.parameters())
+        client_grads = [client_parameter.grad for client_parameter in client_parameters]
 
-        save_dir = f"./plot_results/"
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        return client_grads
 
-        loss_columns = list(filter(lambda x: x.endswith("Loss"), dataset.columns))
-        dataset[loss_columns].plot()
-        title = f"{type} {model_type} loss client {client_id}"
-        plt.title(title)
-        plt.savefig(f"{save_dir}{title}.png")
-
-        acc_columns = list(filter(lambda x: x.endswith("Acc"), dataset.columns))
-        dataset[acc_columns].plot()
-        title = f"{type} {model_type} accuracy client {client_id}"
-        plt.title(title)
-
-        plt.savefig(f"{save_dir}{title}.png")
+    def zero_grad(self, set_to_none=False):
+        self.model.zero_grad(set_to_none=set_to_none)

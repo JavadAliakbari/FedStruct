@@ -1,34 +1,34 @@
 dataset:
-  # dataset_name: "chameleon"
-  # dataset_name : "PubMed"
-  dataset_name: "Cora"
+  dataset_name: "chameleon"
+  # dataset_name: "PubMed"
+  # dataset_name: "Cora"
   # dataset_name : "squirrel"
   # dataset_name : "Minesweeper"
   # dataset_name : "Tolokers"
-  # dataset_name : "Toy Example"
+  # dataset_name: "Toy Example"
 subgraph:
-  num_subgraphs: 3
+  num_subgraphs: 7
   delta: 20
 model:
-  num_samples: [5, 5]
+  num_samples: [5, 10]
   batch_size: 64
-  latent_dim: 128
-  steps: 10
   epochs_local: 1
   lr: 0.001
   weight_decay: 1e-4
-  hidden: 32
-  dropout: 0.25
-
+  dropout: 0.5
   gen_epochs: 100
-
-  epoch_classifier: 150
-  classifier_layer_sizes: [512, 256]
+  epoch_classifier: 60
+  classifier_layer_sizes: [128, 64]
 structure_model:
   sd_ratio: 1
   structure_layers_size: [128, 64]
+  structure_type: "struc2vec"
+  # structure_type: "mp"
   # structure_type: "degree"
   # structure_type: "GDV"
-  structure_type: "node2vec"
+  # structure_type: "node2vec"
   # num_structural_features: 100
-  num_structural_features: 73
+  num_structural_features: 128
+  # loss: "both"
+  # loss: "homophily"
+  loss: "heterophily"

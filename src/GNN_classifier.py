@@ -4,10 +4,11 @@ import torch
 from tqdm import tqdm
 from torch_geometric.loader import NeighborLoader
 
-from src.models.GNN_models import GNN, calc_accuracy, test, calc_f1_score
-from src.classifier import Classifier
+from src.utils.utils import *
 from src.utils.graph import Graph
+from src.classifier import Classifier
 from src.utils.config_parser import Config
+from src.models.GNN_models import GNN, calc_accuracy, test, calc_f1_score
 
 config = Config()
 
@@ -35,6 +36,7 @@ class GNNClassifier(Classifier):
             dropout=config.model.dropout,
             linear_layer=True,
             last_layer="softmax",
+            batch_normalization=True,
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -47,7 +49,6 @@ class GNNClassifier(Classifier):
         graph: Graph,
         batch_size: int = 16,
         num_neighbors: List = [5, 10],
-        shuffle=True,
     ):
         self.graph = graph
         if "train_mask" not in self.graph.keys:
@@ -60,7 +61,7 @@ class GNNClassifier(Classifier):
             num_neighbors=num_neighbors,
             batch_size=batch_size,
             # input_nodes=self.graph.train_mask,
-            shuffle=shuffle,
+            shuffle=True,
         )
 
     def fit(
@@ -74,12 +75,11 @@ class GNNClassifier(Classifier):
         if bar:
             bar = tqdm(total=epochs, position=0)
         res = []
+        if batch:
+            data_loader = self.data_loader
+        else:
+            data_loader = [self.graph]
         for epoch in range(epochs):
-            if batch:
-                data_loader = self.data_loader
-            else:
-                data_loader = [self.graph]
-
             (
                 loss,
                 acc,
@@ -111,7 +111,7 @@ class GNNClassifier(Classifier):
             self.LOGGER.info(metrics)
 
         if plot:
-            Classifier.plot_results(res, self.id, type)
+            plot_metrics(res, self.id, type)
 
         return res
 
@@ -190,6 +190,7 @@ class GNNClassifier(Classifier):
             else:
                 val_loss = 0
                 val_acc = 0
+                val_f1_score = 0
 
         return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
 

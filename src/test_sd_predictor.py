@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib import animation
 from sklearn.manifold import TSNE
 from torch_geometric.datasets import TUDataset, Planetoid, WikipediaNetwork
 from torch_geometric.nn import MessagePassing
@@ -43,65 +42,86 @@ def plot(x):
 
 
 if __name__ == "__main__":
-    # dataset = Planetoid(root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name)
-    # dataset = WikipediaNetwork(
-    #     root=f"/tmp/{config.dataset.dataset_name}", geom_gcn_preprocess=True, name=config.dataset.dataset_name
+    # dataset = Planetoid(
+    #     root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name
     # )
-
-    # node_ids = torch.arange(dataset[0].num_nodes)
-    # edge_index = to_undirected(dataset[0].edge_index)
-    # edge_index = remove_self_loops(edge_index)[0]
-    # graph = Graph(
-    #     y=dataset[0].y,
-    #     edge_index=edge_index,
-    #     node_ids=node_ids,
-    # )
-    # _LOGGER = get_logger(
-    #     name=f"SD_{config.dataset.dataset_name}_{config.structure_type}", log_on_file=True
-    # )
-
-    num_patterns = 50
-    graph = create_homophilic_graph2(num_patterns)
-    # graph = create_heterophilic_graph2(num_patterns)
-    _LOGGER = get_logger(
-        name=f"SD_Costum_{config.structure_model.structure_type}", log_on_file=True
+    dataset = WikipediaNetwork(
+        root=f"/tmp/{config.dataset.dataset_name}",
+        geom_gcn_preprocess=True,
+        name=config.dataset.dataset_name,
     )
+
+    node_ids = torch.arange(dataset[0].num_nodes)
+    edge_index = to_undirected(dataset[0].edge_index)
+    edge_index = remove_self_loops(edge_index)[0]
+    graph = Graph(
+        y=dataset[0].y,
+        edge_index=edge_index,
+        node_ids=node_ids,
+    )
+    _LOGGER = get_logger(
+        name=f"SD_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
+        log_on_file=True,
+    )
+
+    # num_patterns = 50
+    # graph = create_homophilic_graph2(num_patterns)
+    # graph = create_heterophilic_graph2(num_patterns)
+    # _LOGGER = get_logger(
+    #     name=f"SD_Costum_{config.structure_model.structure_type}", log_on_file=True
+    # )
 
     graph.add_masks()
 
     y = graph.y.long()
     num_classes = max(y).item() + 1
-    server = Server(graph, num_classes, logger=_LOGGER)
+    MLP_server = Server(graph, num_classes, classifier_type="MLP", logger=_LOGGER)
+    GNN_server = Server(graph, num_classes, classifier_type="GNN", logger=_LOGGER)
 
-    server.train_sd_predictor(epochs=100, plot=True, predict=True)
-    server.test_sd_predictor()
+    GNN_server.train_sd_predictor(
+        epochs=config.model.epoch_classifier, plot=True, predict=True
+    )
+    GNN_server.test_sd_predictor()
 
-    x = server.sd_predictor.graph.structural_features
+    x = GNN_server.sd_predictor.graph.structural_features
     graph.x = x
     graph.num_features = x.shape[1]
 
-    server.train_local_mlp()
-    _LOGGER.info(f"Server MLP test accuracy: {server.test_local_mlp()}")
-    server.train_local_gnn()
-    _LOGGER.info(f"Server GNN test accuracy: {server.test_local_gnn()}")
+    MLP_server.train_local_classifier(config.model.epoch_classifier)
+    _LOGGER.info(f"Server MLP test accuracy: {MLP_server.test_local_classifier()}")
+    GNN_server.train_local_classifier(config.model.epoch_classifier)
+    _LOGGER.info(f"Server GNN test accuracy: {GNN_server.test_local_classifier()}")
 
     # x = server.get_sd_embeddings()
 
     message_passing = MessagePassing(aggr="mean")
-    for i in range(20):
+    vall_acc_list = []
+    l = 100
+    for i in range(l):
         cls = MLP(
             layer_sizes=[
                 config.structure_model.num_structural_features,
                 64,
                 num_classes,
-            ]
+            ],
+            batch_normalization=True,
         )
         masks = (graph.train_mask, graph.val_mask, graph.test_mask)
         vall_acc, val_loss = cls.fit(x, y, masks, epochs=100, verbose=False)
         _LOGGER.info(f"epoch: {i} vall accuracy: {vall_acc}")
+        vall_acc_list.append(vall_acc)
         x = message_passing.propagate(graph.edge_index, x=x)
 
-    x = server.sd_predictor.graph.structural_features
+    # x = GNN_server.sd_predictor.graph.structural_features
+    plt.figure()
+    plt.plot(
+        range(l), vall_acc_list, label=config.structure_model.structure_type, marker="*"
+    )
+    plt.title("Message Passing accuracy per round")
+    plt.xlabel("round")
+    plt.ylabel("accuracy")
+    plt.legend()
+    plt.savefig(f"./Message Passing accuracy per round {config.dataset.dataset_name}")
     plot(x)
 
     plt.show()
