@@ -1,0 +1,37 @@
+name: SDSFL
+channels:
+  - pytorch-nightly
+  - conda-forge
+  - apple
+dependencies:
+  - python=3.8
+  - pip>=19.0
+  - tensorflow-deps
+  - pytorch
+  - torchvision
+  - scikit-learn
+  # - jupyter
+  - scipy
+  - pandas
+  - pandas-datareader
+  - matplotlib
+  - pillow
+  - tqdm
+  - requests
+  - h5py
+  - pyyaml
+  # - flask
+  - boto3
+  # - ipykernel
+  - pip:
+      - bayesian-optimization
+      - gym
+      - kaggle
+      - torch-scatter -f https://data.pyg.org/whl/torch-1.11.0+${cpu}.html
+      - torch-sparse -f https://data.pyg.org/whl/torch-1.11.0+${cpu}.html
+      - torch_geometric
+      - tensorflow-macos
+      - tensorflow-metal
+      - dill
+      - louvain
+      - scikit-network

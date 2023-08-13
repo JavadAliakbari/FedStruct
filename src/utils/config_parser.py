@@ -2,7 +2,7 @@ import yaml
 
 
 class Config:
-    def __init__(self, path="src/config/config.yml"):
+    def __init__(self, path="config/config.yml"):
         self.config = Config.load_config(path)
 
         self.dataset = Dataset(self.config["dataset"])

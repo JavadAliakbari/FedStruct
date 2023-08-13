@@ -2,12 +2,12 @@ dataset:
   # dataset_name: "PubMed"
   # dataset_name: "Cora"
   # dataset_name: "CiteSeer"
-  dataset_name: "chameleon"
+  # dataset_name: "chameleon"
   # dataset_name : "squirrel"
   # dataset_name : "Minesweeper"
   # dataset_name : "Tolokers"
   # dataset_name: "Heterophilic_example"
-  # dataset_name: "Homophilic_example"
+  dataset_name: "Homophilic_example"
 subgraph:
   num_subgraphs: 7
   delta: 20
@@ -19,7 +19,7 @@ model:
   weight_decay: 1e-4
   dropout: 0.5
   gen_epochs: 100
-  epoch_classifier: 60
+  epoch_classifier: 150
   classifier_layer_sizes: [128, 64]
 structure_model:
   sd_ratio: 1
@@ -30,7 +30,7 @@ structure_model:
   # structure_type: "GDV"
   # structure_type: "node2vec"
   # num_structural_features: 100
-  num_structural_features: 128
+  num_structural_features: 73
   # loss: "both"
   # loss: "homophily"
   loss: "heterophily"
