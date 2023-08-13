@@ -1,11 +1,13 @@
 dataset:
-  dataset_name: "chameleon"
   # dataset_name: "PubMed"
   # dataset_name: "Cora"
+  # dataset_name: "CiteSeer"
+  dataset_name: "chameleon"
   # dataset_name : "squirrel"
   # dataset_name : "Minesweeper"
   # dataset_name : "Tolokers"
-  # dataset_name: "Toy Example"
+  # dataset_name: "Heterophilic_example"
+  # dataset_name: "Homophilic_example"
 subgraph:
   num_subgraphs: 7
   delta: 20
@@ -22,9 +24,9 @@ model:
 structure_model:
   sd_ratio: 1
   structure_layers_size: [128, 64]
-  structure_type: "struc2vec"
+  # structure_type: "struc2vec"
   # structure_type: "mp"
-  # structure_type: "degree"
+  structure_type: "degree"
   # structure_type: "GDV"
   # structure_type: "node2vec"
   # num_structural_features: 100

@@ -41,7 +41,7 @@ POS = [
 # }
 
 
-def create_pattern():
+def create_pattern(random_feature):
     num_main_nodes = 5
     edge_index = [
         [0, 1],
@@ -65,18 +65,26 @@ def create_pattern():
 
     node_ids = np.array(list(set(chain.from_iterable(edge_index))), dtype=int)
     num_nodes = len(node_ids)
+
     # y = [True, False, True, False, True] + (num_nodes - 5) * [False]
     # y = [1, 2, 3, 4, 5] + (num_nodes - 5) * [6]
     # y = list(range(1, 13))
     y = list(range(12))
     y = torch.tensor(np.array(y), dtype=torch.long)
 
+    if random_feature == 0:
+        x = torch.tensor(np.array([1, 0]), dtype=torch.float32)
+        # y += 2
+    else:
+        x = torch.tensor(np.array([0, 1]), dtype=torch.float32)
+        y += 12
+
     pos = POS
 
     lock = num_main_nodes * [True] + (num_nodes - num_main_nodes) * [False]
     lock = torch.tensor(np.array(lock))
 
-    return edge_index, node_ids, y, lock, pos
+    return edge_index, node_ids, x, y, lock, pos
 
 
 def create_pattern1(random_feature=0):
@@ -274,23 +282,29 @@ def create_heterophilic_graph(num_nodes, num_edges, num_patterns):
     return graph
 
 
-def create_heterophilic_graph2(num_patterns, circular_pos=False):
+def create_heterophilic_graph2(
+    num_patterns, circular_pos=False, use_random_features=False
+):
     num_nodes = 12 * num_patterns
     offset = 0
     base_edge_index = []
 
     node_ids = torch.arange(num_nodes)
+    x = torch.zeros((num_nodes, 2), dtype=torch.float32)
     # y = num_nodes * [False]
     y = torch.zeros(num_nodes, dtype=torch.long)
     # lock = num_nodes * [False]
     lock = np.zeros(num_nodes, dtype=bool)
     pos = []
 
+    random_feature = 0
     pos_offset = 0
     for _ in range(num_patterns):
-        edge_index_, node_ids_, y_, lock_, pos_ = create_pattern()
+        if use_random_features:
+            random_feature = np.random.randint(0, 2)
+        edge_index_, node_ids_, x_, y_, lock_, pos_ = create_pattern(random_feature)
 
-        edge_index_ = list(map(lambda x: [x[0] + offset, x[1] + offset], edge_index_))
+        edge_index_ = list(map(lambda u: [u[0] + offset, u[1] + offset], edge_index_))
         base_edge_index += edge_index_
 
         # node_ids_ = list(map(lambda x: x + offset, node_ids_))
@@ -299,6 +313,7 @@ def create_heterophilic_graph2(num_patterns, circular_pos=False):
         # list(map(y.__setitem__, node_ids_, y_))
         # list(map(lock.__setitem__, node_ids_, lock_))
         y[node_ids_] = y_
+        x[node_ids_] = x_
         lock[node_ids_] = lock_
 
         pos_ = list(map(lambda x: [x[0] + pos_offset, x[1]], pos_))
@@ -345,7 +360,7 @@ def create_heterophilic_graph2(num_patterns, circular_pos=False):
         pos = circular_transform(pos)
     pos = {key: val for key, val in zip(node_ids.numpy(), pos)}
 
-    graph = Graph(edge_index=edge_index, node_ids=node_ids, y=y, pos=pos)
+    graph = Graph(edge_index=edge_index, node_ids=node_ids, x=x, y=y, pos=pos)
 
     return graph
 

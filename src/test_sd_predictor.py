@@ -2,7 +2,12 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
-from torch_geometric.datasets import TUDataset, Planetoid, WikipediaNetwork
+from torch_geometric.datasets import (
+    TUDataset,
+    Planetoid,
+    WikipediaNetwork,
+    HeterophilousGraphDataset,
+)
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import degree, to_undirected, remove_self_loops
 
@@ -42,34 +47,65 @@ def plot(x):
 
 
 if __name__ == "__main__":
-    # dataset = Planetoid(
-    #     root=f"/tmp/{config.dataset.dataset_name}", name=config.dataset.dataset_name
-    # )
-    dataset = WikipediaNetwork(
-        root=f"/tmp/{config.dataset.dataset_name}",
-        geom_gcn_preprocess=True,
-        name=config.dataset.dataset_name,
-    )
-
-    node_ids = torch.arange(dataset[0].num_nodes)
-    edge_index = to_undirected(dataset[0].edge_index)
-    edge_index = remove_self_loops(edge_index)[0]
-    graph = Graph(
-        y=dataset[0].y,
-        edge_index=edge_index,
-        node_ids=node_ids,
-    )
     _LOGGER = get_logger(
         name=f"SD_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
         log_on_file=True,
     )
+    try:
+        dataset = None
+        if config.dataset.dataset_name in ["Cora", "PubMed", "CiteSeer"]:
+            dataset = Planetoid(
+                root=f"/tmp/{config.dataset.dataset_name}",
+                name=config.dataset.dataset_name,
+            )
+            node_ids = torch.arange(dataset[0].num_nodes)
+            edge_index = dataset[0].edge_index
+            num_classes = dataset.num_classes
+        elif config.dataset.dataset_name in ["chameleon", "crocodile", "squirrel"]:
+            dataset = WikipediaNetwork(
+                root=f"/tmp/{config.dataset.dataset_name}",
+                geom_gcn_preprocess=True,
+                name=config.dataset.dataset_name,
+            )
+            node_ids = torch.arange(dataset[0].num_nodes)
+            edge_index = dataset[0].edge_index
+            num_classes = dataset.num_classes
+        elif config.dataset.dataset_name in [
+            "Roman-empire",
+            "Amazon-ratings",
+            "Minesweeper",
+            "Tolokers",
+            "Questions",
+        ]:
+            dataset = HeterophilousGraphDataset(
+                root=f"/tmp/{config.dataset.dataset_name}",
+                name=config.dataset.dataset_name,
+            )
+        elif config.dataset.dataset_name == "Heterophilic_example":
+            num_patterns = 100
+            graph = create_heterophilic_graph2(num_patterns, use_random_features=True)
+        elif config.dataset.dataset_name == "Homophilic_example":
+            num_patterns = 100
+            graph = create_homophilic_graph2(num_patterns, use_random_features=True)
 
-    # num_patterns = 50
-    # graph = create_homophilic_graph2(num_patterns)
-    # graph = create_heterophilic_graph2(num_patterns)
-    # _LOGGER = get_logger(
-    #     name=f"SD_Costum_{config.structure_model.structure_type}", log_on_file=True
-    # )
+    except:
+        _LOGGER.info("dataset name does not exist!")
+
+    if dataset is not None:
+        node_ids = torch.arange(dataset[0].num_nodes)
+        edge_index = dataset[0].edge_index
+        num_classes = dataset.num_classes
+
+        edge_index = to_undirected(edge_index)
+        edge_index = remove_self_loops(edge_index)[0]
+        graph = Graph(
+            x=dataset[0].x,
+            y=dataset[0].y,
+            edge_index=edge_index,
+            node_ids=node_ids,
+        )
+    else:
+        num_classes = max(graph.y).item() + 1
 
     graph.add_masks()
 
