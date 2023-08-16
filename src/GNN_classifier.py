@@ -18,11 +18,13 @@ class GNNClassifier(Classifier):
         self,
         id,
         num_classes,
+        save_path="./",
         logger=None,
     ):
         super().__init__(
             id=id,
             num_classes=num_classes,
+            save_path=save_path,
             logger=logger,
         )
 
@@ -111,7 +113,8 @@ class GNNClassifier(Classifier):
             self.LOGGER.info(metrics)
 
         if plot:
-            plot_metrics(res, self.id, type)
+            title = f"Client {self.id} {type} GNN"
+            plot_metrics(res, title=title, save_path=self.save_path)
 
         return res
 
@@ -195,4 +198,5 @@ class GNNClassifier(Classifier):
         return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
 
     def calc_test_accuracy(self):
+        self.model.eval()
         return test(self.model, self.graph)

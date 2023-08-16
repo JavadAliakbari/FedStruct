@@ -28,23 +28,26 @@ def calc_mean_weights(sum_weights, count):
     return sum_weights
 
 
-def plot_metrics(res, plot_id, type="local", model_type="GNN"):
+def plot_metrics(
+    res,
+    title="",
+    save_path="./",
+):
     dataset = pd.DataFrame.from_dict(res)
     dataset.set_index("Epoch", inplace=True)
 
-    save_dir = f"./plot_results/"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    # save_dir = f"./plot_results/"
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
 
     loss_columns = list(filter(lambda x: x.endswith("Loss"), dataset.columns))
     dataset[loss_columns].plot()
-    title = f"{type} {model_type} loss {plot_id}"
-    plt.title(title)
-    plt.savefig(f"{save_dir}{title}.png")
+    plot_title = f"loss {title}"
+    plt.title(plot_title)
+    plt.savefig(f"{save_path}{plot_title}.png")
 
     acc_columns = list(filter(lambda x: x.endswith("Acc"), dataset.columns))
     dataset[acc_columns].plot()
-    title = f"{type} {model_type} accuracy {plot_id}"
-    plt.title(title)
-
-    plt.savefig(f"{save_dir}{title}.png")
+    plot_title = f"accuracy {title}"
+    plt.title(plot_title)
+    plt.savefig(f"{save_path}{plot_title}.png")

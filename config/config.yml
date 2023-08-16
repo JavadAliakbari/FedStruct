@@ -34,3 +34,4 @@ structure_model:
   # loss: "both"
   # loss: "homophily"
   loss: "heterophily"
+  num_mp_vectors: 10

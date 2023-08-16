@@ -19,13 +19,14 @@ config = Config()
 
 
 class StructurePredictor:
-    def __init__(self, id, edge_index, node_ids, y=None, logger=None):
+    def __init__(self, id, edge_index, node_ids, y=None, save_path="./", logger=None):
         self.LOGGER = logger or logging
 
         self.id = id
         self.edge_index = edge_index
         self.node_ids = node_ids
         self.y = y
+        self.save_path = save_path
 
         self.message_passing = MessagePassing(aggr="mean")
 
@@ -360,7 +361,7 @@ class StructurePredictor:
         for optimizer in optimizers.values():
             optimizer.zero_grad()
 
-    def train_SDSW(self, clients, epochs=1):
+    def train_SDWA(self, clients, epochs=1):
         optimizers = self.create_SW_optimizers()
         metrics = {}
         subgraphs = []
@@ -423,7 +424,7 @@ class StructurePredictor:
                     metrics[f"client{client.id}"] = result["Val Acc"]
 
                 if epoch == epochs - 1:
-                    self.LOGGER.info(f"SDSW results for client{client.id}:")
+                    self.LOGGER.info(f"SDWA results for client{client.id}:")
                     self.LOGGER.info(f"{result}")
 
             total_loss = loss_list.mean()
@@ -458,13 +459,14 @@ class StructurePredictor:
             test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
             self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
 
+            title = f"Client {self.id} SDWA GNN"
             plot_metrics(
                 plot_results[f"Client{client.id}"],
-                client.id,
-                type="SDSW",
+                title=title,
+                save_path=self.save_path,
             )
 
-    def train_SDSG(self, clients, epochs=1):
+    def train_SDGA(self, clients, epochs=1):
         # return self.model.fit2(self.graph, clients, epochs)
         optimizer = self.create_SG_optimizer()
 

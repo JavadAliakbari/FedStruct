@@ -17,12 +17,14 @@ class Client:
         num_classes,
         id: int = 0,
         classifier_type="GNN",
+        save_path="./",
         logger=None,
     ):
         self.id = id
         self.subgraph = subgraph_
         self.num_classes = num_classes
         self.classifier_type = classifier_type
+        self.save_path = save_path
 
         self.LOGGER = logger or logging
 
@@ -35,12 +37,14 @@ class Client:
             self.classifier = GNNClassifier(
                 id=self.id,
                 num_classes=self.num_classes,
+                save_path=self.save_path,
                 logger=self.LOGGER,
             )
         elif classifier_type == "MLP":
             self.classifier = MLPClassifier(
                 id=self.id,
                 num_classes=self.num_classes,
+                save_path=self.save_path,
                 logger=self.LOGGER,
             )
 

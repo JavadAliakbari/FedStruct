@@ -78,8 +78,8 @@ class JointModel(torch.nn.Module):
 
         return out
 
-    def step(self, client: Client):
-        S = self.server.get_structure_embeddings()
+    def step(self, client: Client, train=True):
+        S = self.server.get_structure_embeddings(train=train)
         h = client.get_feature_embeddings()
         node_ids = client.get_nodes()
         x_s = S[node_ids]

@@ -31,9 +31,11 @@ config = Config()
 
 
 def set_up_system():
+    save_path = f"./results/{config.dataset.dataset_name}/{config.structure_model.structure_type}/"
     _LOGGER = get_logger(
         name=f"accuracy_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
         log_on_file=True,
+        save_path=save_path,
     )
 
     try:
@@ -67,7 +69,7 @@ def set_up_system():
                 name=config.dataset.dataset_name,
             )
         elif config.dataset.dataset_name == "Heterophilic_example":
-            num_patterns = 100
+            num_patterns = 500
             graph = create_heterophilic_graph2(num_patterns, use_random_features=True)
         elif config.dataset.dataset_name == "Homophilic_example":
             num_patterns = 100
@@ -97,12 +99,16 @@ def set_up_system():
 
     subgraphs = louvain_graph_cut(graph)
 
-    MLP_server = Server(graph, num_classes, classifier_type="MLP", logger=_LOGGER)
+    MLP_server = Server(
+        graph, num_classes, classifier_type="MLP", save_path=save_path, logger=_LOGGER
+    )
 
     for subgraph in subgraphs:
         MLP_server.add_client(subgraph)
 
-    GNN_server = Server(graph, num_classes, classifier_type="GNN", logger=_LOGGER)
+    GNN_server = Server(
+        graph, num_classes, classifier_type="GNN", save_path=save_path, logger=_LOGGER
+    )
 
     for subgraph in subgraphs:
         GNN_server.add_client(subgraph)
@@ -111,18 +117,18 @@ def set_up_system():
     MLP_server.train_local_classifier(config.model.epoch_classifier)
     _LOGGER.info(f"Server test accuracy: {MLP_server.test_local_classifier():.4f}")
     MLP_server.train_local_classifiers(config.model.epoch_classifier)
-    MLP_server.train_FLSW(config.model.epoch_classifier)
-    MLP_server.train_FLSG(config.model.epoch_classifier)
+    MLP_server.train_FLWA(config.model.epoch_classifier)
+    MLP_server.train_FLGA(config.model.epoch_classifier)
 
     _LOGGER.info("GNN")
     GNN_server.train_local_classifier(config.model.epoch_classifier)
     _LOGGER.info(f"Server test accuracy: {GNN_server.test_local_classifier():0.4f}")
     GNN_server.train_local_classifiers(config.model.epoch_classifier)
-    GNN_server.train_FLSW(config.model.epoch_classifier)
-    GNN_server.train_FLSG(config.model.epoch_classifier)
+    GNN_server.train_FLWA(config.model.epoch_classifier)
+    GNN_server.train_FLGA(config.model.epoch_classifier)
     GNN_server.train_SD_Server(config.model.epoch_classifier)
-    GNN_server.train_SDSW(config.model.epoch_classifier)
-    GNN_server.train_SDSG(config.model.epoch_classifier)
+    GNN_server.train_SDWA(config.model.epoch_classifier)
+    GNN_server.train_SDGA(config.model.epoch_classifier)
 
     # server.train_sd_ptor()
 

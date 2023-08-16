@@ -20,11 +20,13 @@ class MLPClassifier(Classifier):
         self,
         id,
         num_classes,
+        save_path="./",
         logger=None,
     ):
         super().__init__(
             id=id,
             num_classes=num_classes,
+            save_path=save_path,
             logger=logger,
         )
 
@@ -126,7 +128,8 @@ class MLPClassifier(Classifier):
             self.LOGGER.info(metrics)
 
         if plot:
-            plot_metrics(res, self.id, type, model_type="MLP")
+            title = f"Client {self.id} {type} MLP"
+            plot_metrics(res, title=title, save_path=self.save_path)
 
         return res
 
@@ -214,6 +217,7 @@ class MLPClassifier(Classifier):
         return train_loss, train_acc, train_TP, val_loss, val_acc, val_TP
 
     def calc_test_accuracy(self):
+        self.model.eval()
         test_x, test_y = self.test_data
         out = self.model(test_x)
         val_acc = calc_accuracy(out.argmax(dim=1), test_y)

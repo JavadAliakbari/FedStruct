@@ -11,9 +11,12 @@ from torch_geometric.utils import degree
 from sklearn.preprocessing import StandardScaler, normalize
 from torch_geometric.nn import MessagePassing
 
-
+from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.GDV2 import GDV
+
+
+config = Config()
 
 
 class Graph(Data):
@@ -144,7 +147,11 @@ class Graph(Data):
             )
         elif structure_type == "mp":
             d = Graph.calc_degree_features(edge_index, num_structural_features)
-            structural_features = Graph.calc_mp(edge_index, d)
+            structural_features = Graph.calc_mp(
+                edge_index,
+                d,
+                iteration=config.structure_model.num_mp_vectors,
+            )
         # elif structure_type == "struc2vec":
         #     structural_features = Graph.calc_stuc2vec()
 
@@ -166,14 +173,19 @@ class Graph(Data):
 
         return structural_features
 
-    def calc_mp(edge_index, degree, iteration=2):
-        message_passing = MessagePassing(aggr="mean")
+    def calc_mp(edge_index, degree, iteration=10):
+        message_passing = MessagePassing(aggr="sum")
 
         x = degree
-        for _ in range(iteration):
+        mp = []
+        mp.append(x.numpy())
+        for _ in range(iteration - 1):
             x = message_passing.propagate(edge_index, x=x)
+            mp.append(x.numpy())
 
-        return x
+        mp = np.array(mp, dtype=np.float32).transpose([1, 2, 0])
+        mp = torch.tensor(mp)
+        return mp
 
     # def calc_stuc2vec():
     #     with open(f"chameleon.emb", "r") as f:

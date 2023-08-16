@@ -44,6 +44,8 @@ class GNN(torch.nn.Module):
         linear_layer=False,
         last_layer="softmax",
         batch_normalization=False,
+        multiple_features=False,
+        feature_dims=0,
     ):
         super().__init__()
         if out_dims is not None:
@@ -59,6 +61,8 @@ class GNN(torch.nn.Module):
         self.dropout = dropout
         self.last_layer = last_layer
         self.batch_normalization = batch_normalization
+        self.multiple_features = multiple_features
+        self.feature_dims = feature_dims
 
         self.layers = self.create_models(input_dims, output_dims)
 
@@ -67,6 +71,9 @@ class GNN(torch.nn.Module):
 
     def create_models(self, in_dims, out_dims):
         layers = nn.ParameterList()
+        if self.multiple_features:
+            self.mp_layer = nn.Linear(self.feature_dims, 1, bias=False)
+
         if self.batch_normalization:
             self.batch_layer = nn.BatchNorm1d(in_dims[0])
         for layer_num in range(self.num_layers):
@@ -83,6 +90,8 @@ class GNN(torch.nn.Module):
     def reset_parameters(self) -> None:
         if self.batch_normalization:
             self.batch_layer.reset_parameters()
+        if self.multiple_features:
+            self.mp_layer.reset_parameters()
         for layers in self.layers:
             layers.reset_parameters()
 
@@ -90,6 +99,8 @@ class GNN(torch.nn.Module):
         weights = {}
         if self.batch_normalization:
             weights["batch_layer"] = self.batch_layer.state_dict()
+        if self.multiple_features:
+            weights["mp_layer"] = self.mp_layer.state_dict()
 
         for id, layer in enumerate(self.layers):
             weights[f"layer{id}"] = layer.state_dict()
@@ -98,12 +109,20 @@ class GNN(torch.nn.Module):
     def load_state_dict(self, weights: dict) -> None:
         if self.batch_normalization:
             self.batch_layer.load_state_dict(weights["batch_layer"])
+        if self.multiple_features:
+            self.mp_layer.load_state_dict(weights["mp_layer"])
 
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
 
     def forward(self, x, edge_index):
         h = x
+        if self.multiple_features:
+            with torch.no_grad():
+                w = self.mp_layer.weight.data
+                w = (w - torch.min(w)) / (torch.max(w) - torch.min(w))
+                self.mp_layer.weight.data = w / w.sum()
+            h = self.mp_layer(h).squeeze()
         if self.batch_normalization:
             h = self.batch_layer(h)
 
@@ -141,6 +160,8 @@ class MLP(nn.Module):
 
         self.layers = self.create_models(layer_sizes)
 
+        self.default_weights = self.state_dict()
+
     def __getitem__(self, item):
         return self.layers[item]
 
@@ -155,10 +176,11 @@ class MLP(nn.Module):
         return layers
 
     def reset_parameters(self) -> None:
-        if self.batch_normalization:
-            self.batch_layer.reset_parameters()
-        for layers in self.layers:
-            layers.reset_parameters()
+        self.load_state_dict(self.default_weights)
+        # if self.batch_normalization:
+        #     self.batch_layer.reset_parameters()
+        # for layers in self.layers:
+        #     layers.reset_parameters()
 
     def state_dict(self):
         weights = {}
@@ -199,18 +221,18 @@ class MLP(nn.Module):
             optimizer.zero_grad()
             out = self(x)
             loss = criterion(out[train_mask], y[train_mask])
-            acc = calc_accuracy(out[train_mask].argmax(dim=1), y[train_mask])
-            f1_score = calc_f1_score(out[train_mask].argmax(dim=1), y[train_mask])
             loss.backward()
             optimizer.step()
 
-            # Validation
-            val_loss = criterion(out[val_mask], y[val_mask])
-            val_acc = calc_accuracy(out[val_mask].argmax(dim=1), y[val_mask])
-            val_f1_score = calc_f1_score(out[val_mask].argmax(dim=1), y[val_mask])
-
             # Print metrics every 10 epochs
             if verbose:
+                acc = calc_accuracy(out[train_mask].argmax(dim=1), y[train_mask])
+                f1_score = calc_f1_score(out[train_mask].argmax(dim=1), y[train_mask])
+                # Validation
+                val_loss = criterion(out[val_mask], y[val_mask])
+                val_acc = calc_accuracy(out[val_mask].argmax(dim=1), y[val_mask])
+                val_f1_score = calc_f1_score(out[val_mask].argmax(dim=1), y[val_mask])
+
                 if epoch % 10 == 0:
                     print(
                         f"Epoch {epoch:>3} | Train Loss: {loss:.3f} | Train Acc:"
@@ -224,10 +246,16 @@ class MLP(nn.Module):
         if verbose:
             print("\n")
 
+        self.eval()
+        out = self(x)
+        val_loss = criterion(out[val_mask], y[val_mask])
+        val_acc = calc_accuracy(out[val_mask].argmax(dim=1), y[val_mask])
+
         return val_acc, val_loss
         # return loss, val_loss, acc, val_acc, TP, val_TP
 
     def test(self, x, y):
+        self.eval()
         out = self(x)
         test_accuracy = calc_accuracy(out.argmax(dim=1), y)
         return test_accuracy

@@ -12,10 +12,12 @@ class Classifier:
         self,
         id,
         num_classes,
+        save_path="./",
         logger=None,
     ):
         self.id = id
         self.num_classes = num_classes
+        self.save_path = save_path
 
         self.LOGGER = logger or logging
 

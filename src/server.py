@@ -20,6 +20,7 @@ class Server(Client):
         graph: Graph,
         num_classes,
         classifier_type="GNN",
+        save_path="./",
         logger=None,
     ):
         super().__init__(
@@ -27,6 +28,7 @@ class Server(Client):
             num_classes=num_classes,
             id="Server",
             classifier_type=classifier_type,
+            save_path=save_path,
             logger=logger,
         )
         self.clients: List[Client] = []
@@ -39,6 +41,7 @@ class Server(Client):
                 node_ids=self.subgraph.node_ids,
                 y=self.subgraph.y,
                 masks=self.subgraph.get_masks(),
+                save_path=self.save_path,
                 logger=logger,
             )
 
@@ -52,6 +55,7 @@ class Server(Client):
             id=self.num_clients,
             num_classes=self.num_classes,
             classifier_type=self.classifier_type,
+            save_path=self.save_path,
             logger=self.LOGGER,
         )
 
@@ -73,12 +77,8 @@ class Server(Client):
                     average_result[key] += val * client.num_nodes() / self.num_nodes()
                 average_results.append(average_result)
 
-        plot_metrics(
-            average_results,
-            "average",
-            type="local",
-            model_type=self.classifier_type,
-        )
+        title = f"Average local {self.classifier_type}"
+        plot_metrics(average_results, title=title, save_path=self.save_path)
 
         average_test_acc = 0
         for client in self.clients:
@@ -122,12 +122,12 @@ class Server(Client):
             config.structure_model.num_structural_features
         ] + config.structure_model.structure_layers_size
 
-        self.create_local_sd_model(sd_dims)
+        self.create_local_sd_model(sd_dims, model_type="GNN")
         # server_model = self.get_local_sd_model()
 
         # client_models = []
         for client in self.clients:
-            client.create_local_sd_model(sd_dims)
+            client.create_local_sd_model(sd_dims, model_type="GNN")
             # client_models.append(client.get_local_sd_model())
 
         self.sd_predictor.initialize_structural_graph(
@@ -138,8 +138,8 @@ class Server(Client):
 
         self.initialize = True
 
-    def get_structure_embeddings(self):
-        return self.sd_predictor.get_structure_embeddings()
+    def get_structure_embeddings(self, train=True):
+        return self.sd_predictor.get_structure_embeddings(train=train)
 
     def fit_sd_predictor(self, epochs, bar=False, plot=False, predict=False) -> None:
         return self.sd_predictor.fit(epochs=epochs, bar=bar, plot=plot, predict=predict)
@@ -157,20 +157,34 @@ class Server(Client):
         test_acc = self.sd_predictor.test_cls()
         self.LOGGER.info(f"SD predictor test accuracy: {test_acc}")
 
-    def train_FLSW(self, epochs=config.model.epoch_classifier):
-        self.LOGGER.info("FLSW starts!")
+    def calc_total_grads(self, clients):
+        grads = None
+        for client in self.clients:
+            client_grads = client.classifier.get_model_grads()
+            ratio = client.num_nodes() / self.num_nodes()
+            if grads is None:
+                grads = [ratio * grad for grad in client_grads]
+            else:
+                for i in range(len(client_grads)):
+                    grads[i] += ratio * client_grads[i]
+
+        server_parameters = list(self.classifier.parameters())
+        for i in range(len(grads)):
+            server_parameters[i].grad = grads[i]
+
+    def train_FLWA(self, epochs=config.model.epoch_classifier):
+        self.LOGGER.info("FLWA starts!")
         criterion = torch.nn.CrossEntropyLoss()
-        plot_results = {}
 
         self.initialize_classifier()
         self.reset_classifier_parameters()
 
-        plot_results[f"Client{self.id}"] = []
-
         for client in self.clients:
             client.initialize_classifier()
             client.reset_classifier_parameters()
-            plot_results[f"Client{client.id}"] = []
+
+        server_results = []
+        average_results = []
 
         bar = tqdm(total=epochs)
         for epoch in range(epochs):
@@ -205,74 +219,73 @@ class Server(Client):
                 "Epoch": epoch,
             }
 
-            metrics[f"client{self.id}"] = result["Val Acc"]
-            plot_results[f"Client{self.id}"].append(result)
+            metrics[f"server train acc"] = result["Train Acc"]
+            metrics[f"server val acc"] = result["Val Acc"]
+            server_results.append(result)
             if epoch == epochs - 1:
-                self.LOGGER.info(f"FLSW results for client{self.id}:")
+                self.LOGGER.info(f"FLWA results for client{self.id}:")
                 self.LOGGER.info(f"{result}")
 
-            sum_weights = None
             for client in self.clients:
                 client.set_classifier_weights(weights)
-                res = client.fit_classifier(config.model.epochs_local)
-                new_weights = client.get_classifier_weights()
 
+            sum_weights = None
+            average_result = {}
+            for client in self.clients:
+                res = client.fit_classifier(config.model.epochs_local)
+
+                new_weights = client.get_classifier_weights()
                 sum_weights = add_weights(sum_weights, new_weights)
 
                 result = res[-1]
-                result["Epoch"] = epoch
-                metrics[f"client{client.id}"] = result["Val Acc"]
-                plot_results[f"Client{client.id}"].append(result)
+
+                ratio = client.num_nodes() / self.num_nodes()
+                for key, val in result.items():
+                    if key not in average_result.keys():
+                        average_result[key] = ratio * val
+                    else:
+                        average_result[key] += ratio * val
+
                 if epoch == epochs - 1:
-                    self.LOGGER.info(f"FLSW results for client{client.id}:")
+                    self.LOGGER.info(f"FLWA results for client{client.id}:")
                     self.LOGGER.info(f"{result}")
 
             mean_weights = calc_mean_weights(sum_weights, self.num_clients)
             self.set_classifier_weights(mean_weights)
+
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
+
+            metrics[f"average train acc"] = average_result["Train Acc"]
+            metrics[f"average val acc"] = average_result["Val Acc"]
             bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
             bar.set_postfix(metrics)
             bar.update()
 
         self.LOGGER.info(f"Server test accuracy: {self.test_local_classifier():0.4f}")
 
-        plot_metrics(
-            plot_results[f"Client{self.id}"],
-            self.id,
-            type="FLSW",
-            model_type=self.classifier_type,
-        )
-
         average_test_acc = 0
         for client in self.clients:
             test_acc = client.test_local_classifier()
             self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
             average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
-
-        average_results = []
-        for i in range(epochs):
-            average_result = {key: 0 for key in result.keys()}
-            for client in self.clients:
-                result = plot_results[f"Client{client.id}"][i]
-                for key, val in result.items():
-                    average_result[key] += val * client.num_nodes() / self.num_nodes()
-                average_results.append(average_result)
-
-        plot_metrics(
-            average_results,
-            "average",
-            type="FLSW",
-            model_type=self.classifier_type,
-        )
-
         self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-    def train_FLSG(self, epochs=1):
+        title = f"Server FLWA {self.classifier_type}"
+        plot_metrics(server_results, title=title, save_path=self.save_path)
+
+        title = f"Average FLWA {self.classifier_type}"
+        plot_metrics(average_results, title=title, save_path=self.save_path)
+
+    def train_FLGA(self, epochs=1):
         # return self.model.fit2(self.graph, clients, epochs)
-        self.LOGGER.info("FLSG starts!")
-        plot_results = {}
+        self.LOGGER.info("FLGA starts!")
         self.initialize_classifier()
         self.reset_classifier_parameters()
-        plot_results[f"Client{self.id}"] = []
+
+        for client in self.clients:
+            client.initialize_classifier()
+            client.reset_classifier_parameters()
 
         classifier = self.classifier
         server_parameters = list(classifier.parameters())
@@ -282,15 +295,14 @@ class Server(Client):
         )
         criterion = torch.nn.CrossEntropyLoss()
 
-        for client in self.clients:
-            client.initialize_classifier()
-            client.reset_classifier_parameters()
-            plot_results[f"Client{client.id}"] = []
+        server_results = []
+        average_results = []
 
         bar = tqdm(total=epochs)
         for epoch in range(epochs):
             optimizer.zero_grad(set_to_none=True)
             server_weights = classifier.state_dict()
+
             for client in self.clients:
                 client.classifier.zero_grad()
                 client.set_classifier_weights(server_weights)
@@ -328,14 +340,16 @@ class Server(Client):
                 "Epoch": epoch,
             }
 
-            metrics[f"client{self.id}"] = result["Val Acc"]
-            plot_results[f"Client{self.id}"].append(result)
+            server_results.append(result)
+            metrics[f"server train acc"] = result["Train Acc"]
+            metrics[f"server val acc"] = result["Val Acc"]
             if epoch == epochs - 1:
-                self.LOGGER.info(f"FLSG results for client{self.id}:")
+                self.LOGGER.info(f"FLGA results for client{self.id}:")
                 self.LOGGER.info(f"{result}")
 
             self.classifier.zero_grad(set_to_none=True)
 
+            average_result = {}
             for ind, client in enumerate(self.clients):
                 if self.classifier_type == "GNN":
                     (
@@ -378,16 +392,26 @@ class Server(Client):
                     "Train Acc": round(train_acc, 4),
                     "Val Loss": round(val_loss.item(), 4),
                     "Val Acc": round(val_acc, 4),
-                    "Epoch": epoch,
                 }
 
                 # metrics[f"client{client.id}"] = result
 
-                metrics[f"client{client.id}"] = result["Val Acc"]
-                plot_results[f"Client{client.id}"].append(result)
+                ratio = client.num_nodes() / self.num_nodes()
+                for key, val in result.items():
+                    if key not in average_result.keys():
+                        average_result[key] = ratio * val
+                    else:
+                        average_result[key] += ratio * val
+
                 if epoch == epochs - 1:
-                    self.LOGGER.info(f"FLSG results for client{client.id}:")
+                    self.LOGGER.info(f"FLGA results for client{client.id}:")
                     self.LOGGER.info(f"{result}")
+
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
+
+            metrics[f"average train acc"] = average_result["Train Acc"]
+            metrics[f"average val acc"] = average_result["Val Acc"]
 
             bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
             bar.set_postfix(metrics)
@@ -395,30 +419,11 @@ class Server(Client):
 
             total_loss = loss_list.mean()
             total_loss.backward()
-            grads = None
-            for ind, client in enumerate(self.clients):
-                client_grads = client.classifier.get_model_grads()
-                # ratio = client.subgraph.num_nodes / self.subgraph.num_nodes
-                ratio = 1 / len(self.clients)
-                if grads is None:
-                    grads = [ratio * grad for grad in client_grads]
-                else:
-                    for i in range(len(client_grads)):
-                        grads[i] += ratio * client_grads[i]
-
-            for i in range(len(grads)):
-                server_parameters[i].grad = grads[i]
-
+            self.calc_total_grads(self.clients)
             optimizer.step()
             # metrics["Total Loss"] = round(total_loss.item(), 4)
 
         self.LOGGER.info(f"Server test accuracy: {self.test_local_classifier():0.4f}")
-        plot_metrics(
-            plot_results[f"Client{self.id}"],
-            self.id,
-            type="FLSG",
-            model_type=self.classifier_type,
-        )
 
         average_test_acc = 0
         for client in self.clients:
@@ -426,25 +431,13 @@ class Server(Client):
             self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
 
             average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
-
-        average_results = []
-        for i in range(epochs):
-            average_result = {key: 0 for key in result.keys()}
-            for client in self.clients:
-                result = plot_results[f"Client{client.id}"][i]
-                for key, val in result.items():
-                    average_result[key] += val * client.num_nodes() / self.num_nodes()
-                average_results.append(average_result)
-
-        plot_metrics(
-            average_results,
-            "average",
-            type="FLSG",
-            model_type=self.classifier_type,
-        )
-
         self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
-        return metrics
+
+        title = f"Server FLGA {self.classifier_type}"
+        plot_metrics(server_results, title=title, save_path=self.save_path)
+
+        title = f"Average FLGA {self.classifier_type}"
+        plot_metrics(average_results, title=title, save_path=self.save_path)
 
     def train_SD_Server(self, epochs):
         self.LOGGER.info("SD_Server starts!")
@@ -454,18 +447,18 @@ class Server(Client):
             self.initialize_sd_predictor()
         self.sd_predictor.train_SD_Server(epochs)
 
-    def train_SDSW(self, epochs):
-        self.LOGGER.info("SDSW starts!")
+    def train_SDWA(self, epochs):
+        self.LOGGER.info("SDWA starts!")
         if self.initialize:
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
-        self.sd_predictor.train_SDSW(self.clients, epochs)
+        self.sd_predictor.train_SDWA(self.clients, epochs)
 
-    def train_SDSG(self, epochs=1):
-        self.LOGGER.info("SDSG starts!")
+    def train_SDGA(self, epochs=1):
+        self.LOGGER.info("SDGA starts!")
         if self.initialize:
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
-        self.sd_predictor.train_SDSG(self.clients, epochs)
+        self.sd_predictor.train_SDGA(self.clients, epochs)

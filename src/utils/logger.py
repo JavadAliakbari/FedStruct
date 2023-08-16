@@ -4,9 +4,8 @@ import logging
 _DEV_LOG_LEVEL = logging.DEBUG
 
 
-def get_logger(name: str = 'root', log_on_file=False, save_path='./', append=False):
-
-    log_level = os.getenv('LOG_LEVEL', _DEV_LOG_LEVEL)
+def get_logger(name: str = "root", log_on_file=False, save_path="./", append=False):
+    log_level = os.getenv("LOG_LEVEL", _DEV_LOG_LEVEL)
 
     # create logger
     logger = logging.getLogger(name)
@@ -16,7 +15,8 @@ def get_logger(name: str = 'root', log_on_file=False, save_path='./', append=Fal
 
     # create formatter
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
     # create console handler and set level to debug
     terminal_handler = logging.StreamHandler()
@@ -27,9 +27,18 @@ def get_logger(name: str = 'root', log_on_file=False, save_path='./', append=Fal
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
+        filename = f"{save_path}result_{name}"
+        i = ""
+        while os.path.exists(f"{filename}{i}.log"):
+            if i == "":
+                i = 1
+            else:
+                i += 1
+
         # mode = 'a' if append else 'w+'
         file_handler = logging.FileHandler(
-            filename=f'{save_path}result_{name}.log', mode='w+', encoding='utf-8')
+            filename=f"{filename}{i}.log", mode="w+", encoding="utf-8"
+        )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
