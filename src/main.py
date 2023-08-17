@@ -11,12 +11,12 @@ from torch_geometric.datasets import (
 )
 from torch_geometric.utils import to_undirected, remove_self_loops
 
-from src.utils.config_parser import Config
-from src.utils.create_graph import create_homophilic_graph2, create_heterophilic_graph2
-from src.utils.logger import get_logger
-from src.utils.graph_partinioning import louvain_graph_cut
 from src.server import Server
 from src.utils.graph import Graph
+from src.utils.logger import get_logger
+from src.utils.config_parser import Config
+from src.utils.graph_partinioning import louvain_graph_cut
+from src.utils.create_graph import create_homophilic_graph2, create_heterophilic_graph2
 
 # Change plot canvas size
 plt.rcParams["figure.figsize"] = [24, 16]

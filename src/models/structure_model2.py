@@ -41,7 +41,7 @@ class JointModel(torch.nn.Module):
             for id in range(self.num_clients):
                 self.local_sd_model = GNN(
                     in_dims=client_layer_sizes,
-                    linear_layer=True,
+                    decision_layer=True,
                     dropout=config.model.dropout,
                     last_layer="linear",
                 )
@@ -186,15 +186,17 @@ if __name__ == "__main__":
 
     model = JointModel(
         clients=num_clients,
-        client_layer_sizes=[graph.num_features] + config.model.classifier_layer_sizes,
+        client_layer_sizes=[graph.num_features] + config.model.gnn_layer_sizes,
         structure_layer_sizes=[config.structure_model.num_structural_features]
-        + config.structure_model.structure_layers_size,
+        + config.structure_model.structure_layers_sizes,
         num_classes=num_classes,
     )
 
     criterion = torch.nn.CrossEntropyLoss()
     parameters = list(model.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=config.model.lr, weight_decay=5e-4)
+    optimizer = torch.optim.Adam(
+        parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+    )
 
     out = model.forward(subgraphs, graph)
     a = 2

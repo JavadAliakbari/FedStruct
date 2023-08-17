@@ -5,6 +5,10 @@ import torch.nn.functional as F
 from torch_geometric.nn import SAGEConv, GCNConv, GATConv
 from sklearn.metrics import f1_score
 
+from src.utils.config_parser import Config
+
+config = Config()
+
 
 def calc_accuracy(pred_y, y):
     """Calculate accuracy."""
@@ -33,59 +37,136 @@ def test(model, data):
     return acc
 
 
-class GNN(torch.nn.Module):
+class GNNMLP(torch.nn.Module):
     """Graph Neural Network"""
 
     def __init__(
         self,
-        in_dims,
-        out_dims=None,
+        gnn_layer_sizes,
+        mlp_layer_sizes=[],
+        gnn_last_layer="linear",
+        mlp_last_layer="softmax",
         dropout=0.5,
-        linear_layer=False,
-        last_layer="softmax",
         batch_normalization=False,
         multiple_features=False,
         feature_dims=0,
     ):
         super().__init__()
-        if out_dims is not None:
-            assert len(in_dims) == len(out_dims), "Number of layers must be equal"
-            input_dims = in_dims
-            output_dims = out_dims
-        else:
-            input_dims = in_dims[:-1]
-            output_dims = in_dims[1:]
+        self.num_gnn_layers = len(gnn_layer_sizes) - 1
+        self.gnn_layer_sizes = gnn_layer_sizes
 
-        self.num_layers = len(input_dims)
-        self.linear_layer = linear_layer
+        self.num_mlp_layers = len(gnn_layer_sizes) - 1
+        self.mlp_layer_sizes = mlp_layer_sizes
+
+        self.gnn_last_layer = gnn_last_layer
+        self.mlp_last_layer = mlp_last_layer
         self.dropout = dropout
-        self.last_layer = last_layer
         self.batch_normalization = batch_normalization
         self.multiple_features = multiple_features
         self.feature_dims = feature_dims
 
-        self.layers = self.create_models(input_dims, output_dims)
+        self.layers = self.create_models()
 
     def __getitem__(self, item):
         return self.layers[item]
 
-    def create_models(self, in_dims, out_dims):
-        layers = nn.ParameterList()
+    def create_models(self):
+        self.gnn_model = GNN(
+            layer_sizes=self.gnn_layer_sizes,
+            last_layer=self.gnn_last_layer,
+            layer_type="sage",
+            dropout=self.dropout,
+            batch_normalization=self.batch_normalization,
+            multiple_features=self.multiple_features,
+        )
+
+        self.mlp_model = MLP(
+            layer_sizes=self.mlp_layer_sizes,
+            last_layer=self.mlp_last_layer,
+            dropout=self.dropout,
+            batch_normalization=False,
+        )
+
+    def reset_parameters(self) -> None:
+        self.gnn_model.reset_parameters()
+        self.mlp_model.reset_parameters()
+
+    def state_dict(self):
+        weights = {
+            "gnn": self.gnn_model.state_dict(),
+            "mlp": self.mlp_model.state_dict(),
+        }
+        return weights
+
+    def load_state_dict(self, weights: dict) -> None:
+        self.gnn_model.load_state_dict(weights["gnn"])
+        self.mlp_model.load_state_dict(weights["mlp"])
+
+    def gnn_step(self, h, edge_index) -> None:
+        return self.gnn_model(h, edge_index)
+
+    def mlp_step(self, h) -> None:
+        return self.mlp_model(h)
+
+    def forward(self, x, edge_index):
+        h = self.gnn_step(x, edge_index)
+        out = self.mlp_step(h)
+        return out
+
+
+class GNN(torch.nn.Module):
+    """Graph Neural Network"""
+
+    def __init__(
+        self,
+        layer_sizes,
+        last_layer="linear",
+        layer_type="sage",
+        dropout=0.5,
+        batch_normalization=False,
+        multiple_features=False,
+        feature_dims=0,
+    ):
+        super().__init__()
+        self.num_layers = len(layer_sizes) - 1
+        # self.layer_sizes = layer_sizes
+
+        self.last_layer = last_layer
+        self.layer_type = layer_type
+        self.dropout = dropout
+        self.batch_normalization = batch_normalization
+        self.multiple_features = multiple_features
+        self.feature_dims = feature_dims
+
+        self.layers = self.create_models(layer_sizes)
+
+    def __getitem__(self, item):
+        return self.layers[item]
+
+    def create_models(self, layer_sizes):
         if self.multiple_features:
             self.mp_layer = nn.Linear(self.feature_dims, 1, bias=False)
 
         if self.batch_normalization:
-            self.batch_layer = nn.BatchNorm1d(in_dims[0])
-        for layer_num in range(self.num_layers):
-            if layer_num == self.num_layers - 1 and self.linear_layer:
-                layer = nn.Linear(in_dims[layer_num], out_dims[layer_num])
-            else:
-                layer = SAGEConv(in_dims[layer_num], out_dims[layer_num], aggr="mean")
-                # layer = GCNConv(in_dims[layer_num], out_dims[layer_num], aggr="mean")
-                # layer = GATConv(in_dims[layer_num], out_dims[layer_num], aggr="mean")
-            layers.append(layer)
+            self.batch_layer = nn.BatchNorm1d(layer_sizes[0])
 
-        return layers
+        gnn_layers = nn.ParameterList()
+        for layer_num in range(self.num_layers):
+            if self.layer_type == "sage":
+                layer = SAGEConv(
+                    layer_sizes[layer_num], layer_sizes[layer_num + 1], aggr="mean"
+                )
+            elif self.layer_type == "gcn":
+                layer = GCNConv(
+                    layer_sizes[layer_num], layer_sizes[layer_num + 1], aggr="mean"
+                )
+            elif self.layer_type == "gat":
+                layer = GATConv(
+                    layer_sizes[layer_num], layer_sizes[layer_num + 1], aggr="mean"
+                )
+            gnn_layers.append(layer)
+
+        return gnn_layers
 
     def reset_parameters(self) -> None:
         if self.batch_normalization:
@@ -115,14 +196,25 @@ class GNN(torch.nn.Module):
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
 
+    def normalize_mp_weights(self):
+        with torch.no_grad():
+            w = self.mp_layer.weight.data
+            w = (w - torch.min(w)) / (torch.max(w) - torch.min(w))
+            self.mp_layer.weight.data = w / w.sum()
+
+    def step(self, h, edge_index, layer_id):
+        layer = self.layers[layer_id]
+        h = layer(h, edge_index).relu()
+        h = F.dropout(h, p=self.dropout, training=self.training)
+
+        return h
+
     def forward(self, x, edge_index):
         h = x
         if self.multiple_features:
-            with torch.no_grad():
-                w = self.mp_layer.weight.data
-                w = (w - torch.min(w)) / (torch.max(w) - torch.min(w))
-                self.mp_layer.weight.data = w / w.sum()
+            self.normalize_mp_weights()
             h = self.mp_layer(h).squeeze()
+
         if self.batch_normalization:
             h = self.batch_layer(h)
 
@@ -130,10 +222,7 @@ class GNN(torch.nn.Module):
             h = layer(h, edge_index).relu()
             h = F.dropout(h, p=self.dropout, training=self.training)
 
-        if self.linear_layer:
-            out = self.layers[-1](h)
-        else:
-            out = self.layers[-1](h, edge_index)
+        out = self.layers[-1](h, edge_index)
 
         if self.last_layer == "softmax":
             return F.softmax(out, dim=1)
@@ -147,28 +236,29 @@ class MLP(nn.Module):
     def __init__(
         self,
         layer_sizes,
+        last_layer="softmax",
         dropout=0.5,
-        softmax=True,
         batch_normalization=False,
     ):
         super().__init__()
 
         self.num_layers = len(layer_sizes) - 1
         self.dropout = dropout
-        self.softmax = softmax
+        self.last_layer = last_layer
         self.batch_normalization = batch_normalization
 
         self.layers = self.create_models(layer_sizes)
 
-        self.default_weights = self.state_dict()
+        # self.default_weights = self.state_dict()
 
     def __getitem__(self, item):
         return self.layers[item]
 
     def create_models(self, layer_sizes):
-        layers = nn.ParameterList()
         if self.batch_normalization:
             self.batch_layer = nn.BatchNorm1d(layer_sizes[0])
+
+        layers = nn.ParameterList()
         for layer_num in range(self.num_layers):
             layer = nn.Linear(layer_sizes[layer_num], layer_sizes[layer_num + 1])
             layers.append(layer)
@@ -176,11 +266,11 @@ class MLP(nn.Module):
         return layers
 
     def reset_parameters(self) -> None:
-        self.load_state_dict(self.default_weights)
-        # if self.batch_normalization:
-        #     self.batch_layer.reset_parameters()
-        # for layers in self.layers:
-        #     layers.reset_parameters()
+        # self.load_state_dict(self.default_weights)
+        if self.batch_normalization:
+            self.batch_layer.reset_parameters()
+        for layers in self.layers:
+            layers.reset_parameters()
 
     def state_dict(self):
         weights = {}
@@ -196,6 +286,13 @@ class MLP(nn.Module):
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
 
+    def step(self, h, layer_id):
+        layer = self.layers[layer_id]
+        h = layer(h).relu()
+        h = F.dropout(h, p=self.dropout, training=self.training)
+
+        return h
+
     def forward(self, x):
         h = x
         if self.batch_normalization:
@@ -206,14 +303,21 @@ class MLP(nn.Module):
 
         out = self.layers[-1](h)
 
-        if self.softmax:
-            out = F.softmax(out, dim=1)
-        return out
+        if self.last_layer == "softmax":
+            return F.softmax(out, dim=1)
+        elif self.last_layer == "relu":
+            return F.relu(out)
+        else:
+            return out
 
     def fit(self, x, y, masks, epochs, verbose=False):
         train_mask, val_mask, test_mask = masks
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.005, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
+        )
 
         self.train()
         for epoch in range(epochs + 1):

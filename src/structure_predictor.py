@@ -238,7 +238,9 @@ class StructurePredictor:
         predict=False,
     ):
         optimizer = torch.optim.Adam(
-            self.structure_model.parameters(), lr=config.model.lr, weight_decay=5e-4
+            self.structure_model.parameters(),
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
         )
         if bar:
             bar = tqdm(total=epochs, position=0)
@@ -340,7 +342,9 @@ class StructurePredictor:
             parameters = list(layers.parameters())
             # parameters += list(self.models[f"structure_model"].parameters())
             optimizer = torch.optim.Adam(
-                parameters, lr=config.model.lr, weight_decay=5e-4
+                parameters,
+                lr=config.model.lr,
+                weight_decay=config.model.weight_decay,
             )
             optimizers[model_name] = optimizer
 
@@ -353,7 +357,9 @@ class StructurePredictor:
             + list(self.model[f"linear_layer"].parameters())
         )
 
-        optimizer = torch.optim.Adam(parameters, lr=config.model.lr, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(
+            parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+        )
 
         return optimizer
 

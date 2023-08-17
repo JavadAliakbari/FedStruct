@@ -1,9 +1,5 @@
-import logging
-
 import torch
-import pandas as pd
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from src.utils.utils import *
@@ -34,17 +30,19 @@ class MLPClassifier(Classifier):
         if dim_in is None:
             dim_in = self.graph.num_features
 
-        in_dims = [dim_in] + config.model.classifier_layer_sizes + [self.num_classes]
+        layer_sizes = [dim_in] + config.model.mlp_layer_sizes + [self.num_classes]
         self.model = MLP(
-            layer_sizes=in_dims,
+            layer_sizes=layer_sizes,
+            last_layer="softmax",
             dropout=config.model.dropout,
-            softmax=True,
             batch_normalization=True,
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=config.model.lr, weight_decay=5e-4
+            self.model.parameters(),
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
         )
 
     def prepare_data(

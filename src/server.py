@@ -45,7 +45,7 @@ class Server(Client):
                 logger=logger,
             )
 
-            self.initialize = False
+            self.initialized = False
 
         # self.subgraph.add_structural_features()
 
@@ -120,15 +120,20 @@ class Server(Client):
     def initialize_sd_predictor(self) -> None:
         sd_dims = [
             config.structure_model.num_structural_features
-        ] + config.structure_model.structure_layers_size
+        ] + config.structure_model.structure_layers_sizes
 
-        self.create_local_sd_model(sd_dims, model_type="GNN")
-        # server_model = self.get_local_sd_model()
+        # self.create_local_sd_model(sd_dims, model_type="GNN")
 
-        # client_models = []
+        # for client in self.clients:
+        #     client.create_local_sd_model(sd_dims, model_type="GNN")
+
+        self.initialize(
+            additional_layer_dims=config.structure_model.structure_layers_sizes[-1]
+        )
         for client in self.clients:
-            client.create_local_sd_model(sd_dims, model_type="GNN")
-            # client_models.append(client.get_local_sd_model())
+            client.initialize(
+                additional_layer_dims=config.structure_model.structure_layers_sizes[-1]
+            )
 
         self.sd_predictor.initialize_structural_graph(
             client_models=self.clients,
@@ -136,7 +141,7 @@ class Server(Client):
             sd_layer_size=sd_dims,
         )
 
-        self.initialize = True
+        self.initialized = True
 
     def get_structure_embeddings(self, train=True):
         return self.sd_predictor.get_structure_embeddings(train=train)
@@ -147,7 +152,7 @@ class Server(Client):
     def train_sd_predictor(
         self, epochs=config.model.epoch_classifier, bar=True, plot=True, predict=False
     ) -> None:
-        if self.initialize:
+        if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
@@ -176,12 +181,12 @@ class Server(Client):
         self.LOGGER.info("FLWA starts!")
         criterion = torch.nn.CrossEntropyLoss()
 
-        self.initialize_classifier()
-        self.reset_classifier_parameters()
+        self.initialize()
+        self.reset_parameters()
 
         for client in self.clients:
-            client.initialize_classifier()
-            client.reset_classifier_parameters()
+            client.initialize()
+            client.reset_parameters()
 
         server_results = []
         average_results = []
@@ -189,7 +194,7 @@ class Server(Client):
         bar = tqdm(total=epochs)
         for epoch in range(epochs):
             metrics = {}
-            weights = self.get_classifier_weights()
+            weights = self.state_dict()
             if self.classifier_type == "GNN":
                 (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.train(
                     x=self.subgraph.x,
@@ -227,14 +232,14 @@ class Server(Client):
                 self.LOGGER.info(f"{result}")
 
             for client in self.clients:
-                client.set_classifier_weights(weights)
+                client.load_state_dict(weights)
 
             sum_weights = None
             average_result = {}
             for client in self.clients:
-                res = client.fit_classifier(config.model.epochs_local)
+                res = client.fit(config.model.epochs_local)
 
-                new_weights = client.get_classifier_weights()
+                new_weights = client.state_dict()
                 sum_weights = add_weights(sum_weights, new_weights)
 
                 result = res[-1]
@@ -251,7 +256,7 @@ class Server(Client):
                     self.LOGGER.info(f"{result}")
 
             mean_weights = calc_mean_weights(sum_weights, self.num_clients)
-            self.set_classifier_weights(mean_weights)
+            self.load_state_dict(mean_weights)
 
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
@@ -280,18 +285,20 @@ class Server(Client):
     def train_FLGA(self, epochs=1):
         # return self.model.fit2(self.graph, clients, epochs)
         self.LOGGER.info("FLGA starts!")
-        self.initialize_classifier()
-        self.reset_classifier_parameters()
+        self.initialize()
+        self.reset_parameters()
 
         for client in self.clients:
-            client.initialize_classifier()
-            client.reset_classifier_parameters()
+            client.initialize()
+            client.reset_parameters()
 
         classifier = self.classifier
         server_parameters = list(classifier.parameters())
 
         optimizer = torch.optim.Adam(
-            server_parameters, lr=config.model.lr, weight_decay=5e-4
+            server_parameters,
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
         )
         criterion = torch.nn.CrossEntropyLoss()
 
@@ -305,7 +312,7 @@ class Server(Client):
 
             for client in self.clients:
                 client.classifier.zero_grad()
-                client.set_classifier_weights(server_weights)
+                client.load_state_dict(server_weights)
 
             metrics = {}
             loss_list = torch.zeros(len(self.clients), dtype=torch.float32)
@@ -441,7 +448,7 @@ class Server(Client):
 
     def train_SD_Server(self, epochs):
         self.LOGGER.info("SD_Server starts!")
-        if self.initialize:
+        if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
@@ -449,7 +456,7 @@ class Server(Client):
 
     def train_SDWA(self, epochs):
         self.LOGGER.info("SDWA starts!")
-        if self.initialize:
+        if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
@@ -457,7 +464,7 @@ class Server(Client):
 
     def train_SDGA(self, epochs=1):
         self.LOGGER.info("SDGA starts!")
-        if self.initialize:
+        if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()

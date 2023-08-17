@@ -187,15 +187,17 @@ if __name__ == "__main__":
 
     GNN = JointModel(
         num_clients=num_clients,
-        client_layer_sizes=[graph.num_features] + config.model.classifier_layer_sizes,
+        client_layer_sizes=[graph.num_features] + config.model.gnn_layer_sizes,
         structure_layer_sizes=[config.structure_model.num_structural_features]
-        + config.model.classifier_layer_sizes,
+        + config.model.gnn_layer_sizes,
         num_classes=num_classes,
     )
 
     criterion = torch.nn.CrossEntropyLoss()
     parameters = list(GNN.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=config.model.lr, weight_decay=5e-4)
+    optimizer = torch.optim.Adam(
+        parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+    )
 
     GNN.forward(subgraphs, graph)
     a = 2

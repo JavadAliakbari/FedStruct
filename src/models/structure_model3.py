@@ -1,17 +1,13 @@
 import logging
-from ast import List
 from collections import deque
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torch_geometric.datasets import TUDataset, Planetoid
 from src.client import Client
 
 from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.utils.graph_partinioning import louvain_graph_cut
-from src.models.GNN_models import GNN, MLP, calc_accuracy
 
 config = Config()
 
@@ -43,14 +39,14 @@ class JointModel(torch.nn.Module):
         return iter(self.clients)
 
     def reset_parameters(self) -> None:
-        self.server.reset_sd_parameters()
+        self.server.reset_parameters()
         for client in self.clients:
-            client.reset_sd_parameters()
+            client.reset_parameters()
 
     def state_dict(self):
         model_weights = {}
         for client in self.clients:
-            weights = client.get_sd_weights()
+            weights = client.state_dict()
             model_weights[f"client{client.id}"] = weights
 
         return model_weights
@@ -58,7 +54,7 @@ class JointModel(torch.nn.Module):
     def load_state_dict(self, model_weights: dict) -> None:
         for client in self.clients:
             weights = model_weights[f"client{client.id}"]
-            client.set_sd_weights(weights)
+            client.load_state_dict(weights)
 
     def forward(self):
         out = {}
@@ -74,7 +70,7 @@ class JointModel(torch.nn.Module):
             node_ids = client.get_nodes()
             x_s = S[node_ids]
             x = torch.hstack((H.popleft(), x_s))
-            out[f"client{client.id}"] = client.get_sd_labels(x)
+            out[f"client{client.id}"] = client.predict_labels(x)
 
         return out
 
@@ -84,7 +80,7 @@ class JointModel(torch.nn.Module):
         node_ids = client.get_nodes()
         x_s = S[node_ids]
         x = torch.hstack((h, x_s))
-        out = client.get_sd_labels(x)
+        out = client.predict_labels(x)
 
         return out
 
@@ -113,15 +109,17 @@ if __name__ == "__main__":
 
     model = JointModel(
         clients=num_clients,
-        client_layer_sizes=[graph.num_features] + config.model.classifier_layer_sizes,
+        client_layer_sizes=[graph.num_features] + config.model.gnn_layer_sizes,
         structure_layer_sizes=[config.structure_model.num_structural_features]
-        + config.structure_model.structure_layers_size,
+        + config.structure_model.structure_layers_sizes,
         num_classes=num_classes,
     )
 
     criterion = torch.nn.CrossEntropyLoss()
     parameters = list(model.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=config.model.lr, weight_decay=5e-4)
+    optimizer = torch.optim.Adam(
+        parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+    )
 
     out = model.forward(subgraphs, graph)
     a = 2

@@ -8,7 +8,7 @@ from src.utils.utils import *
 from src.utils.graph import Graph
 from src.classifier import Classifier
 from src.utils.config_parser import Config
-from src.models.GNN_models import GNN, calc_accuracy, test, calc_f1_score
+from src.models.GNN_models import GNNMLP, calc_accuracy, test, calc_f1_score
 
 config = Config()
 
@@ -28,22 +28,31 @@ class GNNClassifier(Classifier):
             logger=logger,
         )
 
-    def set_classifiers(self, dim_in=None):
+    def set_classifiers(self, dim_in=None, additional_layer_dims=0):
         if dim_in is None:
             dim_in = self.graph.num_features
 
-        in_dims = [dim_in] + config.model.classifier_layer_sizes + [self.num_classes]
-        self.model = GNN(
-            in_dims=in_dims,
+        gnn_layer_sizes = [dim_in] + config.model.gnn_layer_sizes
+        mlp_layer_sizes = (
+            [config.model.gnn_layer_sizes[-1] + additional_layer_dims]
+            # + config.model.mlp_layer_sizes
+            + [self.num_classes]
+        )
+
+        self.model: GNNMLP = GNNMLP(
+            gnn_layer_sizes=gnn_layer_sizes,
+            mlp_layer_sizes=mlp_layer_sizes,
+            gnn_last_layer="linear",
+            mlp_last_layer="softmax",
             dropout=config.model.dropout,
-            linear_layer=True,
-            last_layer="softmax",
             batch_normalization=True,
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=config.model.lr, weight_decay=5e-4
+            self.model.parameters(),
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
         )
 
     def prepare_data(
@@ -65,6 +74,16 @@ class GNNClassifier(Classifier):
             # input_nodes=self.graph.train_mask,
             shuffle=True,
         )
+
+    def get_feature_embeddings(self):
+        x = self.graph.x
+        edge_index = self.graph.edge_index
+        h = self.model.gnn_step(x, edge_index)
+        return h
+
+    def predict_labels(self, x):
+        h = self.model.mlp_step(x)
+        return h
 
     def fit(
         self,
@@ -167,7 +186,7 @@ class GNNClassifier(Classifier):
         x,
         y,
         edge_index,
-        model: GNN,
+        model: GNNMLP,
         criterion,
         train_mask,
         val_mask,
@@ -197,6 +216,7 @@ class GNNClassifier(Classifier):
 
         return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
 
+    @torch.no_grad()
     def calc_test_accuracy(self):
         self.model.eval()
         return test(self.model, self.graph)

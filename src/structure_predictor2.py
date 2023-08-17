@@ -1,12 +1,9 @@
 from itertools import product
 import logging
-from typing import List
 
 import torch
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from torch.nn.functional import normalize
 from torch_geometric.nn import MessagePassing
 
@@ -43,7 +40,7 @@ class StructurePredictor:
 
         num_classes = max(y).item() + 1
         self.cls = MLP(
-            [config.structure_model.structure_layers_size[-1], 32, num_classes],
+            [config.structure_model.structure_layers_sizes[-1], 32, num_classes],
             dropout=0.1,
             batch_normalization=True,
         )
@@ -68,13 +65,14 @@ class StructurePredictor:
         if self.graph.y is not None:
             self.graph.find_class_neighbors()
 
-    def set_model(self, client_models, server_model, sd_layer_size):
+    def set_model(self, client_models, server_model, input_size):
         self.server = server_model
 
         self.structure_model = GNN(
-            in_dims=sd_layer_size,
-            dropout=config.model.dropout,
+            layer_sizes=input_size,
             last_layer="linear",
+            layer_type="sage",
+            dropout=config.model.dropout,
             batch_normalization=True,
             multiple_features=config.structure_model.structure_type == "mp",
             feature_dims=config.structure_model.num_mp_vectors,
@@ -261,7 +259,9 @@ class StructurePredictor:
         predict=False,
     ):
         optimizer = torch.optim.Adam(
-            self.structure_model.parameters(), lr=config.model.lr, weight_decay=5e-4
+            self.structure_model.parameters(),
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
         )
         if bar:
             bar = tqdm(total=epochs, position=0)
@@ -402,34 +402,26 @@ class StructurePredictor:
         S = self.get_structure_embeddings(train=train)
         h = self.server.get_feature_embeddings()
         x = torch.hstack((h, S))
-        y_pred = self.server.get_sd_labels(x)
+        y_pred = self.server.predict_labels(x)
 
         structure_loss = self.calc_loss(S)
 
         return self.cacl_metrics(self.server, y_pred, structure_loss)
 
     def calc_server_weights(self, clients):
-        sum_weights1 = None
-        sum_weights2 = None
+        sum_weights = None
         for client in clients:
-            client_weight = client.get_sd_weights()
-            sum_weights1 = add_weights(sum_weights1, client_weight["sd_model"])
-            sum_weights2 = add_weights(sum_weights2, client_weight["dense_model"])
+            client_weight = client.state_dict()
+            sum_weights = add_weights(sum_weights, client_weight)
 
-        mean_weights1 = calc_mean_weights(sum_weights1, len(clients))
-        mean_weights2 = calc_mean_weights(sum_weights2, len(clients))
+        mean_weights = calc_mean_weights(sum_weights, len(clients))
 
-        server_weights = {
-            "sd_model": mean_weights1,
-            "dense_model": mean_weights2,
-        }
-
-        self.server.set_sd_weights(server_weights)
+        self.server.load_state_dict(mean_weights)
 
     def calc_total_grads(self, clients):
         grads = None
         for client in clients:
-            client_parameters = client.get_sd_parameters()
+            client_parameters = client.parameters()
             client_grads = [
                 client_parameter.grad for client_parameter in client_parameters
             ]
@@ -440,32 +432,36 @@ class StructurePredictor:
                 for i in range(len(client_grads)):
                     grads[i] += ratio * client_grads[i]
 
-        server_parameters = list(self.server.get_sd_parameters())
+        server_parameters = list(self.server.parameters())
         for i in range(len(grads)):
             server_parameters[i].grad = grads[i]
 
     def create_SW_optimizers(self):
         optimizers = {}
         for client in self.model:
-            parameters = client.get_sd_parameters()
+            parameters = client.parameters()
             # parameters += list(self.models[f"structure_model"].parameters())
             optimizer = torch.optim.Adam(
-                parameters, lr=config.model.lr, weight_decay=5e-4
+                parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
             )
             optimizers[f"client{client.id}"] = optimizer
 
         parameters = self.structure_model.parameters()
-        optimizer = torch.optim.Adam(parameters, lr=config.model.lr, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(
+            parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+        )
         optimizers[f"structure_model"] = optimizer
 
         return optimizers
 
     def create_SG_optimizer(self):
-        parameters = list(self.server.get_sd_parameters()) + list(
+        parameters = list(self.server.parameters()) + list(
             self.structure_model.parameters()
         )
 
-        optimizer = torch.optim.Adam(parameters, lr=config.model.lr, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(
+            parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+        )
 
         return optimizer
 
@@ -569,10 +565,10 @@ class StructurePredictor:
                 self.LOGGER.info(f"SDWA results for {self.server.id}:")
                 self.LOGGER.info(f"{result}")
 
-            self.server.zero_grad_sd()
-            server_weights = self.server.get_sd_weights()
+            self.server.zero_grad()
+            server_weights = self.server.state_dict()
             for client in clients:
-                client.set_sd_weights(server_weights)
+                client.load_state_dict(server_weights)
 
             out = self.model()
             structure_loss = self.calc_loss(out["structure_model"])
@@ -692,11 +688,11 @@ class StructurePredictor:
                 self.LOGGER.info(f"SDGA results for client{self.server.id}:")
                 self.LOGGER.info(f"{result}")
 
-            self.server.zero_grad_sd()
-            server_weights = self.server.get_sd_weights()
+            self.server.zero_grad()
+            server_weights = self.server.state_dict()
             for client in clients:
-                client.zero_grad_sd()
-                client.set_sd_weights(server_weights)
+                client.zero_grad()
+                client.load_state_dict(server_weights)
 
             out = self.model()
             structure_loss = self.calc_loss(out["structure_model"])

@@ -51,7 +51,8 @@ class Model:
         self.dropout = model["dropout"]
         self.gen_epochs = model["gen_epochs"]
         self.epoch_classifier = model["epoch_classifier"]
-        self.classifier_layer_sizes = model["classifier_layer_sizes"]
+        self.gnn_layer_sizes = model["gnn_layer_sizes"]
+        self.mlp_layer_sizes = model["mlp_layer_sizes"]
 
 
 class StructureModel:
@@ -60,7 +61,7 @@ class StructureModel:
 
     def load_config(self, structure_model):
         self.sd_ratio = structure_model["sd_ratio"]
-        self.structure_layers_size = structure_model["structure_layers_size"]
+        self.structure_layers_sizes = structure_model["structure_layers_size"]
         self.structure_type = structure_model["structure_type"]
         self.num_structural_features = structure_model["num_structural_features"]
         self.loss = structure_model["loss"]
