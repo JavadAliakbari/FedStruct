@@ -86,7 +86,9 @@ def make_groups_smaller_than_max(community_groups, group_len_max) -> dict:
 
 
 def assign_nodes_to_subgraphs(community_groups, max_subgraph_nodes):
-    subgraph_node_ids = {subgraph_id: [] for subgraph_id in range(config.num_subgraphs)}
+    subgraph_node_ids = {
+        subgraph_id: [] for subgraph_id in range(config.subgraph.num_subgraphs)
+    }
     subgraphs = cycle(subgraph_node_ids.keys())
     current_subgraph = next(subgraphs)
 
@@ -133,6 +135,8 @@ def create_subgraps(graph, subgraph_node_ids: dict):
             .all(-1)
             .any(-1),
         ]
+
+        # all_edges = torch.cat((intra_edges, inter_edges), dim=0)
 
         node_mask = torch.isin(graph.node_ids, node_ids)
         subgraph_node_ids = graph.node_ids[node_mask]
@@ -192,12 +196,14 @@ def random_assign(graph, max_subgraph_nodes):
     return subgraph_node_ids
 
 
-def louvain_graph_cut(graph):
+def louvain_graph_cut(graph: Graph):
     # community_map = find_community(graph)
 
     # community_groups = create_community_groups(community_map=community_map)
 
-    # group_len_max = graph.num_nodes // config.subgraph.num_subgraphs + config.subgraph.delta
+    # group_len_max = (
+    #     graph.num_nodes // config.subgraph.num_subgraphs + config.subgraph.delta
+    # )
 
     # community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
 

@@ -130,6 +130,8 @@ def set_up_system():
     GNN_server.train_SDWA(config.model.epoch_classifier)
     GNN_server.train_SDGA(config.model.epoch_classifier)
 
+    # GNN_server.train_locsages()
+    # GNN_server.train_fedSage_plus()
     # server.train_sd_ptor()
 
 

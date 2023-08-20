@@ -71,7 +71,7 @@ class StructurePredictor:
         self.structure_model = GNN(
             layer_sizes=input_size,
             last_layer="linear",
-            layer_type="sage",
+            layer_type=config.model.gnn_layer_type,
             dropout=config.model.dropout,
             batch_normalization=True,
             multiple_features=config.structure_model.structure_type == "mp",
@@ -506,7 +506,9 @@ class StructurePredictor:
                 self.LOGGER.info(f"SD_Server results for client{self.server.id}:")
                 self.LOGGER.info(f"{result}")
 
-            train_loss = cls_train_loss + str_train_loss
+            train_loss = (
+                cls_train_loss + config.structure_model.sd_ratio * str_train_loss
+            )
 
             train_loss.backward()
             optimizer.step()
@@ -586,7 +588,9 @@ class StructurePredictor:
                     val_acc,
                 ) = self.cacl_metrics(client, y_pred, structure_loss)
 
-                train_loss = cls_train_loss + str_train_loss
+                train_loss = (
+                    cls_train_loss + config.structure_model.sd_ratio * str_train_loss
+                )
                 loss_list[ind] = train_loss
 
                 result = {
@@ -709,7 +713,9 @@ class StructurePredictor:
                     val_acc,
                 ) = self.cacl_metrics(client, y_pred, structure_loss)
 
-                train_loss = cls_train_loss + str_train_loss
+                train_loss = (
+                    cls_train_loss + config.structure_model.sd_ratio * str_train_loss
+                )
                 loss_list[ind] = train_loss
 
                 result = {

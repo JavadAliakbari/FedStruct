@@ -47,6 +47,7 @@ class Model:
         self.epochs_local = model["epochs_local"]
         self.lr = model["lr"]
         self.weight_decay = model["weight_decay"]
+        self.gnn_layer_type = model["gnn_layer_type"]
         # self.hidden = model["hidden"]
         self.dropout = model["dropout"]
         self.gen_epochs = model["gen_epochs"]

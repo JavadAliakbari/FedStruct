@@ -74,7 +74,7 @@ class GNNMLP(torch.nn.Module):
         self.gnn_model = GNN(
             layer_sizes=self.gnn_layer_sizes,
             last_layer=self.gnn_last_layer,
-            layer_type="sage",
+            layer_type=config.model.gnn_layer_type,
             dropout=self.dropout,
             batch_normalization=self.batch_normalization,
             multiple_features=self.multiple_features,
