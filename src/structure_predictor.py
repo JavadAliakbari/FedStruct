@@ -257,13 +257,18 @@ class StructurePredictor:
 
             if predict:
                 x = self.get_structure_embeddings()
-                y = self.y
-                masks = (
-                    self.graph.train_mask,
-                    self.graph.val_mask,
-                    self.graph.test_mask,
+                x_train = x[self.graph.train_mask]
+                y_train = self.y[self.graph.train_mask]
+                x_val = x[self.graph.val_mask]
+                y_val = self.y[self.graph.val_mask]
+
+                cls_val_acc, cls_val_loss = self.cls.fit(
+                    x_train,
+                    y_train,
+                    x_val,
+                    y_val,
+                    epochs=100,
                 )
-                cls_val_acc, cls_val_loss = self.cls.fit(x, y, masks, 100)
             else:
                 cls_val_acc = 0
                 cls_val_loss = 0

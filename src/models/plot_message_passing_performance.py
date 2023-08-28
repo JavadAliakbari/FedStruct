@@ -13,8 +13,10 @@ from torch_geometric.datasets import (
 )
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, remove_self_loops, to_undirected
+from sklearn.preprocessing import StandardScaler
 
 from src.models.GNN_models import MLP
+from src.models.Node2Vec import find_node2vect_embedings
 from src.server import Server
 from src.utils.config_parser import Config
 from src.utils.create_graph import create_heterophilic_graph2, create_homophilic_graph2
@@ -55,32 +57,17 @@ def plot(x, round=0):
 
 def log_config():
     _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
-    _LOGGER.info(f"batch: {config.model.batch}")
-    _LOGGER.info(f"batch size: {config.model.batch_size}")
     _LOGGER.info(f"learning rate: {config.model.lr}")
     _LOGGER.info(f"weight decay: {config.model.weight_decay}")
     _LOGGER.info(f"dropout: {config.model.dropout}")
-    _LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
-    _LOGGER.info(f"gnn layer sizes: {config.model.gnn_layer_sizes}")
     _LOGGER.info(f"mlp layer sizes: {config.model.mlp_layer_sizes}")
-    _LOGGER.info(f"sd ratio: {config.structure_model.sd_ratio}")
-    _LOGGER.info(
-        f"structure layers size: {config.structure_model.structure_layers_sizes}"
-    )
-    _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
     _LOGGER.info(
         f"num structural features: {config.structure_model.num_structural_features}"
     )
-    _LOGGER.info(f"loss: {config.structure_model.loss}")
-    _LOGGER.info(
-        f"cosine similarity predictor epochs: {config.structure_model.cosine_similarity_predictor_epochs}"
-    )
-    _LOGGER.info(f"gnn epochs: {config.structure_model.gnn_epochs}")
-    _LOGGER.info(f"mlp epochs: {config.structure_model.mlp_epochs}")
 
 
 if __name__ == "__main__":
-    save_path = f"./results/{config.dataset.dataset_name}/{config.structure_model.structure_type}/structure/"
+    save_path = f"./results/{config.dataset.dataset_name}/message passing/"
     _LOGGER = get_logger(
         name=f"SD_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
         log_on_file=True,
@@ -148,31 +135,8 @@ if __name__ == "__main__":
 
     y = graph.y.long()
     num_classes = max(y).item() + 1
-    MLP_server = Server(
-        graph, num_classes, classifier_type="MLP", save_path=save_path, logger=_LOGGER
-    )
-    GNN_server = Server(
-        graph, num_classes, classifier_type="GNN", save_path=save_path, logger=_LOGGER
-    )
 
-    GNN_server.train_sd_predictor(
-        config.structure_model.cosine_similarity_predictor_epochs,
-        plot=True,
-        predict=True,
-    )
-    GNN_server.test_sd_predictor()
-
-    # GNN_server.initialize_sd_predictor()
-    x = GNN_server.sd_predictor.graph.structural_features
-    graph.x = x
-    graph.num_features = x.shape[1]
-
-    MLP_server.train_local_classifier(config.structure_model.mlp_epochs)
-    _LOGGER.info(f"Server MLP test accuracy: {MLP_server.test_local_classifier()}")
-    GNN_server.train_local_classifier(config.structure_model.gnn_epochs)
-    _LOGGER.info(f"Server GNN test accuracy: {GNN_server.test_local_classifier()}")
-
-    # x = server.get_sd_embeddings()
+    # x = GNN_server.sd_predictor.graph.structural_features
 
     message_passing = MessagePassing(aggr="mean")
     cls = MLP(
@@ -181,46 +145,71 @@ if __name__ == "__main__":
         + [num_classes],
         batch_normalization=True,
     )
+
+    sc = StandardScaler()
+
     y_train = y[graph.train_mask]
     y_val = y[graph.val_mask]
     y_test = y[graph.test_mask]
 
-    edge_index = graph.edge_index
-    edge_index = add_self_loops(edge_index)[0]
-
-    test_acc_list = []
-    l = 100
-    for i in range(l):
-        x_train = x[graph.train_mask]
-        x_val = x[graph.val_mask]
-        x_test = x[graph.test_mask]
-
-        cls.reset_parameters()
-        cls_val_acc, cls_val_loss = cls.fit(
-            x_train,
-            y_train,
-            x_val,
-            y_val,
-            epochs=150,
-        )
-        test_acc = cls.test(x_test, y_test)
-
-        _LOGGER.info(f"epoch: {i} test accuracy: {test_acc}")
-        test_acc_list.append(test_acc)
-        x = message_passing.propagate(edge_index, x=x)
-        if i in [0, 2, 5, 10, 20, l - 1]:
-            plot(x, round=i)
-
-    # x = GNN_server.sd_predictor.graph.structural_features
+    test_acc_list = {}
     plt.figure()
-    plt.plot(
-        range(l), test_acc_list, label=config.structure_model.structure_type, marker="*"
-    )
+    for sd in ["GDV"]:
+        # for sd in ["degree", "GDV", "node2vec"]:
+        if sd == "degree":
+            x = Graph.calc_degree_features(
+                graph.edge_index, config.structure_model.num_structural_features
+            )
+        elif sd == "GDV":
+            x = Graph.calc_GDV(graph.edge_index)
+        elif sd == "node2vec":
+            x = find_node2vect_embedings(
+                edge_index,
+                embedding_dim=config.structure_model.num_structural_features,
+                epochs=25,
+            )
+        edge_index = graph.edge_index
+        edge_index = add_self_loops(edge_index)[0]
+
+        l = 100
+        test_acc_list[sd] = []
+        for i in range(l):
+            x_train = x[graph.train_mask]
+            x_val = x[graph.val_mask]
+            x_test = x[graph.test_mask]
+
+            cls.reset_parameters()
+            cls_val_acc, cls_val_loss = cls.fit(
+                x_train,
+                y_train,
+                x_val,
+                y_val,
+                epochs=150,
+                verbose=True,
+                plot=True,
+            )
+            test_acc = cls.test(x_test, y_test)
+
+            _LOGGER.info(f"epoch: {i} test accuracy: {test_acc}")
+            test_acc_list[sd].append(test_acc)
+            x = message_passing.propagate(edge_index, x=x)
+            plt.show()
+            # x = sc.fit_transform(x)
+            # x = torch.tensor(x, dtype=torch.float32)
+            # if i in [0, 2, 5, 10, 20, l - 1]:
+            #     plot(x, round=i)
+
+        plt.plot(
+            range(l),
+            test_acc_list[sd],
+            marker="*",
+            label=sd,
+        )
+
     plt.title(f"{config.dataset.dataset_name} Message Passing accuracy per round")
     plt.xlabel("round")
     plt.ylabel("accuracy")
     plt.legend()
-    # plt.savefig(f"./Message Passing accuracy per round {config.dataset.dataset_name}")
     plt.savefig(f"{save_path}Message Passing accuracy per round.png")
 
     # plt.show()

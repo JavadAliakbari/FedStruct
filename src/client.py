@@ -119,7 +119,7 @@ class Client:
     def fit(self, epochs, bar=False, plot=False, type="local") -> None:
         return self.classifier.fit(
             epochs=epochs,
-            batch=False,
+            batch=config.model.batch,
             bar=bar,
             plot=plot,
             type=type,

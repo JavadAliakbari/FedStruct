@@ -32,7 +32,7 @@ def test(model, graph):
     return acc
 
 
-def find_node2vect_embedings(edge_index, epochs=50, embedding_dim=64):
+def find_node2vect_embedings(edge_index, epochs=50, embedding_dim=64, plot=False):
     model = Node2Vec(
         edge_index,
         embedding_dim=embedding_dim,
@@ -59,8 +59,10 @@ def find_node2vect_embedings(edge_index, epochs=50, embedding_dim=64):
         res.append(loss)
 
     # print(f"test accuracy: {test(model, )}")
-    plt.plot(res)
+    if plot:
+        plt.plot(res)
 
+    model.eval()
     z = model()
     z = z.detach()
 

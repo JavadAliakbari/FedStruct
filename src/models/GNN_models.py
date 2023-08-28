@@ -1,9 +1,11 @@
-import torch
+import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import SAGEConv, GCNConv, GATConv
 from sklearn.metrics import f1_score
+from torch_geometric.nn import GATConv, GCNConv, SAGEConv, MessagePassing
+from torch_geometric.utils import add_self_loops
 
 from src.utils.config_parser import Config
 
@@ -37,6 +39,86 @@ def test(model, data):
     return acc
 
 
+class MPMLP(torch.nn.Module):
+    """Graph Neural Network"""
+
+    def __init__(
+        self,
+        num_gnn_layers=1,
+        mlp_layer_sizes=[],
+        gnn_last_layer="linear",
+        mlp_last_layer="softmax",
+        dropout=0.5,
+        batch_normalization=False,
+        multiple_features=False,
+        feature_dims=0,
+    ):
+        super().__init__()
+        self.num_gnn_layers = num_gnn_layers
+
+        self.num_mlp_layers = len(mlp_layer_sizes) - 1
+        self.mlp_layer_sizes = mlp_layer_sizes
+
+        self.gnn_last_layer = gnn_last_layer
+        self.mlp_last_layer = mlp_last_layer
+        self.dropout = dropout
+        self.batch_normalization = batch_normalization
+        self.multiple_features = multiple_features
+        self.feature_dims = feature_dims
+
+        self.layers = self.create_models()
+
+    def __getitem__(self, item):
+        return self.layers[item]
+
+    def create_models(self):
+        self.mp = MessagePassing(aggr="mean")
+
+        self.mlp_model = MLP(
+            layer_sizes=self.mlp_layer_sizes,
+            last_layer=self.mlp_last_layer,
+            dropout=self.dropout,
+            batch_normalization=self.batch_normalization,
+        )
+
+    def reset_parameters(self) -> None:
+        self.mlp_model.reset_parameters()
+
+    def state_dict(self):
+        weights = {
+            "mlp": self.mlp_model.state_dict(),
+        }
+        return weights
+
+    def load_state_dict(self, weights: dict) -> None:
+        self.mlp_model.load_state_dict(weights["mlp"])
+
+    def gnn_step(self, h, edge_index) -> None:
+        a = 0.1
+        x = h
+        edge_index_ = add_self_loops(edge_index)[0]
+        for _ in range(self.num_gnn_layers):
+            x = self.mp.propagate(edge_index_, x=x)
+            x = (1 - a) * x + a * h
+
+        if self.gnn_last_layer == "softmax":
+            return F.softmax(x, dim=1)
+        elif self.gnn_last_layer == "relu":
+            return F.relu(x)
+        else:
+            return x
+
+    def mlp_step(self, h) -> None:
+        return self.mlp_model(h)
+
+    def forward(self, x, edge_index):
+        h = self.mlp_step(x)
+        out = self.gnn_step(h, edge_index)
+        # h = self.gnn_step(x, edge_index)
+        # out = self.mlp_step(h)
+        return out
+
+
 class GNNMLP(torch.nn.Module):
     """Graph Neural Network"""
 
@@ -55,7 +137,7 @@ class GNNMLP(torch.nn.Module):
         self.num_gnn_layers = len(gnn_layer_sizes) - 1
         self.gnn_layer_sizes = gnn_layer_sizes
 
-        self.num_mlp_layers = len(gnn_layer_sizes) - 1
+        self.num_mlp_layers = len(mlp_layer_sizes) - 1
         self.mlp_layer_sizes = mlp_layer_sizes
 
         self.gnn_last_layer = gnn_last_layer
@@ -249,7 +331,7 @@ class MLP(nn.Module):
 
         self.layers = self.create_models(layer_sizes)
 
-        # self.default_weights = self.state_dict()
+        self.default_weights = self.state_dict()
 
     def __getitem__(self, item):
         return self.layers[item]
@@ -266,11 +348,11 @@ class MLP(nn.Module):
         return layers
 
     def reset_parameters(self) -> None:
-        # self.load_state_dict(self.default_weights)
-        if self.batch_normalization:
-            self.batch_layer.reset_parameters()
-        for layers in self.layers:
-            layers.reset_parameters()
+        self.load_state_dict(self.default_weights)
+        # if self.batch_normalization:
+        #     self.batch_layer.reset_parameters()
+        # for layers in self.layers:
+        #     layers.reset_parameters()
 
     def state_dict(self):
         weights = {}
@@ -310,8 +392,16 @@ class MLP(nn.Module):
         else:
             return out
 
-    def fit(self, x, y, masks, epochs, verbose=False):
-        train_mask, val_mask, test_mask = masks
+    def fit(
+        self,
+        x_train,
+        y_train,
+        x_val=None,
+        y_val=None,
+        epochs=1,
+        verbose=False,
+        plot=False,
+    ):
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
             self.parameters(),
@@ -320,22 +410,25 @@ class MLP(nn.Module):
         )
 
         self.train()
+        train_acc_list = []
+        val_acc_list = []
         for epoch in range(epochs + 1):
             # Training
             optimizer.zero_grad()
-            out = self(x)
-            loss = criterion(out[train_mask], y[train_mask])
+            y_pred = self(x_train)
+            loss = criterion(y_pred, y_train)
             loss.backward()
             optimizer.step()
 
             # Print metrics every 10 epochs
-            if verbose:
-                acc = calc_accuracy(out[train_mask].argmax(dim=1), y[train_mask])
-                f1_score = calc_f1_score(out[train_mask].argmax(dim=1), y[train_mask])
+            if verbose and x_val is not None:
+                acc = calc_accuracy(y_pred.argmax(dim=1), y_train)
+                f1_score = calc_f1_score(y_pred.argmax(dim=1), y_train)
                 # Validation
-                val_loss = criterion(out[val_mask], y[val_mask])
-                val_acc = calc_accuracy(out[val_mask].argmax(dim=1), y[val_mask])
-                val_f1_score = calc_f1_score(out[val_mask].argmax(dim=1), y[val_mask])
+                y_pred_val = self(x_val)
+                val_loss = criterion(y_pred_val, y_val)
+                val_acc = calc_accuracy(y_pred_val.argmax(dim=1), y_val)
+                val_f1_score = calc_f1_score(y_pred_val.argmax(dim=1), y_val)
 
                 if epoch % 10 == 0:
                     print(
@@ -347,13 +440,21 @@ class MLP(nn.Module):
                         end="\r",
                     )
 
+                train_acc_list.append(acc)
+                val_acc_list.append(val_acc)
+
         if verbose:
             print("\n")
 
+        if plot:
+            plt.figure()
+            plt.plot(train_acc_list)
+            plt.plot(val_acc_list)
+
         self.eval()
-        out = self(x)
-        val_loss = criterion(out[val_mask], y[val_mask])
-        val_acc = calc_accuracy(out[val_mask].argmax(dim=1), y[val_mask])
+        y_pred_val = self(x_val)
+        val_loss = criterion(y_pred_val, y_val)
+        val_acc = calc_accuracy(y_pred_val.argmax(dim=1), y_val)
 
         return val_acc, val_loss
         # return loss, val_loss, acc, val_acc, TP, val_TP

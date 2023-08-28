@@ -42,6 +42,7 @@ class Model:
 
     def load_config(self, model):
         self.num_samples = model["num_samples"]
+        self.batch = model["batch"]
         self.batch_size = model["batch_size"]
         # self.steps = model["steps"]
         self.epochs_local = model["epochs_local"]
@@ -67,3 +68,8 @@ class StructureModel:
         self.num_structural_features = structure_model["num_structural_features"]
         self.loss = structure_model["loss"]
         self.num_mp_vectors = structure_model["num_mp_vectors"]
+        self.cosine_similarity_predictor_epochs = structure_model[
+            "cosine_similarity_predictor_epochs"
+        ]
+        self.gnn_epochs = structure_model["gnn_epochs"]
+        self.mlp_epochs = structure_model["mlp_epochs"]

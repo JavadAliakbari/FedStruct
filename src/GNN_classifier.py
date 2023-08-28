@@ -8,7 +8,7 @@ from src.utils.utils import *
 from src.utils.graph import Graph
 from src.classifier import Classifier
 from src.utils.config_parser import Config
-from src.models.GNN_models import GNNMLP, calc_accuracy, test, calc_f1_score
+from src.models.GNN_models import GNNMLP, MPMLP, calc_accuracy, test, calc_f1_score
 
 config = Config()
 
@@ -34,6 +34,7 @@ class GNNClassifier(Classifier):
 
         gnn_layer_sizes = [dim_in] + config.model.gnn_layer_sizes
         mlp_layer_sizes = (
+            # [additional_layer_dims]
             [config.model.gnn_layer_sizes[-1] + additional_layer_dims]
             # + config.model.mlp_layer_sizes
             + [self.num_classes]
@@ -41,6 +42,32 @@ class GNNClassifier(Classifier):
 
         self.model: GNNMLP = GNNMLP(
             gnn_layer_sizes=gnn_layer_sizes,
+            mlp_layer_sizes=mlp_layer_sizes,
+            gnn_last_layer="linear",
+            mlp_last_layer="softmax",
+            dropout=config.model.dropout,
+            batch_normalization=True,
+        )
+
+        self.criterion = torch.nn.CrossEntropyLoss()
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(),
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
+        )
+
+    def set_classifiers2(self, dim_in=None, additional_layer_dims=0):
+        if dim_in is None:
+            dim_in = self.graph.num_features
+
+        mlp_layer_sizes = (
+            [dim_in + additional_layer_dims]
+            + config.model.mlp_layer_sizes
+            + [self.num_classes]
+        )
+
+        self.model: MPMLP = MPMLP(
+            num_gnn_layers=15,
             mlp_layer_sizes=mlp_layer_sizes,
             gnn_last_layer="linear",
             mlp_last_layer="softmax",

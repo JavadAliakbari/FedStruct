@@ -130,6 +130,7 @@ class Server(Client):
         self.initialize(
             additional_layer_dims=config.structure_model.structure_layers_sizes[-1]
         )
+        client: Client
         for client in self.clients:
             client.initialize(
                 additional_layer_dims=config.structure_model.structure_layers_sizes[-1]
@@ -456,7 +457,7 @@ class Server(Client):
             self.initialize_sd_predictor()
         self.sd_predictor.train_SD_Server(epochs)
 
-    def train_SDWA(self, epochs):
+    def train_SDWA(self, epochs=1):
         self.LOGGER.info("SDWA starts!")
         if self.initialized:
             self.reset_sd_predictor_parameters()
@@ -471,6 +472,14 @@ class Server(Client):
         else:
             self.initialize_sd_predictor()
         self.sd_predictor.train_SDGA(self.clients, epochs)
+
+    def train_local_sd(self, epochs=1):
+        self.LOGGER.info("Local SD starts!")
+        if self.initialized:
+            self.reset_sd_predictor_parameters()
+        else:
+            self.initialize_sd_predictor()
+        self.sd_predictor.train_local_sd(self.clients, epochs)
 
     def train_locsages(self):
         client: Client

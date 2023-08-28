@@ -30,13 +30,37 @@ torch.manual_seed(4)
 config = Config()
 
 
+def log_config(_LOGGER):
+    _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
+    _LOGGER.info(f"num subgraphs: {config.subgraph.num_subgraphs}")
+    _LOGGER.info(f"batch: {config.model.batch}")
+    _LOGGER.info(f"batch size: {config.model.batch_size}")
+    _LOGGER.info(f"learning rate: {config.model.lr}")
+    _LOGGER.info(f"weight decay: {config.model.weight_decay}")
+    _LOGGER.info(f"dropout: {config.model.dropout}")
+    _LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
+    _LOGGER.info(f"gnn layer sizes: {config.model.gnn_layer_sizes}")
+    _LOGGER.info(f"mlp layer sizes: {config.model.mlp_layer_sizes}")
+    _LOGGER.info(f"sd ratio: {config.structure_model.sd_ratio}")
+    _LOGGER.info(
+        f"structure layers size: {config.structure_model.structure_layers_sizes}"
+    )
+    _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
+    _LOGGER.info(
+        f"num structural features: {config.structure_model.num_structural_features}"
+    )
+    _LOGGER.info(f"loss: {config.structure_model.loss}")
+
+
 def set_up_system():
-    save_path = f"./results/{config.dataset.dataset_name}/{config.structure_model.structure_type}/"
+    save_path = f"./results/{config.dataset.dataset_name}/{config.structure_model.structure_type}/all/"
     _LOGGER = get_logger(
         name=f"accuracy_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
         log_on_file=True,
         save_path=save_path,
     )
+
+    log_config(_LOGGER)
 
     try:
         dataset = None
@@ -129,6 +153,8 @@ def set_up_system():
     GNN_server.train_SD_Server(config.model.epoch_classifier)
     GNN_server.train_SDWA(config.model.epoch_classifier)
     GNN_server.train_SDGA(config.model.epoch_classifier)
+
+    # GNN_server.train_local_sd(config.model.epoch_classifier)
 
     # GNN_server.train_locsages()
     # GNN_server.train_fedSage_plus()
