@@ -203,13 +203,14 @@ class Graph(Data):
         class_groups, negative_class_groups = Graph.find_class_neighbors_(
             self.get_edges(),
             self.y,
+            self.train_mask,
             self.node_ids,
         )
 
         self.class_groups = class_groups
         self.negative_class_groups = negative_class_groups
 
-    def find_class_neighbors_(edge_index, y, node_ids=None):
+    def find_class_neighbors_(edge_index, y, train_mask, node_ids=None):
         if node_ids is None:
             node_ids = np.arange(max(torch.flatten(edge_index)) + 1)
 
@@ -217,8 +218,8 @@ class Graph(Data):
         class_groups = {}
         negative_class_groups = {}
         for class_id in classes:
-            class_groups[class_id] = node_ids[y == class_id]
-            negative_class_groups[class_id] = node_ids[y != class_id]
+            class_groups[class_id] = node_ids[y == class_id & train_mask]
+            negative_class_groups[class_id] = node_ids[y != class_id & train_mask]
 
         return class_groups, negative_class_groups
 
