@@ -1,3 +1,4 @@
+from copy import deepcopy
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -330,8 +331,7 @@ class MLP(nn.Module):
         self.batch_normalization = batch_normalization
 
         self.layers = self.create_models(layer_sizes)
-
-        self.default_weights = self.state_dict()
+        self.default_weights = deepcopy(self.state_dict())
 
     def __getitem__(self, item):
         return self.layers[item]
