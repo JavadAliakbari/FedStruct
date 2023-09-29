@@ -376,18 +376,20 @@ class StructurePredictor:
 
         return metrics
 
-    def cacl_metrics(self, client, y_pred, structure_loss):
+    def cacl_metrics(self, client, y_pred, structure_loss=None):
         node_ids = client.get_nodes()
         y = client.subgraph.y
         train_mask = client.subgraph.train_mask
         val_mask = client.subgraph.val_mask
 
-        client_structure_loss = structure_loss[node_ids]
-        # y_pred = out[f"client{client.id}"]
+        if structure_loss is not None:
+            client_structure_loss = structure_loss[node_ids]
 
         cls_train_loss = self.criterion(y_pred[train_mask], y[train_mask])
-        str_train_loss = client_structure_loss[train_mask].mean()
-        # loss_list[ind] = train_loss
+        if structure_loss is not None:
+            str_train_loss = client_structure_loss[train_mask].mean()
+        else:
+            str_train_loss = torch.tensor(0)
 
         train_acc = calc_accuracy(
             y_pred[train_mask].argmax(dim=1),
@@ -395,11 +397,12 @@ class StructurePredictor:
         )
 
         # Validation
-        self.model.eval()
         with torch.no_grad():
             cls_val_loss = self.criterion(y_pred[val_mask], y[val_mask])
-            str_val_loss = client_structure_loss[val_mask].mean()
-            # val_loss = cls_val_loss + str_val_loss
+            if structure_loss is not None:
+                str_val_loss = client_structure_loss[val_mask].mean()
+            else:
+                str_val_loss = torch.tensor(0)
 
             val_acc = calc_accuracy(y_pred[val_mask].argmax(dim=1), y[val_mask])
 
@@ -419,7 +422,10 @@ class StructurePredictor:
         x = torch.hstack((h, S))
         y_pred = self.server.predict_labels(x)
 
-        structure_loss = self.calc_loss(S)
+        if config.structure_model.sd_ratio != 0:
+            structure_loss = self.calc_loss(S)
+        else:
+            structure_loss = None
 
         return self.cacl_metrics(self.server, y_pred, structure_loss)
 
@@ -618,7 +624,10 @@ class StructurePredictor:
                 client.load_state_dict(server_weights)
 
             out = self.model()
-            structure_loss = self.calc_loss(out["structure_model"])
+            if config.structure_model.sd_ratio != 0:
+                structure_loss = self.calc_loss(out["structure_model"])
+            else:
+                structure_loss = None
 
             loss_list = torch.zeros(len(clients), dtype=torch.float32)
             average_result = {}
@@ -676,7 +685,10 @@ class StructurePredictor:
                 metrics[f"average val acc"] = average_result["Val Acc"]
                 with torch.no_grad():
                     metrics["Total Loss"] = round(total_loss.item(), 4)
-                    metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
+                    if structure_loss is not None:
+                        metrics["Structure Loss"] = round(
+                            structure_loss.mean().item(), 4
+                        )
 
                 bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
                 bar.set_postfix(metrics)
@@ -764,7 +776,10 @@ class StructurePredictor:
                 client.load_state_dict(server_weights)
 
             out = self.model()
-            structure_loss = self.calc_loss(out["structure_model"])
+            if config.structure_model.sd_ratio != 0:
+                structure_loss = self.calc_loss(out["structure_model"])
+            else:
+                structure_loss = None
             loss_list = torch.zeros(len(clients), dtype=torch.float32)
             average_result = {}
             for ind, client in enumerate(clients):
@@ -818,7 +833,10 @@ class StructurePredictor:
 
                 with torch.no_grad():
                     metrics["Total Loss"] = round(total_loss.item(), 4)
-                    metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
+                    if structure_loss is not None:
+                        metrics["Structure Loss"] = round(
+                            structure_loss.mean().item(), 4
+                        )
 
                 bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
                 bar.set_postfix(metrics)
