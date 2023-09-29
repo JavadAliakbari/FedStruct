@@ -188,8 +188,15 @@ class Server(Client):
         for i in range(len(grads)):
             server_parameters[i].grad = grads[i]
 
-    def train_FLWA(self, epochs=config.model.epoch_classifier):
-        self.LOGGER.info("FLWA starts!")
+    def train_FLWA(
+        self,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        if log:
+            self.LOGGER.info("FLWA starts!")
+        final_result = {}
         criterion = torch.nn.CrossEntropyLoss()
 
         self.initialize()
@@ -202,8 +209,8 @@ class Server(Client):
 
         server_results = []
         average_results = []
-
-        bar = tqdm(total=epochs)
+        if log:
+            bar = tqdm(total=epochs)
         for epoch in range(epochs):
             metrics = {}
             weights = self.state_dict()
@@ -236,13 +243,14 @@ class Server(Client):
                 "Val Acc": round(val_acc, 4),
                 "Epoch": epoch,
             }
-
-            metrics[f"server train acc"] = result["Train Acc"]
-            metrics[f"server val acc"] = result["Val Acc"]
             server_results.append(result)
-            if epoch == epochs - 1:
-                self.LOGGER.info(f"FLWA results for client{self.id}:")
-                self.LOGGER.info(f"{result}")
+
+            if log:
+                metrics[f"server train acc"] = result["Train Acc"]
+                metrics[f"server val acc"] = result["Val Acc"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"FLWA results for client{self.id}:")
+                    self.LOGGER.info(f"{result}")
 
             for client in self.clients:
                 client.load_state_dict(weights)
@@ -264,9 +272,10 @@ class Server(Client):
                     else:
                         average_result[key] += ratio * val
 
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"FLWA results for client{client.id}:")
-                    self.LOGGER.info(f"{result}")
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"FLWA results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
 
             mean_weights = calc_mean_weights(sum_weights, self.num_clients)
             self.load_state_dict(mean_weights)
@@ -274,30 +283,49 @@ class Server(Client):
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
-            metrics[f"average train acc"] = average_result["Train Acc"]
-            metrics[f"average val acc"] = average_result["Val Acc"]
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
+            if log:
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
 
-        self.LOGGER.info(f"Server test accuracy: {self.test_local_classifier():0.4f}")
+        test_acc = self.test_local_classifier()
+        final_result["Server"] = test_acc
+
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
 
         average_test_acc = 0
         for client in self.clients:
             test_acc = client.test_local_classifier()
-            self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
+            final_result[f"Clinet{client.id}"] = test_acc
+            if log:
+                self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
             average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
-        self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-        title = f"Server FLWA {self.classifier_type}"
-        plot_metrics(server_results, title=title, save_path=self.save_path)
+        final_result["Average"] = average_test_acc
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-        title = f"Average FLWA {self.classifier_type}"
-        plot_metrics(average_results, title=title, save_path=self.save_path)
+        if plot:
+            title = f"Server FLWA {self.classifier_type}"
+            plot_metrics(server_results, title=title, save_path=self.save_path)
 
-    def train_FLGA(self, epochs=1):
+            title = f"Average FLWA {self.classifier_type}"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        return final_result
+
+    def train_FLGA(
+        self,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
         # return self.model.fit2(self.graph, clients, epochs)
         self.LOGGER.info("FLGA starts!")
+        final_result = {}
         self.initialize()
         self.reset_parameters()
 
@@ -319,7 +347,8 @@ class Server(Client):
         server_results = []
         average_results = []
 
-        bar = tqdm(total=epochs)
+        if log:
+            bar = tqdm(total=epochs)
         for epoch in range(epochs):
             # server
             self.classifier.eval()
@@ -354,11 +383,12 @@ class Server(Client):
 
             server_results.append(result)
             metrics = {}
-            metrics[f"server train acc"] = result["Train Acc"]
-            metrics[f"server val acc"] = result["Val Acc"]
-            if epoch == epochs - 1:
-                self.LOGGER.info(f"FLGA results for client{self.id}:")
-                self.LOGGER.info(f"{result}")
+            if log:
+                metrics[f"server train acc"] = result["Train Acc"]
+                metrics[f"server val acc"] = result["Val Acc"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"FLGA results for client{self.id}:")
+                    self.LOGGER.info(f"{result}")
 
             optimizer.zero_grad(set_to_none=True)
             server_weights = classifier.state_dict()
@@ -417,8 +447,6 @@ class Server(Client):
                     "Val Acc": round(val_acc, 4),
                 }
 
-                # metrics[f"client{client.id}"] = result
-
                 ratio = client.num_nodes() / self.num_nodes()
                 for key, val in result.items():
                     if key not in average_result.keys():
@@ -426,19 +454,20 @@ class Server(Client):
                     else:
                         average_result[key] += ratio * val
 
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"FLGA results for client{client.id}:")
-                    self.LOGGER.info(f"{result}")
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"FLGA results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
 
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
-            metrics[f"average train acc"] = average_result["Train Acc"]
-            metrics[f"average val acc"] = average_result["Val Acc"]
-
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
+            if log:
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
 
             total_loss = loss_list.mean()
             total_loss.backward()
@@ -446,29 +475,50 @@ class Server(Client):
             optimizer.step()
             # metrics["Total Loss"] = round(total_loss.item(), 4)
 
-        self.LOGGER.info(f"Server test accuracy: {self.test_local_classifier():0.4f}")
+        test_acc = self.test_local_classifier()
+        final_result["Server"] = test_acc
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
 
         average_test_acc = 0
         for client in self.clients:
             test_acc = client.test_local_classifier()
-            self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
+            final_result[f"Clinet{client.id}"] = test_acc
+            if log:
+                self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
 
             average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
-        self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-        title = f"Server FLGA {self.classifier_type}"
-        plot_metrics(server_results, title=title, save_path=self.save_path)
+        final_result["Average"] = average_test_acc
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-        title = f"Average FLGA {self.classifier_type}"
-        plot_metrics(average_results, title=title, save_path=self.save_path)
+        if plot:
+            title = f"Server FLGA {self.classifier_type}"
+            plot_metrics(server_results, title=title, save_path=self.save_path)
 
-    def train_SD_Server(self, epochs):
-        self.LOGGER.info("SD_Server starts!")
+            title = f"Average FLGA {self.classifier_type}"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        return final_result
+
+    def train_SD_Server(
+        self,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        if log:
+            self.LOGGER.info("SD_Server starts!")
         if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
-        self.sd_predictor.train_SD_Server(epochs)
+        return self.sd_predictor.train_SD_Server(
+            epochs=epochs,
+            log=log,
+            plot=plot,
+        )
 
     def train_SDWA(self, epochs=1):
         self.LOGGER.info("SDWA starts!")
@@ -476,7 +526,7 @@ class Server(Client):
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
-        self.sd_predictor.train_SDWA(self.clients, epochs)
+        return self.sd_predictor.train_SDWA(self.clients, epochs)
 
     def train_SDGA(self, epochs=1):
         self.LOGGER.info("SDGA starts!")
@@ -484,7 +534,7 @@ class Server(Client):
             self.reset_sd_predictor_parameters()
         else:
             self.initialize_sd_predictor()
-        self.sd_predictor.train_SDGA(self.clients, epochs)
+        return self.sd_predictor.train_SDGA(self.clients, epochs)
 
     def train_local_sd(self, epochs=1):
         self.LOGGER.info("Local SD starts!")
@@ -494,11 +544,11 @@ class Server(Client):
             self.initialize_sd_predictor()
         self.sd_predictor.train_local_sd(self.clients, epochs)
 
-    def train_locsages(self):
+    def train_locsages(self, log=True, plot=True):
         client: Client
         for client in self.clients:
             self.LOGGER.info(f"locsage for client{client.id}")
-            client.train_locsage(bar=True, plot=True)
+            client.train_locsage(log=log, plot=plot)
             self.LOGGER.info(
                 f"Client{client.id} test accuracy: {client.test_local_classifier()}"
             )

@@ -117,10 +117,10 @@ class GNNClassifier(Classifier):
         epochs: int,
         batch=False,
         plot=False,
-        bar=False,
+        log=False,
         type="local",
     ):
-        if bar:
+        if log:
             bar = tqdm(total=epochs, position=0)
         res = []
         if batch:
@@ -146,7 +146,7 @@ class GNNClassifier(Classifier):
                 "Val F1 Score": round(val_TP, 4),
             }
 
-            if bar:
+            if log:
                 bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
                 bar.set_postfix(metrics)
                 bar.update(1)
@@ -154,7 +154,7 @@ class GNNClassifier(Classifier):
             metrics["Epoch"] = epoch + 1
             res.append(metrics)
 
-        if bar:
+        if log:
             self.LOGGER.info(f"{type} classifier for client{self.id}:")
             self.LOGGER.info(metrics)
 

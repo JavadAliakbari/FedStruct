@@ -122,20 +122,20 @@ class Client:
         elif self.classifier_type == "MLP":
             Client.initialize_mlp_(self.subgraph, self.classifier, input_dimension)
 
-    def fit(self, epochs, bar=False, plot=False, type="local") -> None:
+    def fit(self, epochs, log=False, plot=False, type="local") -> None:
         return self.classifier.fit(
             epochs=epochs,
             batch=config.model.batch,
-            bar=bar,
+            log=log,
             plot=plot,
             type=type,
         )
 
-    def train_local_classifier(self, epochs, bar=True, plot=True) -> None:
+    def train_local_classifier(self, epochs, log=True, plot=True) -> None:
         self.initialize()
         return self.fit(
             epochs,
-            bar=bar,
+            log=log,
             plot=plot,
             type="local",
         )
@@ -215,14 +215,14 @@ class Client:
     def train_locsage(
         self,
         inter_client_features_creators: list = [],
-        bar=False,
+        log=False,
         plot=False,
     ):
         self.initialize_locsage(inter_client_features_creators)
 
         return self.classifier.fit(
             epochs=config.model.epoch_classifier,
-            bar=bar,
+            log=log,
             plot=plot,
             type="locsage",
         )

@@ -490,7 +490,13 @@ class StructurePredictor:
         for optimizer in optimizers.values():
             optimizer.zero_grad()
 
-    def train_SD_Server(self, epochs):
+    def train_SD_Server(
+        self,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        final_result = {}
         optimizer = self.create_SG_optimizer()
         metrics = {}
         plot_results = {}
@@ -520,12 +526,14 @@ class StructurePredictor:
             }
 
             plot_results[f"Client{self.server.id}"].append(result)
-            metrics["Val ACC"] = result["Val Acc"]
-            metrics["Cls Val Loss"] = result["Cls Val Loss"]
-            metrics["Str Val Loss"] = result["Str Val Loss"]
-            if epoch == epochs - 1:
-                self.LOGGER.info(f"SD_Server results for client{self.server.id}:")
-                self.LOGGER.info(f"{result}")
+
+            if log:
+                metrics["Val ACC"] = result["Val Acc"]
+                metrics["Cls Val Loss"] = result["Cls Val Loss"]
+                metrics["Str Val Loss"] = result["Str Val Loss"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"SD_Server results for client{self.server.id}:")
+                    self.LOGGER.info(f"{result}")
 
             train_loss = (
                 cls_train_loss + config.structure_model.sd_ratio * str_train_loss
@@ -534,30 +542,45 @@ class StructurePredictor:
             train_loss.backward()
             optimizer.step()
 
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
-
-        title = f"Central SDSFL GNN"
-        plot_metrics(
-            plot_results[f"Client{self.server.id}"],
-            title=title,
-            save_path=self.save_path,
-        )
+            if log:
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
 
         test_metrics = self.test([])
         test_acc = test_metrics[f"Client{self.server.id}"]["Test Acc"]
-        self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
+        final_result[f"Server"] = test_acc
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
+
+        if plot:
+            title = f"Central SDSFL GNN"
+            plot_metrics(
+                plot_results[f"Client{self.server.id}"],
+                title=title,
+                save_path=self.save_path,
+            )
+
         if config.structure_model.structure_type == "mp":
             print(self.structure_model.mp_layer.state_dict()["weight"])
 
-    def train_SDWA(self, clients, epochs=1):
-        optimizers = self.create_SW_optimizers()
+        return final_result
+
+    def train_SDWA(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        final_result = {}
         metrics = {}
+        optimizers = self.create_SW_optimizers()
         server_results = []
         average_results = []
 
-        bar = tqdm(total=epochs, position=0)
+        if log:
+            bar = tqdm(total=epochs, position=0)
         for epoch in range(epochs):
             StructurePredictor.reset_optimizers(optimizers)
 
@@ -582,11 +605,12 @@ class StructurePredictor:
 
             server_results.append(result)
 
-            metrics[f"server train acc"] = result["Train Acc"]
-            metrics[f"server val acc"] = result["Val Acc"]
-            if epoch == epochs - 1:
-                self.LOGGER.info(f"SDWA results for {self.server.id}:")
-                self.LOGGER.info(f"{result}")
+            if log:
+                metrics[f"server train acc"] = result["Train Acc"]
+                metrics[f"server val acc"] = result["Val Acc"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"SDWA results for {self.server.id}:")
+                    self.LOGGER.info(f"{result}")
 
             self.server.zero_grad()
             server_weights = self.server.state_dict()
@@ -630,9 +654,10 @@ class StructurePredictor:
                     else:
                         average_result[key] += ratio * val
 
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"SDWA results for client{client.id}:")
-                    self.LOGGER.info(f"{result}")
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"SDWA results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
 
             total_loss = loss_list.mean()
             total_loss.backward()
@@ -646,44 +671,62 @@ class StructurePredictor:
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
-            metrics[f"average train acc"] = average_result["Train Acc"]
-            metrics[f"average val acc"] = average_result["Val Acc"]
-            with torch.no_grad():
-                metrics["Total Loss"] = round(total_loss.item(), 4)
-                metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
+            if log:
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
+                with torch.no_grad():
+                    metrics["Total Loss"] = round(total_loss.item(), 4)
+                    metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
 
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
 
         test_metrics = self.test(clients)
         test_acc = test_metrics[f"Client{self.server.id}"]["Test Acc"]
-        self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
+        final_result["Server"] = test_acc
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
 
         average_test_acc = 0
         for client in clients:
             test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
-            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
+            final_result[f"Client{client.id}"] = test_acc
+            if log:
+                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
             average_test_acc += test_acc * client.num_nodes() / self.server.num_nodes()
 
-        self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+        final_result["Average"] = average_test_acc
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-        title = f"Server SDWA GNN"
-        plot_metrics(server_results, title=title, save_path=self.save_path)
+        if plot:
+            title = f"Server SDWA GNN"
+            plot_metrics(server_results, title=title, save_path=self.save_path)
 
-        title = f"Average SDWA GNN"
-        plot_metrics(average_results, title=title, save_path=self.save_path)
+            title = f"Average SDWA GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
 
         if config.structure_model.structure_type == "mp":
             print(self.structure_model.mp_layer.state_dict()["weight"])
 
-    def train_SDGA(self, clients, epochs=1):
-        optimizer = self.create_SG_optimizer()
+        return final_result
+
+    def train_SDGA(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        final_result = {}
         metrics = {}
+        optimizer = self.create_SG_optimizer()
         server_results = []
         average_results = []
 
-        bar = tqdm(total=epochs, position=0)
+        if log:
+            bar = tqdm(total=epochs, position=0)
         for epoch in range(epochs):
             optimizer.zero_grad()
 
@@ -707,11 +750,12 @@ class StructurePredictor:
             }
 
             server_results.append(result)
-            metrics[f"server train acc"] = result["Train Acc"]
-            metrics[f"server val acc"] = result["Val Acc"]
-            if epoch == epochs - 1:
-                self.LOGGER.info(f"SDGA results for client{self.server.id}:")
-                self.LOGGER.info(f"{result}")
+            if log:
+                metrics[f"server train acc"] = result["Train Acc"]
+                metrics[f"server val acc"] = result["Val Acc"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"SDGA results for client{self.server.id}:")
+                    self.LOGGER.info(f"{result}")
 
             self.server.zero_grad()
             server_weights = self.server.state_dict()
@@ -754,10 +798,10 @@ class StructurePredictor:
                         average_result[key] = ratio * val
                     else:
                         average_result[key] += ratio * val
-
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"SDGA results for client{client.id}:")
-                    self.LOGGER.info(f"{result}")
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"SDGA results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
 
             total_loss = loss_list.mean()
             total_loss.backward()
@@ -768,37 +812,47 @@ class StructurePredictor:
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
-            metrics[f"average train acc"] = average_result["Train Acc"]
-            metrics[f"average val acc"] = average_result["Val Acc"]
+            if log:
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
 
-            with torch.no_grad():
-                metrics["Total Loss"] = round(total_loss.item(), 4)
-                metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
+                with torch.no_grad():
+                    metrics["Total Loss"] = round(total_loss.item(), 4)
+                    metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
 
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
 
         test_metrics = self.test(clients)
         test_acc = test_metrics[f"Client{self.server.id}"]["Test Acc"]
-        self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
+        final_result["Server"] = test_acc
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
 
         average_test_acc = 0
         for client in clients:
             test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
-            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
+            final_result[f"Client{client.id}"] = test_acc
+            if log:
+                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
             average_test_acc += test_acc * client.num_nodes() / self.server.num_nodes()
 
-        self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+        final_result["Average"] = average_test_acc
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-        title = f"Server SDGA GNN"
-        plot_metrics(server_results, title=title, save_path=self.save_path)
+        if plot:
+            title = f"Server SDGA GNN"
+            plot_metrics(server_results, title=title, save_path=self.save_path)
 
-        title = f"Average SDGA GNN"
-        plot_metrics(average_results, title=title, save_path=self.save_path)
+            title = f"Average SDGA GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
 
         if config.structure_model.structure_type == "mp":
             print(self.structure_model.mp_layer.state_dict()["weight"])
+
+        return final_result
 
     def train_local_sd(self, clients, epochs=1):
         optimizers = self.create_SW_optimizers()

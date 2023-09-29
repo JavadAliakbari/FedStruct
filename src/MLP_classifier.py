@@ -79,10 +79,10 @@ class MLPClassifier(Classifier):
         epochs: int,
         batch=False,
         plot=False,
-        bar=False,
+        log=False,
         type="local",
     ):
-        if bar:
+        if log:
             bar = tqdm(total=epochs, position=0)
 
         if batch:
@@ -115,7 +115,7 @@ class MLPClassifier(Classifier):
                 "Val F1 Score": round(val_TP, 4),
             }
 
-            if bar:
+            if log:
                 bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
                 bar.set_postfix(metrics)
                 bar.update(1)
@@ -123,7 +123,7 @@ class MLPClassifier(Classifier):
             metrics["Epoch"] = epoch + 1
             res.append(metrics)
 
-        if bar:
+        if log:
             self.LOGGER.info(f"{type} classifier for client{self.id}:")
             self.LOGGER.info(metrics)
 
