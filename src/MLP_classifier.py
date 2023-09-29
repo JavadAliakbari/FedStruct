@@ -35,7 +35,7 @@ class MLPClassifier(Classifier):
             layer_sizes=layer_sizes,
             last_layer="softmax",
             dropout=config.model.dropout,
-            batch_normalization=True,
+            normalization="layer",
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -182,7 +182,7 @@ class MLPClassifier(Classifier):
             total_val_TP / val_count,
         )
 
-    def train(
+    def step(
         x,
         y,
         model: MLP,
@@ -214,6 +214,7 @@ class MLPClassifier(Classifier):
 
         return train_loss, train_acc, train_TP, val_loss, val_acc, val_TP
 
+    @torch.no_grad()
     def calc_test_accuracy(self):
         self.model.eval()
         test_x, test_y = self.test_data

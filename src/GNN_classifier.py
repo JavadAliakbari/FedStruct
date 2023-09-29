@@ -46,7 +46,7 @@ class GNNClassifier(Classifier):
             gnn_last_layer="linear",
             mlp_last_layer="softmax",
             dropout=config.model.dropout,
-            batch_normalization=True,
+            normalization="layer",
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -72,7 +72,7 @@ class GNNClassifier(Classifier):
             gnn_last_layer="linear",
             mlp_last_layer="softmax",
             dropout=config.model.dropout,
-            batch_normalization=True,
+            normalization="batch",
         )
 
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -174,10 +174,11 @@ class GNNClassifier(Classifier):
         total_val_TP = 0
         train_count = 1e-6
         val_count = 1e-6
+        self.model.train()
         for batch in data_loader:
             if batch.train_mask.any():
                 self.optimizer.zero_grad()
-                loss, acc, TP, val_loss, val_acc, val_TP = GNNClassifier.train(
+                loss, acc, TP, val_loss, val_acc, val_TP = GNNClassifier.step(
                     batch.x,
                     batch.y,
                     batch.edge_index,
@@ -209,7 +210,7 @@ class GNNClassifier(Classifier):
             total_val_TP / val_count,
         )
 
-    def train(
+    def step(
         x,
         y,
         edge_index,
@@ -218,7 +219,7 @@ class GNNClassifier(Classifier):
         train_mask,
         val_mask,
     ):
-        model.train()
+        # model.train()
         out = model(x, edge_index)
 
         train_loss = criterion(out[train_mask], y[train_mask])
@@ -230,7 +231,7 @@ class GNNClassifier(Classifier):
         train_f1_score = calc_f1_score(out[train_mask].argmax(dim=1), y[train_mask])
 
         # Validation
-        model.eval()
+        # model.eval()
         with torch.no_grad():
             if val_mask.any():
                 val_loss = criterion(out[val_mask], y[val_mask])

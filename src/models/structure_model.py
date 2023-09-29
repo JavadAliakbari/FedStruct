@@ -185,7 +185,7 @@ if __name__ == "__main__":
     subgraphs = louvain_graph_cut(graph)
     num_clients = len(subgraphs)
 
-    GNN = JointModel(
+    model = JointModel(
         num_clients=num_clients,
         client_layer_sizes=[graph.num_features] + config.model.gnn_layer_sizes,
         structure_layer_sizes=[config.structure_model.num_structural_features]
@@ -194,10 +194,10 @@ if __name__ == "__main__":
     )
 
     criterion = torch.nn.CrossEntropyLoss()
-    parameters = list(GNN.parameters())
+    parameters = list(model.parameters())
     optimizer = torch.optim.Adam(
         parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
     )
 
-    GNN.forward(subgraphs, graph)
+    model.forward(subgraphs, graph)
     a = 2

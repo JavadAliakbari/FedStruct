@@ -32,6 +32,12 @@ class Classifier:
     def parameters(self):
         return self.model.parameters()
 
+    def train(self, mode: bool = True):
+        self.model.train(mode)
+
+    def eval(self):
+        self.model.eval()
+
     def get_model_grads(self):
         client_parameters = list(self.parameters())
         client_grads = [client_parameter.grad for client_parameter in client_parameters]

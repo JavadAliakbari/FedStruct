@@ -45,7 +45,7 @@ class StructurePredictor:
             + config.model.mlp_layer_sizes
             + [num_classes],
             dropout=0.1,
-            batch_normalization=True,
+            normalization="batch",
         )
         self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -76,7 +76,7 @@ class StructurePredictor:
             last_layer="linear",
             layer_type=config.model.gnn_layer_type,
             dropout=config.model.dropout,
-            batch_normalization=True,
+            normalization="batch",
             multiple_features=config.structure_model.structure_type == "mp",
             feature_dims=config.structure_model.num_mp_vectors,
         )
@@ -103,6 +103,12 @@ class StructurePredictor:
 
     def load_state_dict(self, weights):
         self.model.load_state_dict(weights)
+
+    def train(self, mode: bool = True):
+        self.structure_model.train(mode)
+
+    def eval(self):
+        self.structure_model.eval()
 
     def cosine_similarity(h1, h2):
         return torch.dot(h1, h2) / (
@@ -243,11 +249,7 @@ class StructurePredictor:
 
         return loss
 
-    def get_structure_embeddings(self, train=True):
-        if train:
-            self.structure_model.train()
-        else:
-            self.structure_model.eval()
+    def get_structure_embeddings(self):
         x = self.graph.structural_features
         edge_index = self.graph.edge_index
         S = self.structure_model(x, edge_index)
@@ -271,7 +273,8 @@ class StructurePredictor:
         res = []
         for epoch in range(epochs):
             optimizer.zero_grad()
-            S = self.get_structure_embeddings(train=True)
+            self.structure_model.train()
+            S = self.get_structure_embeddings()
             loss = self.calc_loss(S)
 
             train_loss = loss[self.graph.train_mask].mean()
@@ -281,8 +284,9 @@ class StructurePredictor:
             optimizer.step()
 
             if predict:
+                self.structure_model.eval()
                 with torch.no_grad():
-                    x = self.get_structure_embeddings(train=False)
+                    x = self.get_structure_embeddings()
                 x_train = x[self.graph.train_mask]
                 y_train = self.y[self.graph.train_mask]
                 x_val = x[self.graph.val_mask]
@@ -324,7 +328,8 @@ class StructurePredictor:
 
     @torch.no_grad()
     def test_cls(self):
-        x = self.get_structure_embeddings(train=False)
+        self.structure_model.eval()
+        x = self.get_structure_embeddings()
         y = self.y
         test_acc = self.cls.test(x[self.graph.test_mask], y[self.graph.test_mask])
         return test_acc
@@ -336,7 +341,7 @@ class StructurePredictor:
 
         y = self.server.subgraph.y
         test_mask = self.server.subgraph.test_mask
-        y_pred = self.model.step(self.server, train=False)
+        y_pred = self.model.step(self.server)
         test_acc = calc_accuracy(
             y_pred[test_mask].argmax(dim=1),
             y[test_mask],
@@ -407,7 +412,8 @@ class StructurePredictor:
         )
 
     def step(self, train=True):
-        S = self.get_structure_embeddings(train=train)
+        self.model.train(train)
+        S = self.get_structure_embeddings()
         h = self.server.get_feature_embeddings()
         x = torch.hstack((h, S))
         y_pred = self.server.predict_labels(x)

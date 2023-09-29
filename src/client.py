@@ -85,6 +85,12 @@ class Client:
     def load_state_dict(self, weights):
         self.classifier.load_state_dict(weights)
 
+    def train(self, mode: bool = True):
+        self.classifier.train(mode)
+
+    def eval(self):
+        self.classifier.eval()
+
     def initialize_gnn_(
         graph: Graph, classifier: GNNClassifier, dim_in=None, additional_layer_dims=0
     ) -> None:

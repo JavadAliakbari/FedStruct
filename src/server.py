@@ -144,8 +144,16 @@ class Server(Client):
 
         self.initialized = True
 
-    def get_structure_embeddings(self, train=True):
-        return self.sd_predictor.get_structure_embeddings(train=train)
+    def train(self, mode: bool = True):
+        self.sd_predictor.train(mode)
+        super().train(mode)
+
+    def eval(self):
+        self.sd_predictor.eval()
+        super().eval()
+
+    def get_structure_embeddings(self):
+        return self.sd_predictor.get_structure_embeddings()
 
     def fit_sd_predictor(self, epochs, bar=False, plot=False, predict=False) -> None:
         return self.sd_predictor.fit(epochs=epochs, bar=bar, plot=plot, predict=predict)
@@ -197,8 +205,9 @@ class Server(Client):
         for epoch in range(epochs):
             metrics = {}
             weights = self.state_dict()
+            self.classifier.eval()
             if self.classifier_type == "GNN":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.train(
+                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.step(
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     edge_index=self.subgraph.edge_index,
@@ -208,7 +217,7 @@ class Server(Client):
                     val_mask=self.subgraph.val_mask,
                 )
             elif self.classifier_type == "MLP":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.train(
+                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.step(
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     # client.subgraph.edge_index
@@ -310,19 +319,10 @@ class Server(Client):
 
         bar = tqdm(total=epochs)
         for epoch in range(epochs):
-            optimizer.zero_grad(set_to_none=True)
-            server_weights = classifier.state_dict()
-
-            for client in self.clients:
-                client.classifier.zero_grad()
-                client.load_state_dict(server_weights)
-
-            metrics = {}
-            loss_list = torch.zeros(len(self.clients), dtype=torch.float32)
-
             # server
+            self.classifier.eval()
             if self.classifier_type == "GNN":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.train(
+                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.step(
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     edge_index=client.subgraph.edge_index,
@@ -332,7 +332,7 @@ class Server(Client):
                     val_mask=self.subgraph.val_mask,
                 )
             elif self.classifier_type == "MLP":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.train(
+                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.step(
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     # edge_index=client.subgraph.edge_index,
@@ -351,16 +351,27 @@ class Server(Client):
             }
 
             server_results.append(result)
+            metrics = {}
             metrics[f"server train acc"] = result["Train Acc"]
             metrics[f"server val acc"] = result["Val Acc"]
             if epoch == epochs - 1:
                 self.LOGGER.info(f"FLGA results for client{self.id}:")
                 self.LOGGER.info(f"{result}")
 
+            optimizer.zero_grad(set_to_none=True)
+            server_weights = classifier.state_dict()
+
+            for client in self.clients:
+                client.eval()
+                client.classifier.zero_grad()
+                client.load_state_dict(server_weights)
+
+            loss_list = torch.zeros(len(self.clients), dtype=torch.float32)
             self.classifier.zero_grad(set_to_none=True)
 
             average_result = {}
             for ind, client in enumerate(self.clients):
+                client.train()
                 if self.classifier_type == "GNN":
                     (
                         train_loss,
@@ -369,7 +380,7 @@ class Server(Client):
                         val_loss,
                         val_acc,
                         _,
-                    ) = GNNClassifier.train(
+                    ) = GNNClassifier.step(
                         x=client.subgraph.x,
                         y=client.subgraph.y,
                         edge_index=client.subgraph.edge_index,
@@ -386,7 +397,7 @@ class Server(Client):
                         val_loss,
                         val_acc,
                         _,
-                    ) = MLPClassifier.train(
+                    ) = MLPClassifier.step(
                         x=client.subgraph.x,
                         y=client.subgraph.y,
                         # edge_index=client.subgraph.edge_index,
@@ -529,9 +540,9 @@ class Server(Client):
         for epoch in range(epochs):
             weights = self.state_dict()
             metrics = {}
-
+            self.classifier.eval()
             if self.classifier_type == "GNN":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.train(
+                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.step(
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     edge_index=self.subgraph.edge_index,
@@ -541,7 +552,7 @@ class Server(Client):
                     val_mask=self.subgraph.val_mask,
                 )
             elif self.classifier_type == "MLP":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.train(
+                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.step(
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     # client.subgraph.edge_index

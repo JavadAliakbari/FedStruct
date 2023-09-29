@@ -155,22 +155,22 @@ if __name__ == "__main__":
         graph, num_classes, classifier_type="GNN", save_path=save_path, logger=_LOGGER
     )
 
-    GNN_server.train_sd_predictor(
-        config.structure_model.cosine_similarity_predictor_epochs,
-        plot=True,
-        predict=True,
-    )
-    GNN_server.test_sd_predictor()
+    # GNN_server.train_sd_predictor(
+    #     config.structure_model.cosine_similarity_predictor_epochs,
+    #     plot=True,
+    #     predict=True,
+    # )
+    # GNN_server.test_sd_predictor()
 
-    # GNN_server.initialize_sd_predictor()
+    GNN_server.initialize_sd_predictor()
     x = GNN_server.sd_predictor.graph.structural_features
     graph.x = x
     graph.num_features = x.shape[1]
 
-    MLP_server.train_local_classifier(config.structure_model.mlp_epochs)
-    _LOGGER.info(f"Server MLP test accuracy: {MLP_server.test_local_classifier()}")
-    GNN_server.train_local_classifier(config.structure_model.gnn_epochs)
-    _LOGGER.info(f"Server GNN test accuracy: {GNN_server.test_local_classifier()}")
+    # MLP_server.train_local_classifier(config.structure_model.mlp_epochs)
+    # _LOGGER.info(f"Server MLP test accuracy: {MLP_server.test_local_classifier()}")
+    # GNN_server.train_local_classifier(config.structure_model.gnn_epochs)
+    # _LOGGER.info(f"Server GNN test accuracy: {GNN_server.test_local_classifier()}")
 
     # x = server.get_sd_embeddings()
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         layer_sizes=[config.structure_model.num_structural_features]
         + config.model.mlp_layer_sizes
         + [num_classes],
-        batch_normalization=True,
+        normalization="batch",
     )
     y_train = y[graph.train_mask]
     y_val = y[graph.val_mask]

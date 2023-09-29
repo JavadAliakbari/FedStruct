@@ -143,7 +143,7 @@ if __name__ == "__main__":
         layer_sizes=[config.structure_model.num_structural_features]
         + config.model.mlp_layer_sizes
         + [num_classes],
-        batch_normalization=True,
+        normalization="batch",
     )
 
     sc = StandardScaler()

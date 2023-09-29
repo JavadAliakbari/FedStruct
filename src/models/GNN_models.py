@@ -50,7 +50,7 @@ class MPMLP(torch.nn.Module):
         gnn_last_layer="linear",
         mlp_last_layer="softmax",
         dropout=0.5,
-        batch_normalization=False,
+        normalization=None,
         multiple_features=False,
         feature_dims=0,
     ):
@@ -63,7 +63,7 @@ class MPMLP(torch.nn.Module):
         self.gnn_last_layer = gnn_last_layer
         self.mlp_last_layer = mlp_last_layer
         self.dropout = dropout
-        self.batch_normalization = batch_normalization
+        self.normalization = normalization
         self.multiple_features = multiple_features
         self.feature_dims = feature_dims
 
@@ -79,7 +79,7 @@ class MPMLP(torch.nn.Module):
             layer_sizes=self.mlp_layer_sizes,
             last_layer=self.mlp_last_layer,
             dropout=self.dropout,
-            batch_normalization=self.batch_normalization,
+            normalization=self.normalization,
         )
 
     def reset_parameters(self) -> None:
@@ -130,7 +130,7 @@ class GNNMLP(torch.nn.Module):
         gnn_last_layer="linear",
         mlp_last_layer="softmax",
         dropout=0.5,
-        batch_normalization=False,
+        normalization=None,
         multiple_features=False,
         feature_dims=0,
     ):
@@ -144,7 +144,7 @@ class GNNMLP(torch.nn.Module):
         self.gnn_last_layer = gnn_last_layer
         self.mlp_last_layer = mlp_last_layer
         self.dropout = dropout
-        self.batch_normalization = batch_normalization
+        self.normalization = normalization
         self.multiple_features = multiple_features
         self.feature_dims = feature_dims
 
@@ -159,7 +159,7 @@ class GNNMLP(torch.nn.Module):
             last_layer=self.gnn_last_layer,
             layer_type=config.model.gnn_layer_type,
             dropout=self.dropout,
-            batch_normalization=self.batch_normalization,
+            normalization=self.normalization,
             multiple_features=self.multiple_features,
         )
 
@@ -167,7 +167,7 @@ class GNNMLP(torch.nn.Module):
             layer_sizes=self.mlp_layer_sizes,
             last_layer=self.mlp_last_layer,
             dropout=self.dropout,
-            batch_normalization=False,
+            normalization=None,
         )
 
     def reset_parameters(self) -> None:
@@ -206,7 +206,7 @@ class GNN(torch.nn.Module):
         last_layer="linear",
         layer_type="sage",
         dropout=0.5,
-        batch_normalization=False,
+        normalization=None,
         multiple_features=False,
         feature_dims=0,
     ):
@@ -217,7 +217,7 @@ class GNN(torch.nn.Module):
         self.last_layer = last_layer
         self.layer_type = layer_type
         self.dropout = dropout
-        self.batch_normalization = batch_normalization
+        self.normalization = normalization
         self.multiple_features = multiple_features
         self.feature_dims = feature_dims
 
@@ -230,8 +230,12 @@ class GNN(torch.nn.Module):
         if self.multiple_features:
             self.mp_layer = nn.Linear(self.feature_dims, 1, bias=False)
 
-        if self.batch_normalization:
-            self.batch_layer = nn.BatchNorm1d(layer_sizes[0])
+        if self.normalization == "batch":
+            self.batch_layer = nn.BatchNorm1d(layer_sizes[0], track_running_stats=False)
+        elif self.normalization == "layer":
+            self.batch_layer = nn.LayerNorm(layer_sizes[0])
+        elif self.normalization == "instance":
+            self.batch_layer = nn.InstanceNorm1d(layer_sizes[0])
 
         gnn_layers = nn.ParameterList()
         for layer_num in range(self.num_layers):
@@ -252,7 +256,7 @@ class GNN(torch.nn.Module):
         return gnn_layers
 
     def reset_parameters(self) -> None:
-        if self.batch_normalization:
+        if self.normalization:
             self.batch_layer.reset_parameters()
         if self.multiple_features:
             self.mp_layer.reset_parameters()
@@ -261,7 +265,7 @@ class GNN(torch.nn.Module):
 
     def state_dict(self):
         weights = {}
-        if self.batch_normalization:
+        if self.normalization:
             weights["batch_layer"] = self.batch_layer.state_dict()
         if self.multiple_features:
             weights["mp_layer"] = self.mp_layer.state_dict()
@@ -271,7 +275,7 @@ class GNN(torch.nn.Module):
         return weights
 
     def load_state_dict(self, weights: dict) -> None:
-        if self.batch_normalization:
+        if self.normalization:
             self.batch_layer.load_state_dict(weights["batch_layer"])
         if self.multiple_features:
             self.mp_layer.load_state_dict(weights["mp_layer"])
@@ -298,7 +302,7 @@ class GNN(torch.nn.Module):
             self.normalize_mp_weights()
             h = self.mp_layer(h).squeeze()
 
-        if self.batch_normalization:
+        if self.normalization:
             h = self.batch_layer(h)
 
         for layer in self.layers[:-1]:
@@ -321,14 +325,14 @@ class MLP(nn.Module):
         layer_sizes,
         last_layer="softmax",
         dropout=0.5,
-        batch_normalization=False,
+        normalization=None,
     ):
         super().__init__()
 
         self.num_layers = len(layer_sizes) - 1
         self.dropout = dropout
         self.last_layer = last_layer
-        self.batch_normalization = batch_normalization
+        self.normalization = normalization
 
         self.layers = self.create_models(layer_sizes)
         self.default_weights = deepcopy(self.state_dict())
@@ -337,8 +341,12 @@ class MLP(nn.Module):
         return self.layers[item]
 
     def create_models(self, layer_sizes):
-        if self.batch_normalization:
-            self.batch_layer = nn.BatchNorm1d(layer_sizes[0])
+        if self.normalization == "batch":
+            self.batch_layer = nn.BatchNorm1d(layer_sizes[0], track_running_stats=False)
+        elif self.normalization == "layer":
+            self.batch_layer = nn.LayerNorm(layer_sizes[0])
+        elif self.normalization == "instance":
+            self.batch_layer = nn.InstanceNorm1d(layer_sizes[0])
 
         layers = nn.ParameterList()
         for layer_num in range(self.num_layers):
@@ -356,14 +364,14 @@ class MLP(nn.Module):
 
     def state_dict(self):
         weights = {}
-        if self.batch_normalization:
+        if self.normalization:
             weights["batch_layer"] = self.batch_layer.state_dict()
         for id, layer in enumerate(self.layers):
             weights[f"layer{id}"] = layer.state_dict()
         return weights
 
     def load_state_dict(self, weights: dict) -> None:
-        if self.batch_normalization:
+        if self.normalization:
             self.batch_layer.load_state_dict(weights["batch_layer"])
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
@@ -377,7 +385,7 @@ class MLP(nn.Module):
 
     def forward(self, x):
         h = x
-        if self.batch_normalization:
+        if self.normalization:
             h = self.batch_layer(h)
         for layer in self.layers[:-1]:
             h = layer(h).relu()

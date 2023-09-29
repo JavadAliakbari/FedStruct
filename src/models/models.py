@@ -306,7 +306,7 @@ class LocalSage_Plus(nn.Module):
             layer_sizes=layer_sizes,
             dropout=config.model.dropout,
             last_layer="relu",
-            # batch_normalization=True,
+            # normalization="batch",
         )
 
         # self.encoder_model = GraphSAGE(
@@ -338,7 +338,7 @@ class LocalSage_Plus(nn.Module):
             layer_sizes=layer_sizes,
             dropout=config.model.dropout,
             last_layer="softmax",
-            batch_normalization=True,
+            normalization="batch",
         )
 
         # self.classifier = GraphSAGE(
