@@ -3,9 +3,9 @@ dataset:
   dataset_name: "Cora"
   # dataset_name: "CiteSeer"
   # dataset_name: "chameleon"
-  # dataset_name : "squirrel"
-  # dataset_name : "Minesweeper"
-  # dataset_name : "Tolokers"
+  # dataset_name: "squirrel"
+  # dataset_name: "Minesweeper"
+  # dataset_name: "Tolokers"
   # dataset_name: "Heterophilic_example"
   # dataset_name: "Homophilic_example"
 subgraph:
@@ -19,26 +19,36 @@ model:
   lr: 0.001
   weight_decay: 0.0005
   dropout: 0.5
-  gen_epochs: 100
   gnn_layer_type: "sage"
   epoch_classifier: 60
+  metric: "acc"
+feature_model:
   gnn_layer_sizes: [128, 64]
   mlp_layer_sizes: [64]
 structure_model:
   sd_ratio: 0
-  structure_layers_size: [128, 64]
+  GNN_structure_layers_sizes: [128, 64]
   # structure_type: "struc2vec"
   # structure_type: "mp"
   # structure_type: "degree"
   # structure_type: "GDV"
-  # structure_type: "node2vec"
   structure_type: "random"
-  # num_structural_features: 100
+  # structure_type: "node2vec"
   num_structural_features: 256
   # loss: "both"
   # loss: "homophily"
-  loss: "heterophily"
+  # loss: "heterophily"
+  loss: ""
   num_mp_vectors: 10
   cosine_similarity_predictor_epochs: 250
   gnn_epochs: 500
   mlp_epochs: 200
+node2vec:
+  epochs: 50
+  walk_length: 20
+  context_size: 10
+  walks_per_node: 10
+  num_negative_samples: 1
+  p: 1
+  q: 1
+  show_bar: True

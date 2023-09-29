@@ -120,7 +120,7 @@ class Server(Client):
     def initialize_sd_predictor(self) -> None:
         sd_dims = [
             config.structure_model.num_structural_features
-        ] + config.structure_model.structure_layers_sizes
+        ] + config.structure_model.GNN_structure_layers_sizes
 
         # self.create_local_sd_model(sd_dims, model_type="GNN")
 
@@ -128,12 +128,14 @@ class Server(Client):
         #     client.create_local_sd_model(sd_dims, model_type="GNN")
 
         self.initialize(
-            additional_layer_dims=config.structure_model.structure_layers_sizes[-1]
+            additional_layer_dims=config.structure_model.GNN_structure_layers_sizes[-1]
         )
         client: Client
         for client in self.clients:
             client.initialize(
-                additional_layer_dims=config.structure_model.structure_layers_sizes[-1]
+                additional_layer_dims=config.structure_model.GNN_structure_layers_sizes[
+                    -1
+                ]
             )
 
         self.sd_predictor.initialize_structural_graph(

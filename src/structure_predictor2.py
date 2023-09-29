@@ -41,8 +41,8 @@ class StructurePredictor:
 
         num_classes = max(y).item() + 1
         self.cls = MLP(
-            [config.structure_model.structure_layers_sizes[-1]]
-            + config.model.mlp_layer_sizes
+            [config.structure_model.GNN_structure_layers_sizes[-1]]
+            + config.feature_model.mlp_layer_sizes
             + [num_classes],
             dropout=0.1,
             normalization="batch",
@@ -259,7 +259,7 @@ class StructurePredictor:
 
     def fit(
         self,
-        epochs=config.model.gen_epochs,
+        epochs=config.model.epoch_classifier,
         plot=False,
         bar=False,
         predict=False,

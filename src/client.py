@@ -204,7 +204,7 @@ class Client:
 
     def train_neighgen(self, inter_client_features_creators: list = []) -> None:
         self.initialize_neighgen()
-        self.fit_neighgen(config.model.gen_epochs, inter_client_features_creators)
+        self.fit_neighgen(config.model.epoch_classifier, inter_client_features_creators)
 
     def initialize_locsage(self, inter_client_features_creators: list = []):
         self.train_neighgen(inter_client_features_creators)

@@ -30,7 +30,9 @@ class MLPClassifier(Classifier):
         if dim_in is None:
             dim_in = self.graph.num_features
 
-        layer_sizes = [dim_in] + config.model.mlp_layer_sizes + [self.num_classes]
+        layer_sizes = (
+            [dim_in] + config.feature_model.mlp_layer_sizes + [self.num_classes]
+        )
         self.model = MLP(
             layer_sizes=layer_sizes,
             last_layer="softmax",

@@ -187,9 +187,9 @@ if __name__ == "__main__":
 
     model = JointModel(
         num_clients=num_clients,
-        client_layer_sizes=[graph.num_features] + config.model.gnn_layer_sizes,
+        client_layer_sizes=[graph.num_features] + config.feature_model.gnn_layer_sizes,
         structure_layer_sizes=[config.structure_model.num_structural_features]
-        + config.model.gnn_layer_sizes,
+        + config.feature_model.gnn_layer_sizes,
         num_classes=num_classes,
     )
 

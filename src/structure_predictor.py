@@ -232,7 +232,7 @@ class StructurePredictor:
 
     def fit(
         self,
-        epochs=config.model.gen_epochs,
+        epochs=config.model.epoch_classifier,
         plot=False,
         bar=False,
         predict=False,

@@ -143,7 +143,6 @@ class Graph(Data):
             structural_features = find_node2vect_embedings(
                 edge_index,
                 embedding_dim=num_structural_features,
-                epochs=50,
             )
         elif structure_type == "mp":
             d = Graph.calc_degree_features(edge_index, num_structural_features)

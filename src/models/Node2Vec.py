@@ -3,6 +3,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch_geometric.nn.models import Node2Vec
 
+from src.utils.config_parser import Config
+
+config = Config().node2vec
+
 
 def train(model: Node2Vec, loader, optimizer: torch.optim.SparseAdam):
     model.train()
@@ -32,16 +36,21 @@ def test(model, graph):
     return acc
 
 
-def find_node2vect_embedings(edge_index, epochs=50, embedding_dim=64, plot=False):
+def find_node2vect_embedings(
+    edge_index,
+    epochs=config.epochs,
+    embedding_dim=64,
+    plot=False,
+):
     model = Node2Vec(
         edge_index,
         embedding_dim=embedding_dim,
-        walk_length=20,
-        context_size=10,
-        walks_per_node=10,
-        num_negative_samples=1,
-        p=1,
-        q=1,
+        walk_length=config.walk_length,
+        context_size=config.context_size,
+        walks_per_node=config.walks_per_node,
+        num_negative_samples=config.num_negative_samples,
+        p=config.p,
+        q=config.q,
         sparse=True,
     )
 

@@ -60,7 +60,7 @@ def log_config():
     _LOGGER.info(f"learning rate: {config.model.lr}")
     _LOGGER.info(f"weight decay: {config.model.weight_decay}")
     _LOGGER.info(f"dropout: {config.model.dropout}")
-    _LOGGER.info(f"mlp layer sizes: {config.model.mlp_layer_sizes}")
+    _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
     _LOGGER.info(
         f"num structural features: {config.structure_model.num_structural_features}"
     )
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     message_passing = MessagePassing(aggr="mean")
     cls = MLP(
         layer_sizes=[config.structure_model.num_structural_features]
-        + config.model.mlp_layer_sizes
+        + config.feature_model.mlp_layer_sizes
         + [num_classes],
         normalization="batch",
     )

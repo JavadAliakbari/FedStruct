@@ -5,12 +5,12 @@ class Config:
     def __init__(self, path="config/config.yml"):
         self.config = Config.load_config(path)
 
-        self.dataset = Dataset(self.config["dataset"])
-        self.subgraph = Subgraph(self.config["subgraph"])
-        self.model = Model(self.config["model"])
-        self.structure_model = StructureModel(self.config["structure_model"])
-
-        a = 2
+        self.dataset = DatasetConfig(self.config["dataset"])
+        self.subgraph = SubgraphConfig(self.config["subgraph"])
+        self.model = ModelConfig(self.config["model"])
+        self.feature_model = FeatureModelConfig(self.config["feature_model"])
+        self.structure_model = StructureModelConfig(self.config["structure_model"])
+        self.node2vec = Node2VecConfig(self.config["node2vec"])
 
     def load_config(path):
         with open(path) as f:
@@ -19,7 +19,7 @@ class Config:
         return config
 
 
-class Dataset:
+class DatasetConfig:
     def __init__(self, dataset):
         self.load_config(dataset)
 
@@ -27,7 +27,7 @@ class Dataset:
         self.dataset_name = dataset["dataset_name"]
 
 
-class Subgraph:
+class SubgraphConfig:
     def __init__(self, subgraph):
         self.load_config(subgraph)
 
@@ -36,7 +36,7 @@ class Subgraph:
         self.delta = subgraph["delta"]
 
 
-class Model:
+class ModelConfig:
     def __init__(self, model):
         self.load_config(model)
 
@@ -44,26 +44,31 @@ class Model:
         self.num_samples = model["num_samples"]
         self.batch = model["batch"]
         self.batch_size = model["batch_size"]
-        # self.steps = model["steps"]
         self.epochs_local = model["epochs_local"]
         self.lr = model["lr"]
         self.weight_decay = model["weight_decay"]
         self.gnn_layer_type = model["gnn_layer_type"]
-        # self.hidden = model["hidden"]
         self.dropout = model["dropout"]
-        self.gen_epochs = model["gen_epochs"]
         self.epoch_classifier = model["epoch_classifier"]
-        self.gnn_layer_sizes = model["gnn_layer_sizes"]
-        self.mlp_layer_sizes = model["mlp_layer_sizes"]
+        self.metric = model["metric"]
 
 
-class StructureModel:
+class FeatureModelConfig:
+    def __init__(self, feature_model):
+        self.load_config(feature_model)
+
+    def load_config(self, feature_model):
+        self.gnn_layer_sizes = feature_model["gnn_layer_sizes"]
+        self.mlp_layer_sizes = feature_model["mlp_layer_sizes"]
+
+
+class StructureModelConfig:
     def __init__(self, structure_model):
         self.load_config(structure_model)
 
     def load_config(self, structure_model):
         self.sd_ratio = structure_model["sd_ratio"]
-        self.structure_layers_sizes = structure_model["structure_layers_size"]
+        self.GNN_structure_layers_sizes = structure_model["GNN_structure_layers_sizes"]
         self.structure_type = structure_model["structure_type"]
         self.num_structural_features = structure_model["num_structural_features"]
         self.loss = structure_model["loss"]
@@ -73,3 +78,18 @@ class StructureModel:
         ]
         self.gnn_epochs = structure_model["gnn_epochs"]
         self.mlp_epochs = structure_model["mlp_epochs"]
+
+
+class Node2VecConfig:
+    def __init__(self, node2vec):
+        self.load_config(node2vec)
+
+    def load_config(self, node2vec):
+        self.epochs = node2vec["epochs"]
+        self.walk_length = node2vec["walk_length"]
+        self.context_size = node2vec["context_size"]
+        self.walks_per_node = node2vec["walks_per_node"]
+        self.num_negative_samples = node2vec["num_negative_samples"]
+        self.p = node2vec["p"]
+        self.q = node2vec["q"]
+        self.show_bar = node2vec["show_bar"]

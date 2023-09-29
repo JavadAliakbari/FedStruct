@@ -39,11 +39,11 @@ def log_config(_LOGGER):
     _LOGGER.info(f"weight decay: {config.model.weight_decay}")
     _LOGGER.info(f"dropout: {config.model.dropout}")
     _LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
-    _LOGGER.info(f"gnn layer sizes: {config.model.gnn_layer_sizes}")
-    _LOGGER.info(f"mlp layer sizes: {config.model.mlp_layer_sizes}")
+    _LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
+    _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
     _LOGGER.info(f"sd ratio: {config.structure_model.sd_ratio}")
     _LOGGER.info(
-        f"structure layers size: {config.structure_model.structure_layers_sizes}"
+        f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
     )
     _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
     _LOGGER.info(

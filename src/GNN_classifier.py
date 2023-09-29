@@ -32,11 +32,11 @@ class GNNClassifier(Classifier):
         if dim_in is None:
             dim_in = self.graph.num_features
 
-        gnn_layer_sizes = [dim_in] + config.model.gnn_layer_sizes
+        gnn_layer_sizes = [dim_in] + config.feature_model.gnn_layer_sizes
         mlp_layer_sizes = (
             # [additional_layer_dims]
-            [config.model.gnn_layer_sizes[-1] + additional_layer_dims]
-            # + config.model.mlp_layer_sizes
+            [config.feature_model.gnn_layer_sizes[-1] + additional_layer_dims]
+            # + config.feature_model.mlp_layer_sizes
             + [self.num_classes]
         )
 
@@ -62,7 +62,7 @@ class GNNClassifier(Classifier):
 
         mlp_layer_sizes = (
             [dim_in + additional_layer_dims]
-            + config.model.mlp_layer_sizes
+            + config.feature_model.mlp_layer_sizes
             + [self.num_classes]
         )
 
