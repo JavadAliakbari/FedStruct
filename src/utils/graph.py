@@ -16,7 +16,7 @@ from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.GDV2 import GDV
 
 
-config = Config()
+config = Config().structure_model
 
 
 class Graph(Data):
@@ -152,6 +152,10 @@ class Graph(Data):
                 d,
                 iteration=config.structure_model.num_mp_vectors,
             )
+        elif structure_type == "random":
+            structural_features = Graph.initialize_random_features(
+                size=(len(node_ids), num_structural_features)
+            )
         # elif structure_type == "struc2vec":
         #     structural_features = Graph.calc_stuc2vec()
 
@@ -198,6 +202,20 @@ class Graph(Data):
     #             x[int(line[0])] = np.array(line[1:])
 
     #     return torch.Tensor(x)
+
+    def initialize_random_features(size):
+        return torch.normal(
+            0,
+            0.05,
+            size=size,
+            requires_grad=True,
+        )
+
+    def reset_parameters(self) -> None:
+        if config.structure_type == "random":
+            self.structural_features = Graph.initialize_random_features(
+                size=self.structural_features.shape
+            )
 
     def find_class_neighbors(self):
         class_groups, negative_class_groups = Graph.find_class_neighbors_(

@@ -96,6 +96,7 @@ class StructurePredictor:
         )
 
     def reset_parameters(self):
+        self.graph.reset_parameters()
         self.model.reset_parameters()
 
     def state_dict(self):
@@ -461,7 +462,9 @@ class StructurePredictor:
             )
             optimizers[f"client{client.id}"] = optimizer
 
-        parameters = self.structure_model.parameters()
+        parameters = list(self.structure_model.parameters())
+        if config.structure_model.structure_type == "random":
+            parameters += [self.graph.structural_features]
         optimizer = torch.optim.Adam(
             parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
         )
@@ -473,6 +476,9 @@ class StructurePredictor:
         parameters = list(self.server.parameters()) + list(
             self.structure_model.parameters()
         )
+
+        if config.structure_model.structure_type == "random":
+            parameters += [self.graph.structural_features]
 
         optimizer = torch.optim.Adam(
             parameters, lr=config.model.lr, weight_decay=config.model.weight_decay

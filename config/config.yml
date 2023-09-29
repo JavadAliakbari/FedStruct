@@ -23,17 +23,18 @@ model:
   gnn_layer_type: "sage"
   epoch_classifier: 60
   gnn_layer_sizes: [128, 64]
-  mlp_layer_sizes: [32]
+  mlp_layer_sizes: [64]
 structure_model:
-  sd_ratio: 1
+  sd_ratio: 0
   structure_layers_size: [128, 64]
   # structure_type: "struc2vec"
   # structure_type: "mp"
-  structure_type: "degree"
+  # structure_type: "degree"
   # structure_type: "GDV"
   # structure_type: "node2vec"
+  structure_type: "random"
   # num_structural_features: 100
-  num_structural_features: 73
+  num_structural_features: 256
   # loss: "both"
   # loss: "homophily"
   loss: "heterophily"
