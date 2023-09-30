@@ -48,6 +48,7 @@ class ModelConfig:
         self.lr = model["lr"]
         self.weight_decay = model["weight_decay"]
         self.gnn_layer_type = model["gnn_layer_type"]
+        self.propagate_type = model["propagate_type"]
         self.dropout = model["dropout"]
         self.epoch_classifier = model["epoch_classifier"]
         self.metric = model["metric"]
@@ -60,6 +61,7 @@ class FeatureModelConfig:
     def load_config(self, feature_model):
         self.gnn_layer_sizes = feature_model["gnn_layer_sizes"]
         self.mlp_layer_sizes = feature_model["mlp_layer_sizes"]
+        self.mp_layers = feature_model["mp_layers"]
 
 
 class StructureModelConfig:
@@ -69,6 +71,8 @@ class StructureModelConfig:
     def load_config(self, structure_model):
         self.sd_ratio = structure_model["sd_ratio"]
         self.GNN_structure_layers_sizes = structure_model["GNN_structure_layers_sizes"]
+        self.MP_structure_layers_sizes = structure_model["MP_structure_layers_size"]
+        self.mp_layers = structure_model["mp_layers"]
         self.structure_type = structure_model["structure_type"]
         self.num_structural_features = structure_model["num_structural_features"]
         self.loss = structure_model["loss"]

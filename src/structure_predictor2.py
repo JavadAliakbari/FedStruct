@@ -8,7 +8,7 @@ from torch_geometric.nn import MessagePassing
 from tqdm import tqdm
 from src.client import Client
 
-from src.models.GNN_models import GNN, MLP, calc_accuracy
+from src.models.GNN_models import GNN, MLP, ModelBinder, ModelSpecs, calc_accuracy
 from src.models.structure_model3 import JointModel
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
@@ -68,11 +68,15 @@ class StructurePredictor:
         if self.graph.y is not None:
             self.graph.find_class_neighbors()
 
-    def set_model(self, client_models, server_model, input_size):
+    def set_GNN_model(self, client_models, server_model):
         self.server: Client = server_model
 
+        layer_sizes = [
+            config.structure_model.num_structural_features
+        ] + config.structure_model.GNN_structure_layers_sizes
+
         self.structure_model = GNN(
-            layer_sizes=input_size,
+            layer_sizes=layer_sizes,
             last_layer="linear",
             layer_type=config.model.gnn_layer_type,
             dropout=config.model.dropout,
@@ -87,13 +91,54 @@ class StructurePredictor:
             logger=self.LOGGER,
         )
 
-    def initialize_structural_graph(self, client_models, server_model, sd_layer_size):
-        self.prepare_data()
-        self.set_model(
-            client_models,
-            server_model,
-            sd_layer_size,
+    def set_MP_model(self, client_models, server_model):
+        self.server: Client = server_model
+
+        if config.structure_model.structure_type == "random":
+            layer_sizes = [config.structure_model.num_structural_features]
+        else:
+            layer_sizes = [
+                config.structure_model.num_structural_features
+            ] + config.structure_model.MP_structure_layers_sizes
+
+        models_specs = [
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=layer_sizes,
+                final_activation_function="linear",
+                normalization="batch",
+            ),
+            ModelSpecs(
+                type="MP",
+                num_layers=config.structure_model.mp_layers,
+            ),
+        ]
+
+        self.structure_model: ModelBinder = ModelBinder(models_specs)
+
+        self.model = JointModel(
+            server=server_model,
+            clients=client_models,
+            logger=self.LOGGER,
         )
+
+    def initialize_structural_graph(
+        self,
+        client_models,
+        server_model,
+        propagate_type=config.model.propagate_type,
+    ):
+        self.prepare_data()
+        if propagate_type == "GNN":
+            self.set_GNN_model(
+                client_models,
+                server_model,
+            )
+        elif propagate_type == "MP":
+            self.set_MP_model(
+                client_models,
+                server_model,
+            )
 
     def reset_parameters(self):
         self.graph.reset_parameters()
@@ -173,7 +218,7 @@ class StructurePredictor:
 
             node_negative_sample_size = (
                 self.graph.degree[node_id] * negative_sample_size
-            )
+            ).item()
             negative_samples = np.random.choice(
                 node_ids,
                 # negative_sample_size,
@@ -872,7 +917,13 @@ class StructurePredictor:
 
         return final_result
 
-    def train_local_sd(self, clients, epochs=1):
+    def train_local_sd(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
         optimizers = self.create_SW_optimizers()
         metrics = {}
         average_results = []
@@ -884,12 +935,16 @@ class StructurePredictor:
         #         sd_ratios[ind]
         #     )
 
-        bar = tqdm(total=epochs, position=0)
+        if log:
+            bar = tqdm(total=epochs, position=0)
         for epoch in range(epochs):
             StructurePredictor.reset_optimizers(optimizers)
-
+            self.model.train()
             out = self.model()
-            structure_loss = self.calc_loss(out["structure_model"])
+            if config.structure_model.sd_ratio != 0:
+                structure_loss = self.calc_loss(out["structure_model"])
+            else:
+                structure_loss = None
 
             loss_list = torch.zeros(len(clients), dtype=torch.float32)
             average_result = {}
@@ -928,9 +983,10 @@ class StructurePredictor:
                     else:
                         average_result[key] += ratio * val
 
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"local SD results for client{client.id}:")
-                    self.LOGGER.info(f"{result}")
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"local SD results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
 
             total_loss = loss_list.mean()
             total_loss.backward()
@@ -941,28 +997,35 @@ class StructurePredictor:
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
-            metrics[f"average train acc"] = average_result["Train Acc"]
-            metrics[f"average val acc"] = average_result["Val Acc"]
-            with torch.no_grad():
-                metrics["Total Loss"] = round(total_loss.item(), 4)
-                metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
+            if log:
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
+                with torch.no_grad():
+                    metrics["Total Loss"] = round(total_loss.item(), 4)
+                    if structure_loss is not None:
+                        metrics["Structure Loss"] = round(
+                            structure_loss.mean().item(), 4
+                        )
 
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
 
         test_metrics = self.test(clients)
 
         average_test_acc = 0
         for client in clients:
             test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
-            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
+            if log:
+                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
             average_test_acc += test_acc * client.num_nodes() / self.server.num_nodes()
 
-        self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-        title = f"Average local SD GNN"
-        plot_metrics(average_results, title=title, save_path=self.save_path)
+        if plot:
+            title = f"Average local SD GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
 
         if config.structure_model.structure_type == "mp":
             print(self.structure_model.mp_layer.state_dict()["weight"])

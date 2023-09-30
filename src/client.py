@@ -92,16 +92,25 @@ class Client:
         self.classifier.eval()
 
     def initialize_gnn_(
-        graph: Graph, classifier: GNNClassifier, dim_in=None, additional_layer_dims=0
+        graph: Graph,
+        classifier: GNNClassifier,
+        propagate_type=config.model.propagate_type,
+        dim_in=None,
+        additional_layer_dims=0,
     ) -> None:
         classifier.prepare_data(
             graph=graph,
             batch_size=config.model.batch_size,
             num_neighbors=config.model.num_samples,
         )
-        classifier.set_classifiers(
-            dim_in=dim_in, additional_layer_dims=additional_layer_dims
-        )
+        if propagate_type == "GNN":
+            classifier.set_GNN_classifier(
+                dim_in=dim_in, additional_layer_dims=additional_layer_dims
+            )
+        elif propagate_type == "MP":
+            classifier.set_MP_classifier(
+                dim_in=dim_in, additional_layer_dims=additional_layer_dims
+            )
 
     def initialize_mlp_(
         graph: Graph,
@@ -114,13 +123,26 @@ class Client:
         )
         classifier.set_classifiers(dim_in=dim_in)
 
-    def initialize(self, input_dimension=None, additional_layer_dims=0) -> None:
+    def initialize(
+        self,
+        propagate_type=config.model.propagate_type,
+        input_dimension=None,
+        additional_layer_dims=0,
+    ) -> None:
         if self.classifier_type == "GNN":
             Client.initialize_gnn_(
-                self.subgraph, self.classifier, input_dimension, additional_layer_dims
+                self.subgraph,
+                self.classifier,
+                propagate_type,
+                input_dimension,
+                additional_layer_dims,
             )
         elif self.classifier_type == "MLP":
-            Client.initialize_mlp_(self.subgraph, self.classifier, input_dimension)
+            Client.initialize_mlp_(
+                self.subgraph,
+                self.classifier,
+                input_dimension,
+            )
 
     def fit(self, epochs, log=False, plot=False, type="local") -> None:
         return self.classifier.fit(

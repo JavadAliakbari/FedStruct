@@ -117,31 +117,37 @@ class Server(Client):
     #         num_classes=self.num_classes,
     #     )
 
-    def initialize_sd_predictor(self) -> None:
-        sd_dims = [
-            config.structure_model.num_structural_features
-        ] + config.structure_model.GNN_structure_layers_sizes
-
-        # self.create_local_sd_model(sd_dims, model_type="GNN")
-
-        # for client in self.clients:
-        #     client.create_local_sd_model(sd_dims, model_type="GNN")
+    def initialize_sd_predictor(
+        self,
+        propagate_type=config.model.propagate_type,
+    ) -> None:
+        if propagate_type == "MP":
+            if config.structure_model.structure_type == "random":
+                additional_layer_dims = config.structure_model.num_structural_features
+            else:
+                additional_layer_dims = (
+                    config.structure_model.MP_structure_layers_sizes[-1]
+                )
+        elif propagate_type == "GNN":
+            additional_layer_dims = config.structure_model.GNN_structure_layers_sizes[
+                -1
+            ]
 
         self.initialize(
-            additional_layer_dims=config.structure_model.GNN_structure_layers_sizes[-1]
+            propagate_type=propagate_type,
+            additional_layer_dims=additional_layer_dims,
         )
         client: Client
         for client in self.clients:
             client.initialize(
-                additional_layer_dims=config.structure_model.GNN_structure_layers_sizes[
-                    -1
-                ]
+                propagate_type=propagate_type,
+                additional_layer_dims=additional_layer_dims,
             )
 
         self.sd_predictor.initialize_structural_graph(
             client_models=self.clients,
             server_model=self,
-            sd_layer_size=sd_dims,
+            propagate_type=propagate_type,
         )
 
         self.initialized = True
@@ -153,25 +159,6 @@ class Server(Client):
     def eval(self):
         self.sd_predictor.eval()
         super().eval()
-
-    def get_structure_embeddings(self):
-        return self.sd_predictor.get_structure_embeddings()
-
-    def fit_sd_predictor(self, epochs, bar=False, plot=False, predict=False) -> None:
-        return self.sd_predictor.fit(epochs=epochs, bar=bar, plot=plot, predict=predict)
-
-    def train_sd_predictor(
-        self, epochs=config.model.epoch_classifier, bar=True, plot=True, predict=False
-    ) -> None:
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
-        else:
-            self.initialize_sd_predictor()
-        return self.fit_sd_predictor(epochs, bar=bar, plot=plot, predict=predict)
-
-    def test_sd_predictor(self) -> None:
-        test_acc = self.sd_predictor.test_cls()
-        self.LOGGER.info(f"SD predictor test accuracy: {test_acc}")
 
     def calc_total_grads(self, clients):
         grads = None
@@ -188,9 +175,34 @@ class Server(Client):
         for i in range(len(grads)):
             server_parameters[i].grad = grads[i]
 
+    def get_structure_embeddings(self):
+        return self.sd_predictor.get_structure_embeddings()
+
+    def fit_sd_predictor(self, epochs, bar=False, plot=False, predict=False) -> None:
+        return self.sd_predictor.fit(epochs=epochs, bar=bar, plot=plot, predict=predict)
+
+    def train_sd_predictor(
+        self,
+        epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
+        bar=True,
+        plot=True,
+        predict=False,
+    ) -> None:
+        if self.initialized:
+            self.reset_sd_predictor_parameters()
+        else:
+            self.initialize_sd_predictor(propagate_type=propagate_type)
+        return self.fit_sd_predictor(epochs, bar=bar, plot=plot, predict=predict)
+
+    def test_sd_predictor(self) -> None:
+        test_acc = self.sd_predictor.test_cls()
+        self.LOGGER.info(f"SD predictor test accuracy: {test_acc}")
+
     def train_FLWA(
         self,
         epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
     ):
@@ -199,12 +211,12 @@ class Server(Client):
         final_result = {}
         criterion = torch.nn.CrossEntropyLoss()
 
-        self.initialize()
+        self.initialize(propagate_type=propagate_type)
         self.reset_parameters()
 
         client: Client
         for client in self.clients:
-            client.initialize()
+            client.initialize(propagate_type=propagate_type)
             client.reset_parameters()
 
         server_results = []
@@ -320,18 +332,19 @@ class Server(Client):
     def train_FLGA(
         self,
         epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
     ):
         # return self.model.fit2(self.graph, clients, epochs)
         self.LOGGER.info("FLGA starts!")
         final_result = {}
-        self.initialize()
+        self.initialize(propagate_type=propagate_type)
         self.reset_parameters()
 
         client: Client
         for client in self.clients:
-            client.initialize()
+            client.initialize(propagate_type=propagate_type)
             client.reset_parameters()
 
         classifier = self.classifier
@@ -505,6 +518,7 @@ class Server(Client):
     def train_SD_Server(
         self,
         epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
     ):
@@ -513,36 +527,69 @@ class Server(Client):
         if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
-            self.initialize_sd_predictor()
+            self.initialize_sd_predictor(propagate_type=propagate_type)
         return self.sd_predictor.train_SD_Server(
             epochs=epochs,
             log=log,
             plot=plot,
         )
 
-    def train_SDWA(self, epochs=1):
+    def train_SDWA(
+        self,
+        epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+    ):
         self.LOGGER.info("SDWA starts!")
         if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
-            self.initialize_sd_predictor()
-        return self.sd_predictor.train_SDWA(self.clients, epochs)
+            self.initialize_sd_predictor(propagate_type=propagate_type)
+        return self.sd_predictor.train_SDWA(
+            self.clients,
+            epochs=epochs,
+            log=log,
+            plot=plot,
+        )
 
-    def train_SDGA(self, epochs=1):
+    def train_SDGA(
+        self,
+        epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+    ):
         self.LOGGER.info("SDGA starts!")
         if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
-            self.initialize_sd_predictor()
-        return self.sd_predictor.train_SDGA(self.clients, epochs)
+            self.initialize_sd_predictor(propagate_type=propagate_type)
+        return self.sd_predictor.train_SDGA(
+            self.clients,
+            epochs=epochs,
+            log=log,
+            plot=plot,
+        )
 
-    def train_local_sd(self, epochs=1):
+    def train_local_sd(
+        self,
+        epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+    ):
         self.LOGGER.info("Local SD starts!")
         if self.initialized:
             self.reset_sd_predictor_parameters()
         else:
-            self.initialize_sd_predictor()
-        self.sd_predictor.train_local_sd(self.clients, epochs)
+            self.initialize_sd_predictor(propagate_type=propagate_type)
+        self.sd_predictor.train_local_sd(
+            self.clients,
+            epochs=epochs,
+            log=log,
+            plot=plot,
+        )
 
     def train_locsages(self, log=True, plot=True):
         client: Client

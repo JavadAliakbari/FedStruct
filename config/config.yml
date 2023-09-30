@@ -20,14 +20,18 @@ model:
   weight_decay: 0.0005
   dropout: 0.5
   gnn_layer_type: "sage"
-  epoch_classifier: 60
+  propagate_type: "MP"
+  epoch_classifier: 40
   metric: "acc"
 feature_model:
   gnn_layer_sizes: [128, 64]
   mlp_layer_sizes: [64]
+  mp_layers: 3
 structure_model:
-  sd_ratio: 0
+  sd_ratio: 1
   GNN_structure_layers_sizes: [128, 64]
+  MP_structure_layers_size: [256]
+  mp_layers: 5
   # structure_type: "struc2vec"
   # structure_type: "mp"
   # structure_type: "degree"
@@ -36,9 +40,9 @@ structure_model:
   # structure_type: "node2vec"
   num_structural_features: 256
   # loss: "both"
-  # loss: "homophily"
+  loss: "homophily"
   # loss: "heterophily"
-  loss: ""
+  # loss: ""
   num_mp_vectors: 10
   cosine_similarity_predictor_epochs: 250
   gnn_epochs: 500

@@ -8,7 +8,13 @@ from src.utils.utils import *
 from src.utils.graph import Graph
 from src.classifier import Classifier
 from src.utils.config_parser import Config
-from src.models.GNN_models import GNNMLP, MPMLP, calc_accuracy, test, calc_f1_score
+from src.models.GNN_models import (
+    ModelBinder,
+    ModelSpecs,
+    calc_accuracy,
+    test,
+    calc_f1_score,
+)
 
 config = Config()
 
@@ -28,26 +34,34 @@ class GNNClassifier(Classifier):
             logger=logger,
         )
 
-    def set_classifiers(self, dim_in=None, additional_layer_dims=0):
+    def set_GNN_classifier(self, dim_in=None, additional_layer_dims=0):
         if dim_in is None:
             dim_in = self.graph.num_features
 
         gnn_layer_sizes = [dim_in] + config.feature_model.gnn_layer_sizes
         mlp_layer_sizes = (
-            # [additional_layer_dims]
             [config.feature_model.gnn_layer_sizes[-1] + additional_layer_dims]
             # + config.feature_model.mlp_layer_sizes
             + [self.num_classes]
         )
 
-        self.model: GNNMLP = GNNMLP(
-            gnn_layer_sizes=gnn_layer_sizes,
-            mlp_layer_sizes=mlp_layer_sizes,
-            gnn_last_layer="linear",
-            mlp_last_layer="softmax",
-            dropout=config.model.dropout,
-            normalization="layer",
-        )
+        model_specs = [
+            ModelSpecs(
+                type="GNN",
+                layer_sizes=gnn_layer_sizes,
+                final_activation_function="linear",
+                normalization="layer",
+                # normalization="batch",
+            ),
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=mlp_layer_sizes,
+                final_activation_function="softmax",
+                normalization=None,
+            ),
+        ]
+
+        self.model: ModelBinder = ModelBinder(model_specs)
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
@@ -56,24 +70,48 @@ class GNNClassifier(Classifier):
             weight_decay=config.model.weight_decay,
         )
 
-    def set_classifiers2(self, dim_in=None, additional_layer_dims=0):
+    def set_MP_classifier(self, dim_in=None, additional_layer_dims=0):
         if dim_in is None:
             dim_in = self.graph.num_features
 
-        mlp_layer_sizes = (
-            [dim_in + additional_layer_dims]
-            + config.feature_model.mlp_layer_sizes
-            + [self.num_classes]
-        )
+        mlp_layer_sizes = [dim_in] + config.feature_model.mlp_layer_sizes
+        decision_layer_sizes = [
+            config.feature_model.mlp_layer_sizes[-1] + additional_layer_dims,
+            self.num_classes,
+        ]
 
-        self.model: MPMLP = MPMLP(
-            num_gnn_layers=15,
-            mlp_layer_sizes=mlp_layer_sizes,
-            gnn_last_layer="linear",
-            mlp_last_layer="softmax",
-            dropout=config.model.dropout,
-            normalization="batch",
-        )
+        # gnn_layer_sizes = [dim_in] + config.feature_model.gnn_layer_sizes
+        # decision_layer_sizes = [
+        #     config.feature_model.gnn_layer_sizes[-1] + additional_layer_dims,
+        #     self.num_classes,
+        # ]
+
+        model_specs = [
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=mlp_layer_sizes,
+                final_activation_function="linear",
+                normalization="layer",
+            ),
+            ModelSpecs(
+                type="MP",
+                num_layers=config.feature_model.mp_layers,
+            ),
+            # ModelSpecs(
+            #     type="GNN",
+            #     layer_sizes=gnn_layer_sizes,
+            #     final_activation_function="linear",
+            #     normalization="batch",
+            # ),
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=decision_layer_sizes,
+                final_activation_function="softmax",
+                normalization=None,
+            ),
+        ]
+
+        self.model: ModelBinder = ModelBinder(model_specs)
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
@@ -103,13 +141,15 @@ class GNNClassifier(Classifier):
         )
 
     def get_feature_embeddings(self):
-        x = self.graph.x
+        h = self.graph.x
         edge_index = self.graph.edge_index
-        h = self.model.gnn_step(x, edge_index)
+        for model in self.model[:-1]:
+            h = self.model.step(model, h, edge_index)
         return h
 
-    def predict_labels(self, x):
-        h = self.model.mlp_step(x)
+    def predict_labels(self, h):
+        edge_index = self.graph.edge_index
+        h = self.model.step(self.model[-1], h, edge_index)
         return h
 
     def fit(
@@ -214,7 +254,7 @@ class GNNClassifier(Classifier):
         x,
         y,
         edge_index,
-        model: GNNMLP,
+        model: ModelBinder,
         criterion,
         train_mask,
         val_mask,
