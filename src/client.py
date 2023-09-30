@@ -153,8 +153,14 @@ class Client:
             type=type,
         )
 
-    def train_local_classifier(self, epochs, log=True, plot=True) -> None:
-        self.initialize()
+    def train_local_classifier(
+        self,
+        epochs,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+    ) -> None:
+        self.initialize(propagate_type=propagate_type)
         return self.fit(
             epochs,
             log=log,

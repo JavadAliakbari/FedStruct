@@ -5,7 +5,7 @@ import torch
 import pandas as pd
 import matplotlib.pyplot as plt
 
-plt.rcParams["figure.figsize"] = [24, 16]
+plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
 plt.rcParams.update({"figure.max_open_warning": 0})
 plt.rcParams["font.size"] = 20

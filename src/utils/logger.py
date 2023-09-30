@@ -4,7 +4,13 @@ import logging
 _DEV_LOG_LEVEL = logging.DEBUG
 
 
-def get_logger(name: str = "root", log_on_file=False, save_path="./", append=False):
+def get_logger(
+    name: str = "root",
+    terminal=True,
+    log_on_file=False,
+    save_path="./",
+    append=False,
+):
     log_level = os.getenv("LOG_LEVEL", _DEV_LOG_LEVEL)
 
     # create logger
@@ -19,9 +25,10 @@ def get_logger(name: str = "root", log_on_file=False, save_path="./", append=Fal
     )
 
     # create console handler and set level to debug
-    terminal_handler = logging.StreamHandler()
-    terminal_handler.setFormatter(formatter)
-    logger.addHandler(terminal_handler)
+    if terminal:
+        terminal_handler = logging.StreamHandler()
+        terminal_handler.setFormatter(formatter)
+        logger.addHandler(terminal_handler)
 
     if log_on_file:
         if not os.path.exists(save_path):

@@ -56,6 +56,16 @@ class JointModel(torch.nn.Module):
             weights = model_weights[f"client{client.id}"]
             client.load_state_dict(weights)
 
+    def train(self, mode: bool = True):
+        self.server.train(mode)
+        for client in self.clients:
+            client.train(mode)
+
+    def eval(self):
+        self.server.eval()
+        for client in self.clients:
+            client.eval()
+
     def forward(self):
         out = {}
         S = self.server.get_structure_embeddings()

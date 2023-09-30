@@ -64,9 +64,14 @@ def log_config():
     _LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
     _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
     _LOGGER.info(f"sd ratio: {config.structure_model.sd_ratio}")
-    _LOGGER.info(
-        f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
-    )
+    if config.model.propagate_type == "GNN":
+        _LOGGER.info(
+            f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
+        )
+    else:
+        _LOGGER.info(
+            f"structure layers size: {config.structure_model.MP_structure_layers_sizes}"
+        )
     _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
     _LOGGER.info(
         f"num structural features: {config.structure_model.num_structural_features}"

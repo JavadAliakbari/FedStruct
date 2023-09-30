@@ -516,10 +516,12 @@ class StructurePredictor:
         parameters = list(self.structure_model.parameters())
         if config.structure_model.structure_type == "random":
             parameters += [self.graph.structural_features]
-        optimizer = torch.optim.Adam(
-            parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
-        )
-        optimizers[f"structure_model"] = optimizer
+
+        if len(parameters) > 0:
+            optimizer = torch.optim.Adam(
+                parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+            )
+            optimizers[f"structure_model"] = optimizer
 
         return optimizers
 
@@ -553,7 +555,8 @@ class StructurePredictor:
         plot_results = {}
         plot_results[f"Client{self.server.id}"] = []
 
-        bar = tqdm(total=epochs, position=0)
+        if log:
+            bar = tqdm(total=epochs, position=0)
         for epoch in range(epochs):
             optimizer.zero_grad()
 
@@ -667,7 +670,7 @@ class StructurePredictor:
             server_weights = self.server.state_dict()
             for client in clients:
                 client.load_state_dict(server_weights)
-
+            self.model.train()
             out = self.model()
             if config.structure_model.sd_ratio != 0:
                 structure_loss = self.calc_loss(out["structure_model"])
@@ -819,7 +822,7 @@ class StructurePredictor:
             for client in clients:
                 client.zero_grad()
                 client.load_state_dict(server_weights)
-
+            self.model.train()
             out = self.model()
             if config.structure_model.sd_ratio != 0:
                 structure_loss = self.calc_loss(out["structure_model"])

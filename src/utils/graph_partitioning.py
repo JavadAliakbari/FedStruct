@@ -114,7 +114,10 @@ def assign_nodes_to_subgraphs(community_groups, max_subgraph_nodes):
 def create_subgraps(graph, subgraph_node_ids: dict):
     subgraphs = []
     for community, subgraph_nodes in subgraph_node_ids.items():
-        node_ids = torch.tensor(subgraph_nodes)
+        if not isinstance(subgraph_nodes, torch.Tensor):
+            node_ids = torch.tensor(subgraph_nodes)
+        else:
+            node_ids = subgraph_nodes
         edges = graph.edge_index
         edge_mask = torch.isin(edges[0], node_ids) | torch.isin(edges[1], node_ids)
         edge_index = edges[:, edge_mask]

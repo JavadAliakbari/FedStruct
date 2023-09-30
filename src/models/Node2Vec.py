@@ -40,6 +40,7 @@ def find_node2vect_embedings(
     edge_index,
     epochs=config.epochs,
     embedding_dim=64,
+    show_bar=config.show_bar,
     plot=False,
 ):
     model = Node2Vec(
@@ -54,16 +55,18 @@ def find_node2vect_embedings(
         sparse=True,
     )
 
-    loader = model.loader(batch_size=128, shuffle=True, num_workers=4)
+    loader = model.loader(batch_size=128, shuffle=True, num_workers=1)
     optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=0.01)
 
-    bar = tqdm(total=epochs)
+    if show_bar:
+        bar = tqdm(total=epochs)
     res = []
     for epoch in range(epochs):
         loss = train(model, loader, optimizer)
-        bar.set_description(f"Epoch: {epoch:02d}")
-        bar.set_postfix({"Loss": loss})
-        bar.update()
+        if show_bar:
+            bar.set_description(f"Epoch: {epoch:02d}")
+            bar.set_postfix({"Loss": loss})
+            bar.update()
 
         res.append(loss)
 

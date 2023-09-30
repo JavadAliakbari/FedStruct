@@ -144,10 +144,10 @@ class MLPClassifier(Classifier):
         total_val_f1_score = 0
         train_count = 1e-6
         val_count = 1e-6
+        self.model.train()
         for train_x, train_y in train_loader:
             self.optimizer.zero_grad()
 
-            self.model.train()
             out = self.model(train_x)
 
             train_loss = self.criterion(out, train_y)
@@ -193,7 +193,7 @@ class MLPClassifier(Classifier):
         train_mask,
         val_mask,
     ):
-        model.train()
+        # model.train()
         out = model(x)
 
         train_loss = criterion(out[train_mask], y[train_mask])
@@ -205,7 +205,7 @@ class MLPClassifier(Classifier):
         train_TP = calc_f1_score(out[train_mask].argmax(dim=1), y[train_mask])
 
         # Validation
-        model.eval()
+        # model.eval()
         with torch.no_grad():
             if val_mask.any():
                 val_loss = criterion(out[val_mask], y[val_mask])

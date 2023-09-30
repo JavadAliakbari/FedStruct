@@ -62,10 +62,27 @@ class Server(Client):
         self.clients.append(client)
         self.num_clients += 1
 
-    def train_local_classifiers(self, epochs):
+    def remove_clients(self):
+        self.clients.clear()
+        self.num_clients = 0
+
+    def train_local_classifiers(
+        self,
+        epochs,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+    ):
+        final_result = {}
         plot_results = {}
+        client: Client
         for client in self.clients:
-            results = client.train_local_classifier(epochs, plot=False)
+            results = client.train_local_classifier(
+                epochs,
+                propagate_type=propagate_type,
+                log=log,
+                plot=False,
+            )
             plot_results[f"Client{client.id}"] = results
 
         average_results = []
@@ -77,16 +94,23 @@ class Server(Client):
                     average_result[key] += val * client.num_nodes() / self.num_nodes()
                 average_results.append(average_result)
 
-        title = f"Average local {self.classifier_type}"
-        plot_metrics(average_results, title=title, save_path=self.save_path)
+        if plot:
+            title = f"Average local {self.classifier_type}"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
 
         average_test_acc = 0
         for client in self.clients:
             test_acc = client.test_local_classifier()
-            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
+            final_result[f"Client{client.id}"] = test_acc
+            if log:
+                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
             average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
 
-        self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+        final_result["Average"] = average_test_acc
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+
+        return final_result
 
     def reset_sd_predictor_parameters(self):
         self.sd_predictor.reset_parameters()
