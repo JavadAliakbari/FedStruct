@@ -171,19 +171,19 @@ class GNNClassifier(Classifier):
             (
                 loss,
                 acc,
-                TP,
+                f1_score,
                 val_loss,
                 val_acc,
-                val_TP,
+                val_f1_score,
             ) = self.batch_training(data_loader)
 
             metrics = {
                 "Train Loss": round(loss.item(), 4),
                 "Train Acc": round(acc, 4),
-                "Train F1 Score": round(TP, 4),
+                "Train F1 Score": round(f1_score, 4),
                 "Val Loss": round(val_loss.item(), 4),
                 "Val Acc": round(val_acc, 4),
-                "Val F1 Score": round(val_TP, 4),
+                "Val F1 Score": round(val_f1_score, 4),
             }
 
             if log:
@@ -208,17 +208,24 @@ class GNNClassifier(Classifier):
         # Train on batches
         total_loss = 0
         total_acc = 0
-        total_TP = 0
+        total_f1_score = 0
         total_val_loss = 0
         total_val_acc = 0
-        total_val_TP = 0
+        total_val_f1_score = 0
         train_count = 1e-6
         val_count = 1e-6
         self.model.train()
         for batch in data_loader:
             if batch.train_mask.any():
                 self.optimizer.zero_grad()
-                loss, acc, TP, val_loss, val_acc, val_TP = GNNClassifier.step(
+                (
+                    loss,
+                    acc,
+                    f1_score,
+                    val_loss,
+                    val_acc,
+                    val_f1_score,
+                ) = GNNClassifier.step(
                     batch.x,
                     batch.y,
                     batch.edge_index,
@@ -231,7 +238,7 @@ class GNNClassifier(Classifier):
 
                 total_loss += loss
                 total_acc += acc
-                total_TP += TP
+                total_f1_score += f1_score
                 loss.backward()
                 self.optimizer.step()
 
@@ -239,15 +246,15 @@ class GNNClassifier(Classifier):
                 val_count += 1
                 total_val_loss += val_loss
                 total_val_acc += val_acc
-                total_val_TP += val_TP
+                total_val_f1_score += val_f1_score
 
         return (
             total_loss / train_count,
             total_acc / train_count,
-            total_TP / train_count,
+            total_f1_score / train_count,
             total_val_loss / val_count,
             total_val_acc / val_count,
-            total_val_TP / val_count,
+            total_val_f1_score / val_count,
         )
 
     def step(
@@ -285,6 +292,14 @@ class GNNClassifier(Classifier):
         return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
 
     @torch.no_grad()
-    def calc_test_accuracy(self):
+    def calc_test_accuracy(self, metric="acc"):
         self.model.eval()
-        return test(self.model, self.graph)
+        out = self.model(self.graph.x, self.graph.edge_index)
+        label = self.graph.y[self.graph.test_mask]
+        predicted = out.argmax(dim=1)[self.graph.test_mask]
+        if metric == "acc":
+            val_acc = calc_accuracy(predicted, label)
+        elif metric == "f1":
+            val_acc = calc_f1_score(predicted, label)
+
+        return val_acc

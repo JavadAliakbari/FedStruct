@@ -19,7 +19,43 @@ from src.utils.GDV2 import GDV
 config = Config().structure_model
 
 
-class Graph(Data):
+class Data_(Data):
+    def __init__(
+        self,
+        x: OptTensor = None,
+        y: OptTensor = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            x=x,
+            y=y,
+            **kwargs,
+        )
+
+    def get_masks(self):
+        return (self.train_mask, self.val_mask, self.test_mask)
+
+    def set_masks(self, masks):
+        self.train_mask = masks[0]
+        self.val_mask = masks[1]
+        self.test_mask = masks[2]
+
+    def add_masks(self, train_size=0.5, test_size=0.2):
+        num_nodes = self.num_nodes
+        indices = torch.arange(num_nodes)
+
+        train_indices, test_indices = model_selection.train_test_split(
+            indices,
+            train_size=train_size,
+            test_size=test_size,
+        )
+
+        self.train_mask = torch.isin(indices, train_indices)
+        self.test_mask = torch.isin(indices, test_indices)
+        self.val_mask = ~(self.test_mask | self.train_mask)
+
+
+class Graph(Data_):
     def __init__(
         self,
         edge_index: OptTensor,
@@ -36,9 +72,9 @@ class Graph(Data):
         node_map, new_edges = Graph.reindex_nodes(node_ids, edge_index)
         super().__init__(
             x=x,
+            y=y,
             edge_index=new_edges,
             edge_attr=edge_attr,
-            y=y,
             pos=pos,
             **kwargs,
         )
@@ -68,28 +104,6 @@ class Graph(Data):
         )
 
         return node_map, torch.tensor(new_edges)
-
-    def get_masks(self):
-        return (self.train_mask, self.val_mask, self.test_mask)
-
-    def set_masks(self, masks):
-        self.train_mask = masks[0]
-        self.val_mask = masks[1]
-        self.test_mask = masks[2]
-
-    def add_masks(self, train_size=0.5, test_size=0.2):
-        num_nodes = self.num_nodes
-        indices = torch.arange(num_nodes)
-
-        train_indices, test_indices = model_selection.train_test_split(
-            indices,
-            train_size=train_size,
-            test_size=test_size,
-        )
-
-        self.train_mask = torch.isin(indices, train_indices)
-        self.test_mask = torch.isin(indices, test_indices)
-        self.val_mask = ~(self.test_mask | self.train_mask)
 
     def add_structural_features(
         self,
@@ -149,7 +163,7 @@ class Graph(Data):
             structural_features = Graph.calc_mp(
                 edge_index,
                 d,
-                iteration=config.structure_model.num_mp_vectors,
+                iteration=config.num_mp_vectors,
             )
         elif structure_type == "random":
             structural_features = Graph.initialize_random_features(

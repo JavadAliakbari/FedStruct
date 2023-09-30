@@ -9,7 +9,7 @@ from torch_geometric.datasets import TUDataset, Planetoid
 
 from src.utils.graph import Graph
 from src.utils.config_parser import Config
-from src.utils.graph_partinioning import louvain_graph_cut
+from src.utils.graph_partitioning import louvain_graph_cut
 from src.models.GNN_models import GNN, MLP, calc_accuracy
 
 config = Config()

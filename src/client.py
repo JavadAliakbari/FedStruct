@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 from src.utils.config_parser import Config
-from src.utils.graph import Graph
+from src.utils.graph import Data_, Graph
 from src.GNN_classifier import GNNClassifier
 from src.MLP_classifier import MLPClassifier
 from src.neighgen import NeighGen
@@ -113,12 +113,12 @@ class Client:
             )
 
     def initialize_mlp_(
-        graph: Graph,
+        data: Data_,
         classifier: MLPClassifier,
         dim_in=None,
     ):
         classifier.prepare_data(
-            graph=graph,
+            data=data,
             batch_size=config.model.batch_size,
         )
         classifier.set_classifiers(dim_in=dim_in)
@@ -163,7 +163,7 @@ class Client:
         )
 
     def test_local_classifier(self):
-        return self.classifier.calc_test_accuracy()
+        return self.classifier.calc_test_accuracy(config.model.metric)
 
     def reset_neighgen_parameters(self):
         self.neighgen.reset_parameters()

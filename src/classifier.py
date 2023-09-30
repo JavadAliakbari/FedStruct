@@ -1,7 +1,7 @@
 import logging
 from typing import Union
 
-import torch
+from src.models.GNN_models import ModelBinder
 
 
 class Classifier:
@@ -18,7 +18,7 @@ class Classifier:
 
         self.LOGGER = logger or logging
 
-        self.model: Union[None, torch.nn.Module] = None
+        self.model: Union[None, ModelBinder] = None
 
     def state_dict(self):
         return self.model.state_dict()
