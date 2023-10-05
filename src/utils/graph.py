@@ -1,4 +1,5 @@
 from ast import Dict
+from copy import deepcopy
 from operator import itemgetter
 
 import torch
@@ -82,6 +83,8 @@ class Graph(Data_):
         self.node_map = node_map
         self.inv_map = {v: k for k, v in node_map.items()}
 
+        self.sfv_initialized = "None"
+
     def get_edges(self):
         new_edges = np.vstack(
             (
@@ -110,6 +113,13 @@ class Graph(Data_):
         structure_type="degree",
         num_structural_features=100,
     ):
+        if (
+            self.sfv_initialized
+            != "None"
+            # and num_structural_features == self.num_structural_features
+        ):
+            return
+
         (
             node_degree,
             node_neighbors,
@@ -121,6 +131,9 @@ class Graph(Data_):
             structure_type=structure_type,
             num_structural_features=num_structural_features,
         )
+
+        if structure_type in ["degree", "GDV", "node2vec"]:
+            self.sfv_initialized = deepcopy(structure_type)
 
         self.structural_features = structural_features
         self.degree = node_degree

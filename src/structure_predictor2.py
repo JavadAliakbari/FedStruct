@@ -462,10 +462,7 @@ class StructurePredictor:
 
     def step(self, train=True):
         self.model.train(train)
-        S = self.get_structure_embeddings()
-        h = self.server.get_feature_embeddings()
-        x = torch.hstack((h, S))
-        y_pred = self.server.predict_labels(x)
+        y_pred, S = self.model.step(self.server, return_embedding=True)
 
         if config.structure_model.sd_ratio != 0:
             structure_loss = self.calc_loss(S)
@@ -695,7 +692,13 @@ class StructurePredictor:
                 )
                 loss_list[ind] = train_loss
 
+                # S = out["structure_model"]
+                # S_test = S[self.graph.test_mask]
+                # y_test = self.graph.y[self.graph.test_mask]
+                # str_acc = calc_accuracy(S_test.argmax(dim=1), y_test)
+
                 result = {
+                    # "Str test Acc": round(str_acc, 4),
                     "Cls Train Loss": round(cls_train_loss.item(), 4),
                     "Train Acc": round(train_acc, 4),
                     "Cls Val Loss": round(cls_val_loss.item(), 4),
@@ -729,6 +732,7 @@ class StructurePredictor:
             average_results.append(average_result)
 
             if log:
+                # metrics[f"average str acc"] = average_result["Str test Acc"]
                 metrics[f"average train acc"] = average_result["Train Acc"]
                 metrics[f"average val acc"] = average_result["Val Acc"]
                 with torch.no_grad():
