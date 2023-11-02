@@ -23,9 +23,10 @@ plt.rcParams["figure.figsize"] = [24, 16]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
 plt.rcParams.update({"figure.max_open_warning": 0})
 
-random.seed(4)
-np.random.seed(4)
-torch.manual_seed(4)
+seed = 4
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 config = Config()
 
@@ -59,6 +60,9 @@ def log_config(_LOGGER):
         f"num structural features: {config.structure_model.num_structural_features}"
     )
     _LOGGER.info(f"loss: {config.structure_model.loss}")
+    _LOGGER.info(
+        f"Train-Test ratio: [{config.subgraph.train_ratio}, {config.subgraph.test_ratio}]"
+    )
 
 
 def set_up_system():
@@ -128,7 +132,10 @@ def set_up_system():
     else:
         num_classes = max(graph.y).item() + 1
 
-    graph.add_masks(train_size=0.5, test_size=0.2)
+    graph.add_masks(
+        train_size=config.subgraph.train_ratio,
+        test_size=config.subgraph.test_ratio,
+    )
 
     subgraphs = louvain_graph_cut(graph)
 

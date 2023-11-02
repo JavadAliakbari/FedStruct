@@ -81,18 +81,25 @@ class JointModel(torch.nn.Module):
             x_s = S[node_ids]
             x = torch.hstack((H.popleft(), x_s))
             out[f"client{client.id}"] = client.predict_labels(x)
+            # h = client.predict_labels(H.popleft())
+            # out[f"client{client.id}"] = torch.nn.functional.softmax(h + x_s, dim=1)
 
         return out
 
-    def step(self, client: Client):
+    def step(self, client: Client, return_embedding=False):
         S = self.server.get_structure_embeddings()
         h = client.get_feature_embeddings()
         node_ids = client.get_nodes()
         x_s = S[node_ids]
         x = torch.hstack((h, x_s))
-        out = client.predict_labels(x)
+        y_pred = client.predict_labels(x)
+        # h = client.predict_labels(h)
+        # y_pred = torch.nn.functional.softmax(h + x_s, dim=1)
 
-        return out
+        if return_embedding:
+            return y_pred, S
+        else:
+            return y_pred
 
 
 if __name__ == "__main__":

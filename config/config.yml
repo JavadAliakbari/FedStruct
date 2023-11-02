@@ -11,27 +11,29 @@ dataset:
 subgraph:
   num_subgraphs: 7
   delta: 20
+  train_ratio: 0.1
+  test_ratio: 0.5
 model:
   num_samples: [5, 10]
   batch: False
   batch_size: 64
   epochs_local: 1
-  lr: 0.001
+  lr: 0.002
   weight_decay: 0.0005
-  dropout: 0.5
+  dropout: 0.4
   gnn_layer_type: "sage"
   propagate_type: "MP"
-  epoch_classifier: 40
+  epoch_classifier: 20
   metric: "acc"
 feature_model:
-  gnn_layer_sizes: [128, 64]
+  gnn_layer_sizes: [256]
   mlp_layer_sizes: [64]
   mp_layers: 3
 structure_model:
-  sd_ratio: 1
-  GNN_structure_layers_sizes: [128, 64]
+  sd_ratio: 0
+  GNN_structure_layers_sizes: [128, 64, 32]
   MP_structure_layers_size: [256]
-  mp_layers: 5
+  mp_layers: 7
   # structure_type: "struc2vec"
   # structure_type: "mp"
   # structure_type: "degree"
@@ -40,9 +42,9 @@ structure_model:
   # structure_type: "node2vec"
   num_structural_features: 256
   # loss: "both"
-  loss: "homophily"
+  # loss: "homophily"
   # loss: "heterophily"
-  # loss: ""
+  loss: ""
   num_mp_vectors: 10
   cosine_similarity_predictor_epochs: 250
   gnn_epochs: 500

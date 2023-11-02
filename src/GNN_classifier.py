@@ -50,6 +50,7 @@ class GNNClassifier(Classifier):
                 type="GNN",
                 layer_sizes=gnn_layer_sizes,
                 final_activation_function="linear",
+                # final_activation_function="relu",
                 normalization="layer",
                 # normalization="batch",
             ),
@@ -90,7 +91,9 @@ class GNNClassifier(Classifier):
             ModelSpecs(
                 type="MLP",
                 layer_sizes=mlp_layer_sizes,
+                # final_activation_function="softmax",
                 final_activation_function="linear",
+                # final_activation_function="relu",
                 normalization="layer",
             ),
             ModelSpecs(
@@ -107,6 +110,7 @@ class GNNClassifier(Classifier):
                 type="MLP",
                 layer_sizes=decision_layer_sizes,
                 final_activation_function="softmax",
+                # final_activation_function="linear",
                 normalization=None,
             ),
         ]

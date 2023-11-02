@@ -93,7 +93,10 @@ def define_graph():
     else:
         num_classes = max(graph.y).item() + 1
 
-    graph.add_masks(train_size=0.1, test_size=0.5)
+    graph.add_masks(
+        train_size=config.subgraph.train_ratio,
+        test_size=config.subgraph.test_ratio,
+    )
     graph.num_classes = num_classes
 
     return graph

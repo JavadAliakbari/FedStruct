@@ -34,6 +34,8 @@ class SubgraphConfig:
     def load_config(self, subgraph):
         self.num_subgraphs = subgraph["num_subgraphs"]
         self.delta = subgraph["delta"]
+        self.train_ratio = subgraph["train_ratio"]
+        self.test_ratio = subgraph["test_ratio"]
 
 
 class ModelConfig:
