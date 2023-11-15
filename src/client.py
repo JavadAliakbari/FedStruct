@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import torch
 
 from src.utils.config_parser import Config
 from src.utils.graph import Data_, Graph
@@ -73,6 +74,9 @@ class Client:
     def get_feature_embeddings(self):
         return self.classifier.get_feature_embeddings()
 
+    def get_structure_embeddings(self):
+        return self.classifier.get_structure_embeddings()
+
     def predict_labels(self, x):
         return self.classifier.predict_labels(x)
 
@@ -94,6 +98,7 @@ class Client:
     def initialize_gnn_(
         graph: Graph,
         classifier: GNNClassifier,
+        num_classes,
         propagate_type=config.model.propagate_type,
         dim_in=None,
         additional_layer_dims=0,
@@ -111,6 +116,13 @@ class Client:
             classifier.set_MP_classifier(
                 dim_in=dim_in, additional_layer_dims=additional_layer_dims
             )
+
+        SPM_layer_sizes = (
+            [config.structure_model.num_structural_features]
+            + config.structure_model.MP_structure_layers_sizes
+            + [num_classes]
+        )
+        classifier.set_SPM(SPM_layer_sizes)
 
     def initialize_mlp_(
         data: Data_,
@@ -133,6 +145,7 @@ class Client:
             Client.initialize_gnn_(
                 self.subgraph,
                 self.classifier,
+                self.num_classes,
                 propagate_type,
                 input_dimension,
                 additional_layer_dims,
@@ -168,8 +181,8 @@ class Client:
             type="local",
         )
 
-    def test_local_classifier(self):
-        return self.classifier.calc_test_accuracy(config.model.metric)
+    def test_classifier(self, metric=config.model.metric):
+        return self.classifier.calc_test_accuracy(metric)
 
     def reset_neighgen_parameters(self):
         self.neighgen.reset_parameters()
@@ -254,3 +267,24 @@ class Client:
             plot=plot,
             type="locsage",
         )
+
+    def set_abar(self, abar):
+        self.classifier.set_abar(abar)
+
+    def set_SFV(self, SFV):
+        self.classifier.set_SFV(SFV)
+
+    def get_grads(self, just_SFV=False):
+        return self.classifier.get_model_grads(just_SFV)
+
+    def set_grads(self, grads):
+        self.classifier.set_model_grads(grads)
+
+    def update_model(self):
+        self.classifier.update_model()
+
+    def reset_client(self):
+        self.classifier.reset_client()
+
+    def local_train(self):
+        return self.classifier.local_train()

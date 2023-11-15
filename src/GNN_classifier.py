@@ -62,11 +62,11 @@ class GNNClassifier(Classifier):
             ),
         ]
 
-        self.model: ModelBinder = ModelBinder(model_specs)
+        self.feature_model: ModelBinder = ModelBinder(model_specs)
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
-            self.model.parameters(),
+            self.feature_model.parameters(),
             lr=config.model.lr,
             weight_decay=config.model.weight_decay,
         )
@@ -75,54 +75,49 @@ class GNNClassifier(Classifier):
         if dim_in is None:
             dim_in = self.graph.num_features
 
-        mlp_layer_sizes = [dim_in] + config.feature_model.mlp_layer_sizes
-        decision_layer_sizes = [
-            config.feature_model.mlp_layer_sizes[-1] + additional_layer_dims,
-            self.num_classes,
-        ]
-
-        # gnn_layer_sizes = [dim_in] + config.feature_model.gnn_layer_sizes
-        # decision_layer_sizes = [
-        #     config.feature_model.gnn_layer_sizes[-1] + additional_layer_dims,
-        #     self.num_classes,
-        # ]
+        mlp_layer_sizes = (
+            [dim_in] + config.feature_model.mlp_layer_sizes + [self.num_classes]
+        )
 
         model_specs = [
             ModelSpecs(
                 type="MLP",
                 layer_sizes=mlp_layer_sizes,
-                # final_activation_function="softmax",
                 final_activation_function="linear",
-                # final_activation_function="relu",
                 normalization="layer",
-            ),
-            ModelSpecs(
-                type="MP",
-                num_layers=config.feature_model.mp_layers,
-            ),
-            # ModelSpecs(
-            #     type="GNN",
-            #     layer_sizes=gnn_layer_sizes,
-            #     final_activation_function="linear",
-            #     normalization="batch",
-            # ),
-            ModelSpecs(
-                type="MLP",
-                layer_sizes=decision_layer_sizes,
-                final_activation_function="softmax",
-                # final_activation_function="linear",
-                normalization=None,
             ),
         ]
 
-        self.model: ModelBinder = ModelBinder(model_specs)
+        self.feature_model: ModelBinder = ModelBinder(model_specs)
+
+        self.abar_i = obtain_a(
+            self.graph.edge_index,
+            self.graph.num_nodes,
+            config.feature_model.mp_layers,
+        )
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
-            self.model.parameters(),
+            self.feature_model.parameters(),
             lr=config.model.lr,
             weight_decay=config.model.weight_decay,
         )
+
+    def set_abar(self, abar):
+        self.abar = abar
+
+    def set_SPM(self, SPM_layer_sizes):
+        model_specs = [
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=SPM_layer_sizes,
+                final_activation_function="linear",
+                normalization="batch",
+            )
+        ]
+
+        self.structure_model: ModelBinder = ModelBinder(model_specs)
+        self.optimizer.add_param_group({"params": self.structure_model.parameters()})
 
     def prepare_data(
         self,
@@ -144,16 +139,29 @@ class GNNClassifier(Classifier):
             shuffle=True,
         )
 
+    def set_SFV(self, SFV):
+        self.SFV = deepcopy(SFV)
+        if self.SFV.requires_grad:
+            self.optimizer.add_param_group({"params": self.SFV})
+
     def get_feature_embeddings(self):
-        h = self.graph.x
-        edge_index = self.graph.edge_index
-        for model in self.model[:-1]:
-            h = self.model.step(model, h, edge_index)
+        F = self.structure_model.step(self.graph.x)
+        h = self.abar_i.matmul(F)
+        return h
+
+    def get_structure_embeddings(self):
+        G = self.structure_model.step(self.SFV)
+        s = self.abar.matmul(G)
+        return s
+
+    def get_embeddings(model, x, a):
+        H = model.step(x)
+        h = a.matmul(H)
         return h
 
     def predict_labels(self, h):
         edge_index = self.graph.edge_index
-        h = self.model.step(self.model[-1], h, edge_index)
+        h = self.feature_model.step(self.feature_model[-1], h, edge_index)
         return h
 
     def fit(
@@ -218,7 +226,7 @@ class GNNClassifier(Classifier):
         total_val_f1_score = 0
         train_count = 1e-6
         val_count = 1e-6
-        self.model.train()
+        self.feature_model.train()
         for batch in data_loader:
             if batch.train_mask.any():
                 self.optimizer.zero_grad()
@@ -233,7 +241,7 @@ class GNNClassifier(Classifier):
                     batch.x,
                     batch.y,
                     batch.edge_index,
-                    self.model,
+                    self.feature_model,
                     self.criterion,
                     batch.train_mask,
                     batch.val_mask,
@@ -270,40 +278,68 @@ class GNNClassifier(Classifier):
         train_mask,
         val_mask,
     ):
-        # model.train()
-        out = model(x, edge_index)
+        y_pred = model(x, edge_index)
 
-        train_loss = criterion(out[train_mask], y[train_mask])
-        train_acc = calc_accuracy(
-            out[train_mask].argmax(dim=1),
-            y[train_mask],
+        train_loss, train_acc, train_f1_score = calc_metrics(
+            y, y_pred, train_mask, criterion
         )
-
-        train_f1_score = calc_f1_score(out[train_mask].argmax(dim=1), y[train_mask])
-
-        # Validation
-        # model.eval()
-        with torch.no_grad():
-            if val_mask.any():
-                val_loss = criterion(out[val_mask], y[val_mask])
-                val_acc = calc_accuracy(out[val_mask].argmax(dim=1), y[val_mask])
-                val_f1_score = calc_f1_score(out[val_mask].argmax(dim=1), y[val_mask])
-            else:
-                val_loss = 0
-                val_acc = 0
-                val_f1_score = 0
+        val_loss, val_acc, val_f1_score = calc_metrics(y, y_pred, val_mask, criterion)
 
         return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
 
     @torch.no_grad()
     def calc_test_accuracy(self, metric="acc"):
-        self.model.eval()
-        out = self.model(self.graph.x, self.graph.edge_index)
-        label = self.graph.y[self.graph.test_mask]
-        predicted = out.argmax(dim=1)[self.graph.test_mask]
-        if metric == "acc":
-            val_acc = calc_accuracy(predicted, label)
-        elif metric == "f1":
-            val_acc = calc_f1_score(predicted, label)
+        self.feature_model.eval()
+        if self.structure_model is not None:
+            self.structure_model.eval()
 
-        return val_acc
+        y_pred = self.SD_step()
+        y = self.graph.y
+        test_mask = self.graph.test_mask
+
+        test_loss, test_acc, test_f1_score = calc_metrics(
+            y, y_pred, test_mask, self.criterion
+        )
+
+        if metric == "acc":
+            return test_acc
+        elif metric == "f1":
+            return test_f1_score
+        else:
+            return test_loss
+
+    def SD_step(self):
+        h = GNNClassifier.get_embeddings(
+            self.feature_model,
+            self.graph.x,
+            self.abar_i,
+        )
+
+        if self.structure_model is not None:
+            s = GNNClassifier.get_embeddings(
+                self.structure_model,
+                self.SFV,
+                self.abar,
+            )
+            h += s
+        y_pred = torch.nn.functional.softmax(h, dim=1)
+
+        return y_pred
+
+    def local_train(self):
+        y_pred = self.SD_step()
+        y = self.graph.y
+
+        train_mask, val_mask, test_mask = self.graph.get_masks()
+
+        train_loss, train_acc, train_f1_score = calc_metrics(
+            y, y_pred, train_mask, self.criterion
+        )
+        val_loss, val_acc, val_f1_score = calc_metrics(
+            y, y_pred, val_mask, self.criterion
+        )
+
+        train_loss *= self.graph.num_nodes
+        train_loss.backward()
+
+        return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score

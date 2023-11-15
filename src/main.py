@@ -153,28 +153,24 @@ def set_up_system():
     for subgraph in subgraphs:
         GNN_server.add_client(subgraph)
 
-    _LOGGER.info("MLP")
-    MLP_server.train_local_classifier(config.model.epoch_classifier)
-    _LOGGER.info(f"Server test accuracy: {MLP_server.test_local_classifier():.4f}")
-    MLP_server.train_local_classifiers(config.model.epoch_classifier)
-    MLP_server.train_FLWA(config.model.epoch_classifier)
-    MLP_server.train_FLGA(config.model.epoch_classifier)
+    # _LOGGER.info("MLP")
+    # MLP_server.train_local_classifier(config.model.epoch_classifier)
+    # _LOGGER.info(f"Server test accuracy: {MLP_server.test_local_classifier():.4f}")
+    # MLP_server.train_local_classifiers(config.model.epoch_classifier)
+    # MLP_server.train_FLWA(config.model.epoch_classifier)
+    # MLP_server.train_FLGA(config.model.epoch_classifier)
 
-    _LOGGER.info("GNN")
-    GNN_server.train_local_classifier(config.model.epoch_classifier)
-    _LOGGER.info(f"Server test accuracy: {GNN_server.test_local_classifier():0.4f}")
-    GNN_server.train_local_classifiers(config.model.epoch_classifier)
-    GNN_server.train_FLWA(config.model.epoch_classifier)
-    GNN_server.train_FLGA(config.model.epoch_classifier)
-    GNN_server.train_SD_Server(config.model.epoch_classifier)
-    GNN_server.train_SDWA(config.model.epoch_classifier)
-    GNN_server.train_SDGA(config.model.epoch_classifier)
+    # _LOGGER.info("GNN")
+    # GNN_server.train_local_classifier(config.model.epoch_classifier)
+    # _LOGGER.info(f"Server test accuracy: {GNN_server.test_local_classifier():0.4f}")
+    # GNN_server.train_local_classifiers(config.model.epoch_classifier)
+    # GNN_server.train_FLWA(config.model.epoch_classifier)
+    # GNN_server.train_FLGA(config.model.epoch_classifier)
+    # GNN_server.train_SD_Server(config.model.epoch_classifier)
+    # GNN_server.train_SDWA(config.model.epoch_classifier)
+    # GNN_server.train_SDGA(config.model.epoch_classifier)
 
-    # GNN_server.train_local_sd(config.model.epoch_classifier)
-
-    # GNN_server.train_locsages()
-    # GNN_server.train_fedSage_plus()
-    # server.train_sd_ptor()
+    GNN_server.local_training()
 
 
 if __name__ == "__main__":

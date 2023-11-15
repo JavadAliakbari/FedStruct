@@ -33,7 +33,7 @@ class MLPClassifier(Classifier):
         layer_sizes = (
             [dim_in] + config.feature_model.mlp_layer_sizes + [self.num_classes]
         )
-        self.model = MLP(
+        self.feature_model = MLP(
             layer_sizes=layer_sizes,
             last_layer="softmax",
             dropout=config.model.dropout,
@@ -43,7 +43,7 @@ class MLPClassifier(Classifier):
 
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
-            self.model.parameters(),
+            self.feature_model.parameters(),
             lr=config.model.lr,
             weight_decay=config.model.weight_decay,
         )
@@ -144,11 +144,11 @@ class MLPClassifier(Classifier):
         total_val_f1_score = 0
         train_count = 1e-6
         val_count = 1e-6
-        self.model.train()
+        self.feature_model.train()
         for train_x, train_y in train_loader:
             self.optimizer.zero_grad()
 
-            out = self.model(train_x)
+            out = self.feature_model(train_x)
 
             train_loss = self.criterion(out, train_y)
             train_acc = calc_accuracy(out.argmax(dim=1), train_y)
@@ -163,10 +163,10 @@ class MLPClassifier(Classifier):
             train_loss.backward()
             self.optimizer.step()
 
-        self.model.eval()
+        self.feature_model.eval()
         with torch.no_grad():
             for val_x, val_y in val_loader:
-                out = self.model(val_x)
+                out = self.feature_model(val_x)
                 val_loss = self.criterion(out, val_y)
                 val_acc = calc_accuracy(out.argmax(dim=1), val_y)
                 val_f1_score = calc_f1_score(out.argmax(dim=1), val_y)
@@ -219,9 +219,9 @@ class MLPClassifier(Classifier):
 
     @torch.no_grad()
     def calc_test_accuracy(self, metric="acc"):
-        self.model.eval()
+        self.feature_model.eval()
         test_x, test_y = self.test_data
-        out = self.model(test_x)
+        out = self.feature_model(test_x)
         if metric == "acc":
             val_acc = calc_accuracy(out.argmax(dim=1), test_y)
         elif metric == "f1":

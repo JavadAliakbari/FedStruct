@@ -1,6 +1,7 @@
 from ast import List
 
 import torch
+from torch_geometric.nn import MessagePassing
 from tqdm import tqdm
 
 from src.utils.utils import *
@@ -9,7 +10,7 @@ from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.GNN_classifier import GNNClassifier
 from src.MLP_classifier import MLPClassifier
-from src.structure_predictor2 import StructurePredictor
+from src.structure_predictor import StructurePredictor
 
 config = Config()
 
@@ -100,7 +101,7 @@ class Server(Client):
 
         average_test_acc = 0
         for client in self.clients:
-            test_acc = client.test_local_classifier()
+            test_acc = client.test_classifier()
             final_result[f"Client{client.id}"] = test_acc
             if log:
                 self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
@@ -184,21 +185,6 @@ class Server(Client):
         self.sd_predictor.eval()
         super().eval()
 
-    def calc_total_grads(self, clients):
-        grads = None
-        for client in self.clients:
-            client_grads = client.classifier.get_model_grads()
-            ratio = client.num_nodes() / self.num_nodes()
-            if grads is None:
-                grads = [ratio * grad for grad in client_grads]
-            else:
-                for i in range(len(client_grads)):
-                    grads[i] += ratio * client_grads[i]
-
-        server_parameters = list(self.classifier.parameters())
-        for i in range(len(grads)):
-            server_parameters[i].grad = grads[i]
-
     def get_structure_embeddings(self):
         return self.sd_predictor.get_structure_embeddings()
 
@@ -256,7 +242,7 @@ class Server(Client):
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     edge_index=self.subgraph.edge_index,
-                    model=self.classifier.model,
+                    model=self.classifier.feature_model,
                     criterion=criterion,
                     train_mask=self.subgraph.train_mask,
                     val_mask=self.subgraph.val_mask,
@@ -266,7 +252,7 @@ class Server(Client):
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     # client.subgraph.edge_index
-                    model=self.classifier.model,
+                    model=self.classifier.feature_model,
                     criterion=criterion,
                     train_mask=self.subgraph.train_mask,
                     val_mask=self.subgraph.val_mask,
@@ -326,7 +312,7 @@ class Server(Client):
                 bar.set_postfix(metrics)
                 bar.update()
 
-        test_acc = self.test_local_classifier()
+        test_acc = self.test_classifier()
         final_result["Server"] = test_acc
 
         if log:
@@ -334,7 +320,7 @@ class Server(Client):
 
         average_test_acc = 0
         for client in self.clients:
-            test_acc = client.test_local_classifier()
+            test_acc = client.test_classifier()
             final_result[f"Clinet{client.id}"] = test_acc
             if log:
                 self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
@@ -394,7 +380,7 @@ class Server(Client):
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     edge_index=client.subgraph.edge_index,
-                    model=self.classifier.model,
+                    model=self.classifier.feature_model,
                     criterion=criterion,
                     train_mask=self.subgraph.train_mask,
                     val_mask=self.subgraph.val_mask,
@@ -404,7 +390,7 @@ class Server(Client):
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     # edge_index=client.subgraph.edge_index,
-                    model=self.classifier.model,
+                    model=self.classifier.feature_model,
                     criterion=criterion,
                     train_mask=self.subgraph.train_mask,
                     val_mask=self.subgraph.val_mask,
@@ -453,7 +439,7 @@ class Server(Client):
                         x=client.subgraph.x,
                         y=client.subgraph.y,
                         edge_index=client.subgraph.edge_index,
-                        model=client.classifier.model,
+                        model=client.classifier.feature_model,
                         criterion=criterion,
                         train_mask=client.subgraph.train_mask,
                         val_mask=client.subgraph.val_mask,
@@ -470,12 +456,12 @@ class Server(Client):
                         x=client.subgraph.x,
                         y=client.subgraph.y,
                         # edge_index=client.subgraph.edge_index,
-                        model=client.classifier.model,
+                        model=client.classifier.feature_model,
                         criterion=criterion,
                         train_mask=client.subgraph.train_mask,
                         val_mask=client.subgraph.val_mask,
                     )
-                loss_list[ind] = train_loss
+                loss_list[ind] = train_loss * client.num_nodes()
 
                 result = {
                     "Train Loss": round(train_loss.item(), 4),
@@ -506,20 +492,22 @@ class Server(Client):
                 bar.set_postfix(metrics)
                 bar.update()
 
-            total_loss = loss_list.mean()
+            total_loss = loss_list.sum() / self.num_nodes()
             total_loss.backward()
-            self.calc_total_grads(self.clients)
+            clients_grads = get_grads(self.clients)
+            grads = sum_grads(clients_grads)
+            self.set_grads(grads)
             optimizer.step()
             # metrics["Total Loss"] = round(total_loss.item(), 4)
 
-        test_acc = self.test_local_classifier()
+        test_acc = self.test_classifier()
         final_result["Server"] = test_acc
         if log:
             self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
 
         average_test_acc = 0
         for client in self.clients:
-            test_acc = client.test_local_classifier()
+            test_acc = client.test_classifier()
             final_result[f"Clinet{client.id}"] = test_acc
             if log:
                 self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
@@ -621,7 +609,7 @@ class Server(Client):
             self.LOGGER.info(f"locsage for client{client.id}")
             client.train_locsage(log=log, plot=plot)
             self.LOGGER.info(
-                f"Client{client.id} test accuracy: {client.test_local_classifier()}"
+                f"Client{client.id} test accuracy: {client.test_classifier()}"
             )
 
     def train_fedgen(self):
@@ -669,7 +657,7 @@ class Server(Client):
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     edge_index=self.subgraph.edge_index,
-                    model=self.classifier.model,
+                    model=self.classifier.feature_model,
                     criterion=criterion,
                     train_mask=self.subgraph.train_mask,
                     val_mask=self.subgraph.val_mask,
@@ -679,7 +667,7 @@ class Server(Client):
                     x=self.subgraph.x,
                     y=self.subgraph.y,
                     # client.subgraph.edge_index
-                    model=self.classifier.model,
+                    model=self.classifier.feature_model,
                     criterion=criterion,
                     train_mask=self.subgraph.train_mask,
                     val_mask=self.subgraph.val_mask,
@@ -734,11 +722,11 @@ class Server(Client):
             bar.set_postfix(metrics)
             bar.update()
 
-        self.LOGGER.info(f"Server test accuracy: {self.test_local_classifier():0.4f}")
+        self.LOGGER.info(f"Server test accuracy: {self.test_classifier():0.4f}")
 
         average_test_acc = 0
         for client in self.clients:
-            test_acc = client.test_local_classifier()
+            test_acc = client.test_classifier()
             self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
 
             average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
@@ -749,3 +737,41 @@ class Server(Client):
 
         title = f"Average fedsage+ {self.classifier_type}"
         plot_metrics(average_results, title=title, save_path=self.save_path)
+
+    def local_training(
+        self,
+        epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+    ):
+        self.LOGGER.info("local training starts!")
+        if self.initialized:
+            self.reset_sd_predictor_parameters()
+        else:
+            self.initialize_sd_predictor(propagate_type=propagate_type)
+        return self.sd_predictor.local_training(
+            self.clients,
+            epochs=epochs,
+            log=log,
+            plot=plot,
+        )
+
+    def local_training2(
+        self,
+        epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+    ):
+        self.LOGGER.info("local training starts!")
+        if self.initialized:
+            self.reset_sd_predictor_parameters()
+        else:
+            self.initialize_sd_predictor(propagate_type=propagate_type)
+        return self.sd_predictor.local_training2(
+            self.clients,
+            epochs=epochs,
+            log=log,
+            plot=plot,
+        )

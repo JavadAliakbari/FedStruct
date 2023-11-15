@@ -23,7 +23,7 @@ model:
   dropout: 0.4
   gnn_layer_type: "sage"
   propagate_type: "MP"
-  epoch_classifier: 20
+  epoch_classifier: 30
   metric: "acc"
 feature_model:
   gnn_layer_sizes: [256]

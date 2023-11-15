@@ -125,11 +125,23 @@ class ModelBinder(torch.nn.Module):
         for id, model in enumerate(self.models):
             model.load_state_dict(weights[f"model{id}"])
 
-    def step(self, model, h, edge_index=None) -> None:
-        if model.type_ == "MLP":
-            return model(h)
-        else:
-            return model(h, edge_index)
+    def get_grads(self):
+        model_parameters = list(self.parameters())
+        grads = [parameter.grad for parameter in model_parameters]
+
+        return grads
+
+    def set_grads(self, grads):
+        model_parameters = list(self.parameters())
+        for grad, parameter in zip(grads, model_parameters):
+            parameter.grad = grad
+
+    def step(self, h, edge_index=None) -> None:
+        for model in self.models:
+            if model.type_ == "MLP":
+                return model(h)
+            else:
+                return model(h, edge_index)
 
     def forward(self, x, edge_index):
         h = x
@@ -169,6 +181,9 @@ class MP(MessagePassing):
 
     def load_state_dict(self, weights: dict) -> None:
         pass
+
+    def get_grads(self):
+        return []
 
     def forward(self, h, edge_index) -> None:
         x = h
@@ -277,6 +292,17 @@ class GNN(torch.nn.Module):
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
 
+    def get_grads(self):
+        model_parameters = list(self.parameters())
+        grads = [parameter.grad for parameter in model_parameters]
+
+        return grads
+
+    def set_grads(self, grads):
+        model_parameters = list(self.parameters())
+        for grad, parameter in zip(grads, model_parameters):
+            parameter.grad = grad
+
     def forward(self, x, edge_index):
         h = x
         for layer in self.layers:
@@ -359,6 +385,17 @@ class MLP(nn.Module):
     def load_state_dict(self, weights: dict) -> None:
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
+
+    def get_grads(self):
+        model_parameters = list(self.parameters())
+        grads = [parameter.grad for parameter in model_parameters]
+
+        return grads
+
+    def set_grads(self, grads):
+        model_parameters = list(self.parameters())
+        for grad, parameter in zip(grads, model_parameters):
+            parameter.grad = grad
 
     def train(self, mode: bool = True):
         super().train(mode)

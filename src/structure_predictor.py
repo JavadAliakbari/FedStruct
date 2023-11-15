@@ -1,37 +1,58 @@
-from itertools import product
 import logging
+from itertools import product
+import math
+from operator import itemgetter
+from statistics import mean
 
-import torch
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
-import matplotlib.pyplot as plt
+import torch
 from torch.nn.functional import normalize
 from torch_geometric.nn import MessagePassing
+from torch_sparse import SparseTensor
+from tqdm import tqdm
+from src.client import Client
 
-from src.utils.utils import *
-from src.utils.graph import Graph
+from src.models.GNN_models import GNN, MLP, ModelBinder, ModelSpecs, calc_accuracy
+from src.models.structure_model3 import JointModel
 from src.utils.config_parser import Config
-from src.models.structure_model2 import JointModel
-from src.models.GNN_models import GNN, MLP, calc_accuracy
+from src.utils.graph import Graph
+from src.utils.utils import *
 
 config = Config()
 
 
 class StructurePredictor:
-    def __init__(self, id, edge_index, node_ids, y=None, save_path="./", logger=None):
+    def __init__(
+        self,
+        id,
+        edge_index,
+        node_ids,
+        y=None,
+        masks=None,
+        save_path="./",
+        logger=None,
+    ):
         self.LOGGER = logger or logging
 
         self.id = id
         self.edge_index = edge_index
         self.node_ids = node_ids
         self.y = y
+        self.masks = masks
         self.save_path = save_path
+
+        self.num_nodes = len(node_ids)
 
         self.message_passing = MessagePassing(aggr="mean")
 
         num_classes = max(y).item() + 1
-        self.cls = MLP([64, 32, num_classes], dropout=0.1)
+        self.cls = MLP(
+            [config.structure_model.GNN_structure_layers_sizes[-1]]
+            + config.feature_model.mlp_layer_sizes
+            + [num_classes],
+            dropout=0.1,
+            normalization="batch",
+        )
         self.criterion = torch.nn.CrossEntropyLoss()
 
     def prepare_data(self):
@@ -40,46 +61,93 @@ class StructurePredictor:
             node_ids=self.node_ids,
             y=self.y,
         )
+        if self.masks is None:
+            self.graph.add_masks()
+        else:
+            self.graph.set_masks(self.masks)
 
         self.graph.add_structural_features(
             structure_type=config.structure_model.structure_type,
             num_structural_features=config.structure_model.num_structural_features,
         )
 
-        if self.graph.y is not None:
+        if self.graph.y is not None and config.structure_model.loss == "heterophily":
             self.graph.find_class_neighbors()
-        self.graph.add_masks()
 
-    def set_model(self, client_models, server_model, sd_layer_size, num_classes):
-        self.server_model = server_model
+    def set_GNN_model(self, client_models, server_model):
+        self.server: Client = server_model
+
+        layer_sizes = [
+            config.structure_model.num_structural_features
+        ] + config.structure_model.GNN_structure_layers_sizes
 
         self.structure_model = GNN(
-            in_dims=sd_layer_size,
-            dropout=config.model.dropout,
+            layer_sizes=layer_sizes,
             last_layer="linear",
+            layer_type=config.model.gnn_layer_type,
+            dropout=config.model.dropout,
+            normalization="batch",
+            multiple_features=config.structure_model.structure_type == "mp",
+            feature_dims=config.structure_model.num_mp_vectors,
         )
 
         self.model = JointModel(
+            server=server_model,
             clients=client_models,
-            structure_layer_sizes=sd_layer_size,
-            num_classes=num_classes,
-            # linear_layer=True,
-            dropout=config.model.dropout,
+            logger=self.LOGGER,
+        )
+
+    def set_MP_model(self, client_models, server_model):
+        self.server: Client = server_model
+
+        if config.structure_model.structure_type == "random":
+            layer_sizes = [config.structure_model.num_structural_features]
+        else:
+            layer_sizes = [
+                config.structure_model.num_structural_features
+            ] + config.structure_model.MP_structure_layers_sizes
+
+        models_specs = [
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=layer_sizes,
+                final_activation_function="linear",
+                normalization="batch",
+            ),
+            ModelSpecs(
+                type="MP",
+                num_layers=config.structure_model.mp_layers,
+            ),
+        ]
+
+        self.structure_model: ModelBinder = ModelBinder(models_specs)
+
+        self.model = JointModel(
+            server=server_model,
+            clients=client_models,
             logger=self.LOGGER,
         )
 
     def initialize_structural_graph(
-        self, client_models, server_model, sd_layer_size, num_classes
+        self,
+        client_models,
+        server_model,
+        propagate_type=config.model.propagate_type,
     ):
         self.prepare_data()
-        self.set_model(
-            client_models,
-            server_model,
-            sd_layer_size,
-            num_classes=num_classes,
-        )
+        if propagate_type == "GNN":
+            self.set_GNN_model(
+                client_models,
+                server_model,
+            )
+        elif propagate_type == "MP":
+            self.set_MP_model(
+                client_models,
+                server_model,
+            )
 
     def reset_parameters(self):
+        self.graph.reset_parameters()
         self.model.reset_parameters()
 
     def state_dict(self):
@@ -88,12 +156,18 @@ class StructurePredictor:
     def load_state_dict(self, weights):
         self.model.load_state_dict(weights)
 
+    def train(self, mode: bool = True):
+        self.structure_model.train(mode)
+
+    def eval(self):
+        self.structure_model.eval()
+
     def cosine_similarity(h1, h2):
         return torch.dot(h1, h2) / (
             (torch.norm(h1) + 0.000001) * (torch.norm(h2) + 0.000001)
         )
 
-    def calc_loss(self, embeddings):
+    def calc_homophily_loss(self, embeddings):
         node_ids = self.graph.node_ids.numpy()
         edge_index = self.graph.edge_index
 
@@ -126,7 +200,7 @@ class StructurePredictor:
 
         return loss
 
-    def calc_loss2(self, embeddings):
+    def calc_homophily_loss2(self, embeddings):
         node_ids = self.graph.node_ids.numpy()
 
         loss_list = torch.zeros(len(node_ids), dtype=torch.float32)
@@ -150,7 +224,7 @@ class StructurePredictor:
 
             node_negative_sample_size = (
                 self.graph.degree[node_id] * negative_sample_size
-            )
+            ).item()
             negative_samples = np.random.choice(
                 node_ids,
                 # negative_sample_size,
@@ -213,15 +287,19 @@ class StructurePredictor:
 
         return loss
 
-    def train(self, subgraphs=[]):
-        self.model.train()
-        out = self.model(subgraphs, self.graph)
-        loss1 = self.calc_hetero_loss(out[f"structure_model"])
-        # loss = torch.zeros(self.graph.num_nodes, dtype=torch.float32)
-        loss2 = self.calc_loss(out[f"structure_model"])
-        loss = loss1 + loss2
+    def calc_loss(self, structure_embeddings):
+        if config.structure_model.loss == "heterophily":
+            loss = self.calc_hetero_loss(structure_embeddings)
+        elif config.structure_model.loss == "homophily":
+            loss = self.calc_homophily_loss(structure_embeddings)
+        elif config.structure_model.loss == "both":
+            loss1 = self.calc_hetero_loss(structure_embeddings)
+            loss2 = self.calc_homophily_loss(structure_embeddings)
+            loss = loss1 + loss2
+        else:
+            loss = torch.zeros(self.server.num_nodes(), dtype=torch.float32)
 
-        return out, loss2
+        return loss
 
     def get_structure_embeddings(self):
         x = self.graph.structural_features
@@ -247,21 +325,26 @@ class StructurePredictor:
         res = []
         for epoch in range(epochs):
             optimizer.zero_grad()
-            _, loss = self.train()
+            self.structure_model.train()
+            S = self.get_structure_embeddings()
+            loss = self.calc_loss(S)
 
             train_loss = loss[self.graph.train_mask].mean()
-            val_loss = loss[self.graph.test_mask].mean()
+            val_loss = loss[self.graph.val_mask].mean()
 
             train_loss.backward()
             optimizer.step()
 
             if predict:
-                x = self.get_structure_embeddings()
+                self.structure_model.eval()
+                with torch.no_grad():
+                    x = self.get_structure_embeddings()
                 x_train = x[self.graph.train_mask]
                 y_train = self.y[self.graph.train_mask]
                 x_val = x[self.graph.val_mask]
                 y_val = self.y[self.graph.val_mask]
 
+                # self.cls.reset_parameters()
                 cls_val_acc, cls_val_loss = self.cls.fit(
                     x_train,
                     y_train,
@@ -290,22 +373,14 @@ class StructurePredictor:
 
         # Test
         if plot:
-            dataset = pd.DataFrame.from_dict(res)
-            dataset.set_index("Epoch", inplace=True)
-            dataset[
-                [
-                    "Train Loss",
-                    "Val Loss",
-                    "CLS Val Loss",
-                    "CLS Val Acc",
-                ]
-            ].plot()
-            plt.title(f"classifier loss client {self.id}")
+            title = "cosine similarity embedding metrics"
+            plot_metrics(res, title=title, save_path=self.save_path)
 
         return res
 
     @torch.no_grad()
     def test_cls(self):
+        self.structure_model.eval()
         x = self.get_structure_embeddings()
         y = self.y
         test_acc = self.cls.test(x[self.graph.test_mask], y[self.graph.test_mask])
@@ -315,10 +390,23 @@ class StructurePredictor:
     def test(self, clients):
         self.model.eval()
         metrics = {}
-        subgraphs = []
-        for client in clients:
-            subgraphs.append(client.subgraph)
-        out = self.model(subgraphs, self.graph)
+
+        y = self.server.subgraph.y
+        test_mask = self.server.subgraph.test_mask
+        y_pred = self.model.step(self.server)
+        test_acc = calc_accuracy(
+            y_pred[test_mask].argmax(dim=1),
+            y[test_mask],
+        )
+
+        result = {
+            "Test Acc": round(test_acc, 4),
+        }
+
+        metrics[f"Client{self.server.id}"] = result
+
+        if len(clients) > 0:
+            out = self.model()
 
         for client in clients:
             y = client.subgraph.y
@@ -339,28 +427,86 @@ class StructurePredictor:
 
         return metrics
 
+    def cacl_metrics(self, client, y_pred, structure_loss=None):
+        node_ids = client.get_nodes()
+        y = client.subgraph.y
+        train_mask = client.subgraph.train_mask
+        val_mask = client.subgraph.val_mask
+
+        if structure_loss is not None:
+            client_structure_loss = structure_loss[node_ids]
+
+        cls_train_loss = self.criterion(y_pred[train_mask], y[train_mask])
+        if structure_loss is not None:
+            str_train_loss = client_structure_loss[train_mask].mean()
+        else:
+            str_train_loss = torch.tensor(0)
+
+        train_acc = calc_accuracy(
+            y_pred[train_mask].argmax(dim=1),
+            y[train_mask],
+        )
+
+        # Validation
+        with torch.no_grad():
+            cls_val_loss = self.criterion(y_pred[val_mask], y[val_mask])
+            if structure_loss is not None:
+                str_val_loss = client_structure_loss[val_mask].mean()
+            else:
+                str_val_loss = torch.tensor(0)
+
+            val_acc = calc_accuracy(y_pred[val_mask].argmax(dim=1), y[val_mask])
+
+        return (
+            cls_train_loss,
+            str_train_loss,
+            train_acc,
+            cls_val_loss,
+            str_val_loss,
+            val_acc,
+        )
+
+    def step(self, train=True):
+        self.model.train(train)
+        y_pred, S = self.model.step(self.server, return_embedding=True)
+
+        if config.structure_model.sd_ratio != 0:
+            structure_loss = self.calc_loss(S)
+        else:
+            structure_loss = None
+
+        return self.cacl_metrics(self.server, y_pred, structure_loss)
+
     def create_SW_optimizers(self):
         optimizers = {}
-        for model_name, layers in self.model.items():
-            # if not model_name.startswith("client"):
-            #     continue
-            parameters = list(layers.parameters())
+        client: Client
+        for client in self.model:
+            parameters = client.parameters()
             # parameters += list(self.models[f"structure_model"].parameters())
             optimizer = torch.optim.Adam(
-                parameters,
-                lr=config.model.lr,
-                weight_decay=config.model.weight_decay,
+                parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
             )
-            optimizers[model_name] = optimizer
+            optimizers[f"client{client.id}"] = optimizer
+
+        parameters = list(self.structure_model.parameters())
+        if config.structure_model.structure_type == "random":
+            parameters += [self.graph.structural_features]
+
+        if len(parameters) > 0:
+            optimizer = torch.optim.Adam(
+                parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
+            )
+            optimizers[f"structure_model"] = optimizer
 
         return optimizers
 
     def create_SG_optimizer(self):
-        parameters = (
-            list(self.server_model.parameters())
-            + list(self.model[f"structure_model"].parameters())
-            + list(self.model[f"linear_layer"].parameters())
+        parameters = list(self.server.parameters()) + list(
+            self.structure_model.parameters()
         )
+
+        if config.structure_model.structure_type == "random":
+            parameters += [self.graph.structural_features]
 
         optimizer = torch.optim.Adam(
             parameters, lr=config.model.lr, weight_decay=config.model.weight_decay
@@ -372,71 +518,184 @@ class StructurePredictor:
         for optimizer in optimizers.values():
             optimizer.zero_grad()
 
-    def train_SDWA(self, clients, epochs=1):
-        optimizers = self.create_SW_optimizers()
+    def train_SD_Server(
+        self,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        final_result = {}
+        optimizer = self.create_SG_optimizer()
         metrics = {}
-        subgraphs = []
         plot_results = {}
-        for client in clients:
-            subgraphs.append(client.subgraph)
-            plot_results[f"Client{client.id}"] = []
+        plot_results[f"Client{self.server.id}"] = []
 
-        bar = tqdm(total=epochs, position=0)
+        if log:
+            bar = tqdm(total=epochs, position=0)
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+
+            (
+                cls_train_loss,
+                str_train_loss,
+                train_acc,
+                cls_val_loss,
+                str_val_loss,
+                val_acc,
+            ) = self.step(train=True)
+
+            result = {
+                "Cls Train Loss": round(cls_train_loss.item(), 4),
+                "Train Acc": round(train_acc, 4),
+                "Cls Val Loss": round(cls_val_loss.item(), 4),
+                "Val Acc": round(val_acc, 4),
+                "Str Train Loss": round(str_train_loss.item(), 4),
+                "Str Val Loss": round(str_val_loss.item(), 4),
+                "Epoch": epoch,
+            }
+
+            plot_results[f"Client{self.server.id}"].append(result)
+
+            if log:
+                metrics["Val ACC"] = result["Val Acc"]
+                metrics["Cls Val Loss"] = result["Cls Val Loss"]
+                metrics["Str Val Loss"] = result["Str Val Loss"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"SD_Server results for client{self.server.id}:")
+                    self.LOGGER.info(f"{result}")
+
+            train_loss = (
+                cls_train_loss + config.structure_model.sd_ratio * str_train_loss
+            )
+
+            train_loss.backward()
+            optimizer.step()
+
+            if log:
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
+
+        test_metrics = self.test([])
+        test_acc = test_metrics[f"Client{self.server.id}"]["Test Acc"]
+        final_result[f"Server"] = test_acc
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
+
+        if plot:
+            title = f"Central SDSFL GNN"
+            plot_metrics(
+                plot_results[f"Client{self.server.id}"],
+                title=title,
+                save_path=self.save_path,
+            )
+
+        if config.structure_model.structure_type == "mp":
+            print(self.structure_model.mp_layer.state_dict()["weight"])
+
+        return final_result
+
+    def train_SDWA(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        final_result = {}
+        metrics = {}
+        optimizers = self.create_SW_optimizers()
+        server_results = []
+        average_results = []
+
+        if log:
+            bar = tqdm(total=epochs, position=0)
         for epoch in range(epochs):
             StructurePredictor.reset_optimizers(optimizers)
-            out, structure_loss = self.train(subgraphs)
-            loss_list = torch.zeros(len(subgraphs), dtype=torch.float32)
-            total_loss = 0
+
+            (
+                cls_train_loss,
+                str_train_loss,
+                train_acc,
+                cls_val_loss,
+                str_val_loss,
+                val_acc,
+            ) = self.step(train=False)
+
+            result = {
+                "Cls Train Loss": round(cls_train_loss.item(), 4),
+                "Train Acc": round(train_acc, 4),
+                "Cls Val Loss": round(cls_val_loss.item(), 4),
+                "Val Acc": round(val_acc, 4),
+                "Str Train Loss": round(str_train_loss.item(), 4),
+                "Str Val Loss": round(str_val_loss.item(), 4),
+                "Epoch": epoch,
+            }
+
+            server_results.append(result)
+
+            if log:
+                metrics[f"server train acc"] = result["Train Acc"]
+                metrics[f"server val acc"] = result["Val Acc"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"SDWA results for {self.server.id}:")
+                    self.LOGGER.info(f"{result}")
+
+            self.server.zero_grad()
+            server_weights = self.server.state_dict()
+            for client in clients:
+                client.load_state_dict(server_weights)
+            self.model.train()
+            out = self.model()
+            if config.structure_model.sd_ratio != 0:
+                structure_loss = self.calc_loss(out["structure_model"])
+            else:
+                structure_loss = None
+
+            loss_list = torch.zeros(len(clients), dtype=torch.float32)
+            average_result = {}
             for ind, client in enumerate(clients):
-                node_ids = client.get_nodes()
-                y = client.subgraph.y
-                train_mask = client.subgraph.train_mask
-                val_mask = client.subgraph.val_mask
-
-                client_structure_loss = structure_loss[node_ids]
                 y_pred = out[f"client{client.id}"]
+                (
+                    cls_train_loss,
+                    str_train_loss,
+                    train_acc,
+                    cls_val_loss,
+                    str_val_loss,
+                    val_acc,
+                ) = self.cacl_metrics(client, y_pred, structure_loss)
 
-                cls_train_loss = self.criterion(y_pred[train_mask], y[train_mask])
-                str_train_loss = client_structure_loss[train_mask].mean()
-                train_loss = cls_train_loss + str_train_loss
+                train_loss = (
+                    cls_train_loss + config.structure_model.sd_ratio * str_train_loss
+                )
                 loss_list[ind] = train_loss
 
-                train_acc = calc_accuracy(
-                    y_pred[train_mask].argmax(dim=1),
-                    y[train_mask],
-                )
+                # S = out["structure_model"]
+                # S_test = S[self.graph.test_mask]
+                # y_test = self.graph.y[self.graph.test_mask]
+                # str_acc = calc_accuracy(S_test.argmax(dim=1), y_test)
 
-                # Validation
-                self.model.eval()
-                with torch.no_grad():
-                    if val_mask.any():
-                        cls_val_loss = self.criterion(y_pred[val_mask], y[val_mask])
-                        str_val_loss = client_structure_loss[val_mask].mean()
-                        val_loss = cls_val_loss + str_val_loss
+                result = {
+                    # "Str test Acc": round(str_acc, 4),
+                    "Cls Train Loss": round(cls_train_loss.item(), 4),
+                    "Train Acc": round(train_acc, 4),
+                    "Cls Val Loss": round(cls_val_loss.item(), 4),
+                    "Val Acc": round(val_acc, 4),
+                    "Str Train Loss": round(str_train_loss.item(), 4),
+                    "Str Val Loss": round(str_val_loss.item(), 4),
+                }
 
-                        val_acc = calc_accuracy(
-                            y_pred[val_mask].argmax(dim=1), y[val_mask]
-                        )
+                ratio = client.num_nodes() / self.server.num_nodes()
+                for key, val in result.items():
+                    if key not in average_result.keys():
+                        average_result[key] = ratio * val
                     else:
-                        cls_val_loss = 0
-                        val_acc = 0
+                        average_result[key] += ratio * val
 
-                    result = {
-                        "Train Loss": round(cls_train_loss.item(), 4),
-                        "Train Acc": round(train_acc, 4),
-                        "Val Loss": round(cls_val_loss.item(), 4),
-                        "Val Acc": round(val_acc, 4),
-                        "Total Train Loss": round(train_loss.item(), 4),
-                        "Total Val Loss": round(val_loss.item(), 4),
-                        "Epoch": epoch,
-                    }
-
-                    plot_results[f"Client{client.id}"].append(result)
-                    metrics[f"client{client.id}"] = result["Val Acc"]
-
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"SDWA results for client{client.id}:")
-                    self.LOGGER.info(f"{result}")
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"SDWA results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
 
             total_loss = loss_list.mean()
             total_loss.backward()
@@ -445,124 +704,572 @@ class StructurePredictor:
                 optimizer.step()
 
             with torch.no_grad():
-                metrics["Total Loss"] = round(total_loss.item(), 4)
-                metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
+                mean_weights = sum_weights(clients)
+                self.server.load_state_dict(mean_weights)
 
-                model_weights = self.state_dict()
-                sum_weights = None
-                for client in clients:
-                    sum_weights = add_weights(
-                        sum_weights, model_weights[f"client{client.id}"]
-                    )
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
 
-                mean_weights = calc_mean_weights(sum_weights, len(clients))
-                for client in clients:
-                    model_weights[f"client{id}"] = mean_weights
+            if log:
+                # metrics[f"average str acc"] = average_result["Str test Acc"]
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
+                with torch.no_grad():
+                    metrics["Total Loss"] = round(total_loss.item(), 4)
+                    if structure_loss is not None:
+                        metrics["Structure Loss"] = round(
+                            structure_loss.mean().item(), 4
+                        )
 
-                self.load_state_dict(model_weights)
-
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update()
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
 
         test_metrics = self.test(clients)
+        test_acc = test_metrics[f"Client{self.server.id}"]["Test Acc"]
+        final_result["Server"] = test_acc
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
+
+        average_test_acc = 0
         for client in clients:
             test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
-            self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
+            final_result[f"Client{client.id}"] = test_acc
+            if log:
+                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
+            average_test_acc += test_acc * client.num_nodes() / self.server.num_nodes()
 
-            title = f"Client {self.id} SDWA GNN"
-            plot_metrics(
-                plot_results[f"Client{client.id}"],
-                title=title,
-                save_path=self.save_path,
-            )
+        final_result["Average"] = average_test_acc
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
 
-    def train_SDGA(self, clients, epochs=1):
-        # return self.model.fit2(self.graph, clients, epochs)
-        optimizer = self.create_SG_optimizer()
+        if plot:
+            title = f"Server SDWA GNN"
+            plot_metrics(server_results, title=title, save_path=self.save_path)
 
+            title = f"Average SDWA GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        if config.structure_model.structure_type == "mp":
+            print(self.structure_model.mp_layer.state_dict()["weight"])
+
+        return final_result
+
+    def train_SDGA(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
         metrics = {}
-        subgraphs = []
-        for client in clients:
-            subgraphs.append(client.subgraph)
+        optimizer = self.create_SG_optimizer()
+        server_results = []
+        average_results = []
 
+        if log:
+            bar = tqdm(total=epochs, position=0)
         for epoch in range(epochs):
             optimizer.zero_grad()
-            server_weights = self.server_model.state_dict()
-            for id in range(self.model.num_clients):
-                self.model[f"client{id}"].zero_grad()
-                self.model[f"client{id}"].load_state_dict(server_weights)
 
-            loss_list = torch.zeros(len(subgraphs), dtype=torch.float32)
-            out, structure_loss = self.train(subgraphs)
+            (
+                cls_train_loss,
+                str_train_loss,
+                train_acc,
+                cls_val_loss,
+                str_val_loss,
+                val_acc,
+            ) = self.step(train=False)
+
+            result = {
+                "Cls Train Loss": round(cls_train_loss.item(), 4),
+                "Train Acc": round(train_acc, 4),
+                "Cls Val Loss": round(cls_val_loss.item(), 4),
+                "Val Acc": round(val_acc, 4),
+                "Str Train Loss": round(str_train_loss.item(), 4),
+                "Str Val Loss": round(str_val_loss.item(), 4),
+                "Epoch": epoch,
+            }
+
+            server_results.append(result)
+            if log:
+                metrics[f"server train acc"] = result["Train Acc"]
+                metrics[f"server val acc"] = result["Val Acc"]
+                if epoch == epochs - 1:
+                    self.LOGGER.info(f"SDGA results for client{self.server.id}:")
+                    self.LOGGER.info(f"{result}")
+
+            self.server.zero_grad()
+            server_weights = self.server.state_dict()
+            for client in clients:
+                client.zero_grad()
+                client.load_state_dict(server_weights)
+            self.model.train()
+            out = self.model()
+            if config.structure_model.sd_ratio != 0:
+                structure_loss = self.calc_loss(out["structure_model"])
+            else:
+                structure_loss = None
+            loss_list = torch.zeros(len(clients), dtype=torch.float32)
+            average_result = {}
             for ind, client in enumerate(clients):
-                node_ids = client.get_nodes()
-                y = client.subgraph.y
-                train_mask = client.subgraph.train_mask
-                val_mask = client.subgraph.val_mask
-
-                client_structure_loss = structure_loss[node_ids]
                 y_pred = out[f"client{client.id}"]
+                (
+                    cls_train_loss,
+                    str_train_loss,
+                    train_acc,
+                    cls_val_loss,
+                    str_val_loss,
+                    val_acc,
+                ) = self.cacl_metrics(client, y_pred, structure_loss)
 
-                cls_train_loss = self.criterion(y_pred[train_mask], y[train_mask])
-                str_train_loss = client_structure_loss[train_mask].mean()
                 train_loss = (
                     cls_train_loss + config.structure_model.sd_ratio * str_train_loss
                 )
                 loss_list[ind] = train_loss
 
-                train_acc = calc_accuracy(
-                    y_pred[train_mask].argmax(dim=1),
-                    y[train_mask],
-                )
-
-                # Validation
-                self.model.eval()
-                with torch.no_grad():
-                    if val_mask.any():
-                        cls_val_loss = self.criterion(y_pred[val_mask], y[val_mask])
-                        str_val_loss = client_structure_loss[val_mask].mean()
-                        val_loss = cls_val_loss + str_val_loss
-
-                        val_acc = calc_accuracy(
-                            y_pred[val_mask].argmax(dim=1), y[val_mask]
-                        )
-                    else:
-                        cls_val_loss = 0
-                        val_acc = 0
-
                 result = {
-                    "Train Loss": round(cls_train_loss.item(), 4),
+                    "Cls Train Loss": round(cls_train_loss.item(), 4),
                     "Train Acc": round(train_acc, 4),
-                    "Val Loss": round(cls_val_loss.item(), 4),
+                    "Cls Val Loss": round(cls_val_loss.item(), 4),
                     "Val Acc": round(val_acc, 4),
-                    "Total Train Loss": round(train_loss.item(), 4),
-                    "Total Val Loss": round(val_loss.item(), 4),
+                    "Str Train Loss": round(str_train_loss.item(), 4),
+                    "Str Val Loss": round(str_val_loss.item(), 4),
                 }
 
-                metrics[f"client{client.id}"] = result
+                ratio = client.num_nodes() / self.server.num_nodes()
+                for key, val in result.items():
+                    if key not in average_result.keys():
+                        average_result[key] = ratio * val
+                    else:
+                        average_result[key] += ratio * val
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"SDGA results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
 
             total_loss = loss_list.mean()
             total_loss.backward()
-            grads = None
-            for ind, client in enumerate(clients):
-                client_parameters = list(self.model[f"client{client.id}"].parameters())
-                client_grads = [
-                    client_parameter.grad for client_parameter in client_parameters
-                ]
-                ratio = subgraphs[ind].num_nodes / self.graph.num_nodes
-                if grads is None:
-                    grads = [ratio * grad for grad in client_grads]
-                else:
-                    for i in range(len(client_grads)):
-                        grads[i] += ratio * client_grads[i]
-
-            server_parameters = list(self.server_model.parameters())
-            for i in range(len(grads)):
-                server_parameters[i].grad = grads[i]
+            clients_grads = get_grads(clients)
+            grads = sum_grads(clients_grads, self.num_nodes())
+            self.server.set_grads(grads)
 
             optimizer.step()
-            metrics["Total Loss"] = round(total_loss.item(), 4)
-            metrics["Structure Loss"] = round(structure_loss.mean().item(), 4)
 
-        return metrics
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
+
+            if log:
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
+
+                with torch.no_grad():
+                    metrics["Total Loss"] = round(total_loss.item(), 4)
+                    if structure_loss is not None:
+                        metrics["Structure Loss"] = round(
+                            structure_loss.mean().item(), 4
+                        )
+
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
+
+        final_result = self.report_test_accuracy(clients, log)
+
+        if plot:
+            title = f"Server SDGA GNN"
+            plot_metrics(server_results, title=title, save_path=self.save_path)
+
+            title = f"Average SDGA GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        if config.structure_model.structure_type == "mp":
+            print(self.structure_model.mp_layer.state_dict()["weight"])
+
+        return final_result
+
+    def train_local_sd(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        optimizers = self.create_SW_optimizers()
+        metrics = {}
+        average_results = []
+        # sd_ratios = torch.randn((len(clients)), requires_grad=True)
+
+        client: Client
+        # for ind, client in enumerate(clients):
+        #     optimizers[f"client{client.id}"].param_groups[0]["params"].append(
+        #         sd_ratios[ind]
+        #     )
+
+        if log:
+            bar = tqdm(total=epochs, position=0)
+        for epoch in range(epochs):
+            StructurePredictor.reset_optimizers(optimizers)
+            self.model.train()
+            out = self.model()
+            if config.structure_model.sd_ratio != 0:
+                structure_loss = self.calc_loss(out["structure_model"])
+            else:
+                structure_loss = None
+
+            loss_list = torch.zeros(len(clients), dtype=torch.float32)
+            average_result = {}
+            for ind, client in enumerate(clients):
+                y_pred = out[f"client{client.id}"]
+                (
+                    cls_train_loss,
+                    str_train_loss,
+                    train_acc,
+                    cls_val_loss,
+                    str_val_loss,
+                    val_acc,
+                ) = self.cacl_metrics(client, y_pred, structure_loss)
+
+                train_loss = (
+                    # cls_train_loss
+                    # + sd_ratios[ind] * str_train_loss
+                    cls_train_loss
+                    + config.structure_model.sd_ratio * str_train_loss
+                )
+                loss_list[ind] = train_loss
+
+                result = {
+                    "Cls Train Loss": round(cls_train_loss.item(), 4),
+                    "Train Acc": round(train_acc, 4),
+                    "Cls Val Loss": round(cls_val_loss.item(), 4),
+                    "Val Acc": round(val_acc, 4),
+                    "Str Train Loss": round(str_train_loss.item(), 4),
+                    "Str Val Loss": round(str_val_loss.item(), 4),
+                }
+
+                ratio = client.num_nodes() / self.server.num_nodes()
+                for key, val in result.items():
+                    if key not in average_result.keys():
+                        average_result[key] = ratio * val
+                    else:
+                        average_result[key] += ratio * val
+
+                if log:
+                    if epoch == epochs - 1:
+                        self.LOGGER.info(f"local SD results for client{client.id}:")
+                        self.LOGGER.info(f"{result}")
+
+            total_loss = loss_list.mean()
+            total_loss.backward()
+
+            for optimizer in optimizers.values():
+                optimizer.step()
+
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
+
+            if log:
+                metrics[f"average train acc"] = average_result["Train Acc"]
+                metrics[f"average val acc"] = average_result["Val Acc"]
+                with torch.no_grad():
+                    metrics["Total Loss"] = round(total_loss.item(), 4)
+                    if structure_loss is not None:
+                        metrics["Structure Loss"] = round(
+                            structure_loss.mean().item(), 4
+                        )
+
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update()
+
+        test_metrics = self.test(clients)
+
+        average_test_acc = 0
+        for client in clients:
+            test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
+            if log:
+                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
+            average_test_acc += test_acc * client.num_nodes() / self.server.num_nodes()
+
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+
+        if plot:
+            title = f"Average local SD GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        if config.structure_model.structure_type == "mp":
+            print(self.structure_model.mp_layer.state_dict()["weight"])
+
+        # print(f"sd ratios: {sd_ratios}")
+
+    def obtain_a(self):
+        abar = obtain_a(
+            self.graph.edge_index,
+            self.graph.num_nodes,
+            config.structure_model.mp_layers,
+        )
+
+        return abar
+
+    def share_abar(self, abar, clients):
+        num_nodes = self.graph.num_nodes
+        row, col, val = abar.coo()
+
+        client: Client
+        for client in clients:
+            nodes = client.get_nodes()
+            node_map = client.subgraph.node_map
+
+            cond = torch.isin(row, nodes)
+            row_i = row[cond]
+            row_i = torch.tensor(itemgetter(*np.array(row_i))(node_map))
+            col_i = col[cond]
+            val_i = val[cond]
+            abar_i = SparseTensor(
+                row=row_i,
+                col=col_i,
+                value=val_i,
+                sparse_sizes=(len(nodes), num_nodes),
+            )
+
+            client.set_abar(abar_i)
+
+    def share_weights(self, clients):
+        server_weights = self.server.state_dict()
+
+        client: Client
+        for client in clients:
+            client.load_state_dict(server_weights)
+
+    def report_results(self, clients, results, framework=""):
+        client: Client
+        for client, result in zip(clients, results):
+            self.LOGGER.info(f"{framework} results for client{client.id}:")
+            self.LOGGER.info(f"{result}")
+
+    def get_weights(self):
+        pass
+
+    def create_SFV(self):
+        pass
+
+    def share_SFV(self, clients):
+        SFV = self.graph.structural_features
+
+        client: Client
+        for client in clients:
+            client.set_SFV(SFV)
+
+    def share_grads(self, clietns, grads):
+        client: Client
+        for client in clietns:
+            client.set_grads(grads)
+
+    def set_train_mode(self, clients, mode: bool = True):
+        client: Client
+        for client in clients:
+            client.train(mode)
+
+    def train_clients(self, clients):
+        results = []
+
+        client: Client
+        for client in clients:
+            (
+                train_loss,
+                train_acc,
+                train_f1_score,
+                val_loss,
+                val_acc,
+                val_f1_score,
+            ) = client.local_train()
+
+            result = {
+                "Train Loss": round(train_loss.item(), 4),
+                "Train Acc": round(train_acc, 4),
+                "Val Loss": round(val_loss.item(), 4),
+                "Val Acc": round(val_acc, 4),
+            }
+            results.append(result)
+
+        return results
+
+    def test_clients(self, clients):
+        results = {}
+
+        client: Client
+        for client in clients:
+            test_acc = client.test_classifier()
+
+            result = {
+                "Test Acc": round(test_acc, 4),
+            }
+            results[f"Client{client.id}"] = result
+
+        return results
+
+    def report_test_accuracy(self, clients, log=True):
+        final_result = {}
+        test_metrics = self.test(clients)
+        test_acc = test_metrics[f"Client{self.server.id}"]["Test Acc"]
+        final_result["Server"] = test_acc
+        if log:
+            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
+
+        average_test_acc = 0
+
+        client: Client
+        for client in clients:
+            test_acc = test_metrics[f"Client{client.id}"]["Test Acc"]
+            final_result[f"Client{client.id}"] = test_acc
+            if log:
+                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc}")
+            average_test_acc += test_acc * client.num_nodes() / self.server.num_nodes()
+
+        final_result["Average"] = average_test_acc
+        if log:
+            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+
+    def report_test_accuracy2(self, test_results):
+        for client_id, result in test_results.items():
+            for key, val in result.items():
+                self.LOGGER.info(f"{client_id} {key}: {val:0.4f}")
+
+    def report_average_results(self, test_results, log=True):
+        sum = sum_dictofdicts(test_results)
+        for key, val in sum.items():
+            self.LOGGER.info(f"Average {key}: {val / len(test_results):0.4f}")
+
+    def server_test_report(self, log=True):
+        test_acc = self.server.test_classifier()
+        if log:
+            self.LOGGER.info(f"Server test: {test_acc:0.4f}")
+
+    def update_models(self, clietns):
+        client: Client
+        for client in clietns:
+            client.update_model()
+
+    def reset_clients(self, clients):
+        client: Client
+        for client in clients:
+            client.reset_client()
+
+    def local_training(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        abar = self.obtain_a()
+
+        self.share_abar(abar, clients)
+        self.server.set_abar(abar)
+
+        self.share_SFV(clients)
+        self.server.set_SFV(self.graph.structural_features)
+
+        self.share_weights(clients)
+
+        if log:
+            bar = tqdm(total=epochs, position=0)
+
+        average_results = []
+        for epoch in range(epochs):
+            self.reset_clients(clients)
+            self.server.reset_client()
+
+            self.set_train_mode(clients)
+            results = self.train_clients(clients)
+            average_result = calc_average_result(results)
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
+
+            clients_grads = get_grads(clients)
+            grads = sum_grads(clients_grads, self.num_nodes)
+            self.share_grads(clients, grads)
+            self.server.set_grads(grads)
+
+            self.update_models(clients)
+            self.server.update_model()
+
+            if log:
+                # bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(average_result)
+                bar.update()
+
+                if epoch == epochs - 1:
+                    self.report_results(clients, results, "Local Training")
+
+        if plot:
+            title = f"Average Local Training GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        test_results = self.test_clients(clients)
+        final_result = self.report_test_accuracy2(test_results)
+        self.report_average_results(test_results, log)
+        self.server_test_report(log)
+
+        return final_result
+
+    def local_training2(
+        self,
+        clients,
+        epochs=config.model.epoch_classifier,
+        log=True,
+        plot=True,
+    ):
+        abar = self.obtain_a()
+
+        self.share_abar(abar, clients)
+        self.server.set_abar(abar)
+
+        self.share_SFV(clients)
+        self.server.set_SFV(self.graph.structural_features)
+
+        if log:
+            bar = tqdm(total=epochs, position=0)
+
+        average_results = []
+        for epoch in range(epochs):
+            self.share_weights(clients)
+            self.reset_clients(clients)
+            self.server.reset_client()
+
+            self.set_train_mode(clients)
+            results = self.train_clients(clients)
+            average_result = calc_average_result(results)
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
+
+            clients_grads = get_grads(clients, True)
+            grads = sum_grads(clients_grads, self.num_nodes)
+            self.share_grads(clients, grads)
+            self.server.set_grads(grads)
+
+            self.update_models(clients)
+            self.server.update_model()
+
+            mean_weights = sum_weights(clients)
+            self.server.load_state_dict(mean_weights)
+
+            if log:
+                # bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(average_result)
+                bar.update()
+
+                if epoch == epochs - 1:
+                    self.report_results(clients, results, "Local Training")
+
+        if plot:
+            title = f"Average Local Training GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        test_results = self.test_clients(clients)
+        final_result = self.report_test_accuracy2(test_results)
+        self.report_average_results(test_results, log)
+        self.server_test_report(log)
+
+        return final_result

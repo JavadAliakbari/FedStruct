@@ -130,7 +130,7 @@ def run(
     MLP_server.train_local_classifier(
         config.model.epoch_classifier, log=False, plot=False
     )
-    test_acc = MLP_server.test_local_classifier()
+    test_acc = MLP_server.test_classifier()
     result["server_mlp"] = test_acc
 
     result["local_mlp"] = MLP_server.train_local_classifiers(
@@ -150,7 +150,7 @@ def run(
         log=False,
         plot=False,
     )
-    test_acc = degree_server.test_local_classifier()
+    test_acc = degree_server.test_classifier()
     result["server_mp"] = test_acc
 
     result["local_mp"] = degree_server.train_local_classifiers(
@@ -179,7 +179,7 @@ def run(
         log=False,
         plot=False,
     )
-    test_acc = degree_server.test_local_classifier()
+    test_acc = degree_server.test_classifier()
     result["server_gnn"] = test_acc
 
     result["local_gnn"] = degree_server.train_local_classifiers(
