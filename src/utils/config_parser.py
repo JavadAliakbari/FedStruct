@@ -78,6 +78,7 @@ class StructureModelConfig:
         self.structure_type = structure_model["structure_type"]
         self.num_structural_features = structure_model["num_structural_features"]
         self.loss = structure_model["loss"]
+        self.estimate = structure_model["estimate"]
         self.num_mp_vectors = structure_model["num_mp_vectors"]
         self.cosine_similarity_predictor_epochs = structure_model[
             "cosine_similarity_predictor_epochs"

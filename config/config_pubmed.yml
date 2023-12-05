@@ -1,6 +1,6 @@
 dataset:
-  # dataset_name: "PubMed"
-  dataset_name: "Cora"
+  dataset_name: "PubMed"
+  # dataset_name: "Cora"
   # dataset_name: "CiteSeer"
   # dataset_name: "chameleon"
   # dataset_name: "squirrel"
@@ -18,22 +18,22 @@ model:
   batch: False
   batch_size: 64
   epochs_local: 1
-  lr: 0.002
+  lr: 0.003
   weight_decay: 0.0005
   dropout: 0.5
   gnn_layer_type: "sage"
   propagate_type: "MP"
-  epoch_classifier: 30
+  epoch_classifier: 20
   metric: "acc"
 feature_model:
   gnn_layer_sizes: [256]
   mlp_layer_sizes: [64]
-  mp_layers: 3
+  mp_layers: 2
 structure_model:
   sd_ratio: 0
-  GNN_structure_layers_sizes: [128, 64, 32]
+  GNN_structure_layers_sizes: [128, 64]
   MP_structure_layers_size: [256]
-  mp_layers: 7
+  mp_layers: 15
   # structure_type: "struc2vec"
   # structure_type: "mp"
   # structure_type: "degree"
@@ -41,7 +41,7 @@ structure_model:
   structure_type: "random"
   # structure_type: "node2vec"
   num_structural_features: 256
-  estimate: False
+  estimate: True
   # loss: "both"
   # loss: "homophily"
   # loss: "heterophily"

@@ -1004,11 +1004,23 @@ class StructurePredictor:
         # print(f"sd ratios: {sd_ratios}")
 
     def obtain_a(self):
-        abar = obtain_a(
-            self.graph.edge_index,
-            self.graph.num_nodes,
-            config.structure_model.mp_layers,
-        )
+        if config.structure_model.estimate:
+            abar = estimate_a(
+                self.graph.edge_index,
+                self.graph.num_nodes,
+                config.structure_model.mp_layers,
+            )
+        else:
+            abar = obtain_a(
+                self.graph.edge_index,
+                self.graph.num_nodes,
+                config.structure_model.mp_layers,
+            )
+
+        # abar_ = abar.to_dense().numpy()
+        # abar1_ = abar1.to_dense().numpy()
+        # e = np.mean(np.abs(abar_ - abar1_) ** 2)
+        # print(e)
 
         return abar
 
@@ -1071,7 +1083,7 @@ class StructurePredictor:
         for client in clients:
             client.train(mode)
 
-    def train_clients(self, clients):
+    def train_clients(self, clients, scale=False):
         results = []
 
         client: Client
@@ -1083,7 +1095,7 @@ class StructurePredictor:
                 val_loss,
                 val_acc,
                 val_f1_score,
-            ) = client.local_train()
+            ) = client.local_train(scale)
 
             result = {
                 "Train Loss": round(train_loss.item(), 4),
@@ -1182,12 +1194,13 @@ class StructurePredictor:
             self.server.reset_client()
 
             self.set_train_mode(clients)
-            results = self.train_clients(clients)
+            results = self.train_clients(clients, True)
             average_result = calc_average_result(results)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
             clients_grads = get_grads(clients)
+            # grads = sum_grads(clients_grads)
             grads = sum_grads(clients_grads, self.num_nodes)
             self.share_grads(clients, grads)
             self.server.set_grads(grads)
@@ -1207,10 +1220,10 @@ class StructurePredictor:
             title = f"Average Local Training GNN"
             plot_metrics(average_results, title=title, save_path=self.save_path)
 
+        self.server_test_report(log)
         test_results = self.test_clients(clients)
         final_result = self.report_test_accuracy2(test_results)
         self.report_average_results(test_results, log)
-        self.server_test_report(log)
 
         return final_result
 
@@ -1245,7 +1258,8 @@ class StructurePredictor:
             average_results.append(average_result)
 
             clients_grads = get_grads(clients, True)
-            grads = sum_grads(clients_grads, self.num_nodes)
+            grads = sum_grads(clients_grads)
+            # grads = sum_grads(clients_grads, self.num_nodes)
             self.share_grads(clients, grads)
             self.server.set_grads(grads)
 
@@ -1267,9 +1281,9 @@ class StructurePredictor:
             title = f"Average Local Training GNN"
             plot_metrics(average_results, title=title, save_path=self.save_path)
 
+        self.server_test_report(log)
         test_results = self.test_clients(clients)
         final_result = self.report_test_accuracy2(test_results)
         self.report_average_results(test_results, log)
-        self.server_test_report(log)
 
         return final_result

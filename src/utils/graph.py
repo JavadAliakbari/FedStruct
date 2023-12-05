@@ -15,6 +15,7 @@ from torch_geometric.nn import MessagePassing
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.GDV2 import GDV
+from utils.utils import find_neighbors_
 
 
 config = Config().structure_model
@@ -152,7 +153,7 @@ class Graph(Data_):
         node_neighbors = []
         node_negative_samples = []
         for node_id in node_ids:
-            neighbors = Graph.find_neighbors_(node_id, edge_index)
+            neighbors = find_neighbors_(node_id, edge_index)
             negative_samples = Graph.find_negative_samples(node_ids, neighbors)
 
             node_neighbors.append(neighbors)
@@ -274,44 +275,9 @@ class Graph(Data_):
         return np.array(other_nodes)
 
     def find_neigbors(self, node_id, include_node=False):
-        return Graph.find_neighbors_(
+        return find_neighbors_(
             node_id=node_id,
             edge_index=self.edge_index,
             node_map=self.node_map,
             include_node=include_node,
         )
-
-    def find_neighbors_(
-        node_id: int,
-        edge_index: Tensor,
-        node_map: Dict = None,
-        include_node=False,
-    ):
-        if node_map is not None:
-            new_node_id = node_map[node_id]
-        else:
-            new_node_id = node_id
-        all_neighbors = np.unique(
-            np.hstack(
-                (
-                    edge_index[1, edge_index[0] == new_node_id],
-                    edge_index[0, edge_index[1] == new_node_id],
-                )
-            )
-        )
-
-        if not include_node:
-            all_neighbors = np.setdiff1d(all_neighbors, new_node_id)
-
-        if len(all_neighbors) == 0:
-            return all_neighbors
-
-        if node_map is not None:
-            inv_map = {v: k for k, v in node_map.items()}
-            res = itemgetter(*all_neighbors)(inv_map)
-            if len(all_neighbors) == 1:
-                return [res]
-            else:
-                return list(res)
-        else:
-            return all_neighbors

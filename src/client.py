@@ -286,5 +286,5 @@ class Client:
     def reset_client(self):
         self.classifier.reset_client()
 
-    def local_train(self):
-        return self.classifier.local_train()
+    def local_train(self, scale=False):
+        return self.classifier.local_train(scale)

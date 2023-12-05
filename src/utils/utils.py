@@ -1,7 +1,11 @@
+from ast import Dict
 from collections import defaultdict
+from operator import itemgetter
 import os
 from copy import deepcopy
 from statistics import mean
+import numpy as np
+from scipy.sparse import coo_matrix
 
 import torch
 import pandas as pd
@@ -9,6 +13,7 @@ import matplotlib.pyplot as plt
 from torch_sparse import SparseTensor
 from torch_geometric.utils import add_self_loops
 from torch_geometric.utils import degree
+from tqdm import tqdm
 
 from src.models.GNN_models import calc_accuracy, calc_f1_score
 
@@ -16,6 +21,42 @@ plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
 plt.rcParams.update({"figure.max_open_warning": 0})
 plt.rcParams["font.size"] = 20
+
+
+def find_neighbors_(
+    node_id: int,
+    edge_index: torch.Tensor,
+    node_map: Dict = None,
+    include_node=False,
+):
+    if node_map is not None:
+        new_node_id = node_map[node_id]
+    else:
+        new_node_id = node_id
+    all_neighbors = np.unique(
+        np.hstack(
+            (
+                edge_index[1, edge_index[0] == new_node_id],
+                edge_index[0, edge_index[1] == new_node_id],
+            )
+        )
+    )
+
+    if not include_node:
+        all_neighbors = np.setdiff1d(all_neighbors, new_node_id)
+
+    if len(all_neighbors) == 0:
+        return all_neighbors
+
+    if node_map is not None:
+        inv_map = {v: k for k, v in node_map.items()}
+        res = itemgetter(*all_neighbors)(inv_map)
+        if len(all_neighbors) == 1:
+            return [res]
+        else:
+            return list(res)
+    else:
+        return all_neighbors
 
 
 def plot_metrics(
@@ -75,6 +116,32 @@ def obtain_a(edge_index, num_nodes, num_layers):
         abar = adj_hat.matmul(abar)  # Sparse-dense matrix multiplication
 
     # row, col, v = abar.coo()
+    return abar
+
+
+def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
+    neighbors = [
+        find_neighbors_(node, edge_index, include_node=True)
+        for node in range(num_nodes)
+    ]
+    abar = np.zeros((num_nodes, num_nodes), dtype=float)
+    for _ in tqdm(range(num_expriments)):
+        for node in range(num_nodes):
+            chosen_node = node
+            for _ in range(num_layers):
+                chosen_node = np.random.choice(neighbors[chosen_node], 1)[0]
+            abar[node, chosen_node] += 1
+
+    abar /= num_expriments
+    sparse_matrix = coo_matrix(abar)
+    abar = SparseTensor(
+        row=torch.tensor(sparse_matrix.row, dtype=torch.long),
+        col=torch.tensor(sparse_matrix.col, dtype=torch.long),
+        value=torch.tensor(sparse_matrix.data, dtype=torch.float32),
+        sparse_sizes=(num_nodes, num_nodes),
+    )
+    # abar = torch.from_numpy(abar).to_sparse()
+
     return abar
 
 
@@ -162,7 +229,10 @@ def sum_grads(clients_grads, num_nodes=1):
     for key, val in new_grads.items():
         model_grads = []
         for client_grads in zip(*val):
-            model_grads.append(sum(client_grads) / num_nodes)
+            try:
+                model_grads.append(sum(client_grads) / num_nodes)
+            except:
+                model_grads.append(None)
 
         grads[key] = model_grads
 

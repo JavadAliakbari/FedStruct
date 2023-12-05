@@ -1,8 +1,8 @@
 dataset:
   # dataset_name: "PubMed"
-  dataset_name: "Cora"
+  # dataset_name: "Cora"
   # dataset_name: "CiteSeer"
-  # dataset_name: "chameleon"
+  dataset_name: "chameleon"
   # dataset_name: "squirrel"
   # dataset_name: "Minesweeper"
   # dataset_name: "Tolokers"
@@ -23,17 +23,17 @@ model:
   dropout: 0.5
   gnn_layer_type: "sage"
   propagate_type: "MP"
-  epoch_classifier: 30
+  epoch_classifier: 60
   metric: "acc"
 feature_model:
-  gnn_layer_sizes: [256]
+  gnn_layer_sizes: [128,64]
   mlp_layer_sizes: [64]
-  mp_layers: 3
+  mp_layers: 2
 structure_model:
   sd_ratio: 0
-  GNN_structure_layers_sizes: [128, 64, 32]
-  MP_structure_layers_size: [256]
-  mp_layers: 7
+  GNN_structure_layers_sizes: [128, 64]
+  MP_structure_layers_size: [64]
+  mp_layers: 1
   # structure_type: "struc2vec"
   # structure_type: "mp"
   # structure_type: "degree"
@@ -41,7 +41,7 @@ structure_model:
   structure_type: "random"
   # structure_type: "node2vec"
   num_structural_features: 256
-  estimate: False
+  estimate: True
   # loss: "both"
   # loss: "homophily"
   # loss: "heterophily"

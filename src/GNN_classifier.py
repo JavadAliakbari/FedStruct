@@ -321,12 +321,17 @@ class GNNClassifier(Classifier):
                 self.SFV,
                 self.abar,
             )
+            # h = s
             h += s
+        elif self.SFV is not None:
+            if self.SFV.requires_grad:
+                s = self.abar.matmul(self.SFV)
+                h += s
         y_pred = torch.nn.functional.softmax(h, dim=1)
 
         return y_pred
 
-    def local_train(self):
+    def local_train(self, scale=False):
         y_pred = self.SD_step()
         y = self.graph.y
 
@@ -339,7 +344,8 @@ class GNNClassifier(Classifier):
             y, y_pred, val_mask, self.criterion
         )
 
-        train_loss *= self.graph.num_nodes
+        if scale:
+            train_loss *= self.graph.num_nodes
         train_loss.backward()
 
         return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score

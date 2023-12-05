@@ -199,30 +199,31 @@ def random_assign(graph, max_subgraph_nodes):
     return subgraph_node_ids
 
 
-def louvain_graph_cut(graph: Graph):
-    # community_map = find_community(graph)
-
-    # community_groups = create_community_groups(community_map=community_map)
-
-    # group_len_max = (
-    #     graph.num_nodes // config.subgraph.num_subgraphs + config.subgraph.delta
-    # )
-
-    # community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
-
-    # sorted_community_groups = {
-    #     k: v
-    #     for k, v in sorted(
-    #         community_groups.items(), key=lambda item: len(item[1]), reverse=True
-    #     )
-    # }
-
+def louvain_graph_cut(graph: Graph, random=True):
     max_subgraph_nodes = graph.num_nodes // config.subgraph.num_subgraphs
-    # subgraph_node_ids = assign_nodes_to_subgraphs(
-    #     sorted_community_groups, max_subgraph_nodes
-    # )
+    if random:
+        subgraph_node_ids = random_assign(graph, max_subgraph_nodes)
+    else:
+        community_map = find_community(graph)
 
-    subgraph_node_ids = random_assign(graph, max_subgraph_nodes)
+        community_groups = create_community_groups(community_map=community_map)
+
+        group_len_max = (
+            graph.num_nodes // config.subgraph.num_subgraphs + config.subgraph.delta
+        )
+
+        community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
+
+        sorted_community_groups = {
+            k: v
+            for k, v in sorted(
+                community_groups.items(), key=lambda item: len(item[1]), reverse=True
+            )
+        }
+
+        subgraph_node_ids = assign_nodes_to_subgraphs(
+            sorted_community_groups, max_subgraph_nodes
+        )
 
     subgraphs = create_subgraps(graph, subgraph_node_ids)
 
