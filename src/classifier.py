@@ -1,4 +1,3 @@
-from copy import deepcopy
 import logging
 from typing import Union
 
@@ -42,7 +41,7 @@ class Classifier:
 
     def load_state_dict(self, weights):
         self.feature_model.load_state_dict(weights["FPM"])
-        if self.structure_model is not None:
+        if self.structure_model is not None and "SPM" in weights.keys():
             self.structure_model.load_state_dict(weights["SPM"])
 
         # if "SFV" in weights.keys():
@@ -68,7 +67,6 @@ class Classifier:
             self.structure_model.set_grads(grads["SPM"])
         if "SFV" in grads.keys():
             self.SFV.grad = grads["SFV"][0]
-        aaaa = 2
 
     # def get_SFV_grad(self):
     #     return self.SFV.grad
@@ -89,6 +87,8 @@ class Classifier:
         if self.SFV is not None:
             if self.SFV.requires_grad:
                 parameters += [self.SFV]
+
+        return parameters
 
     def train(self, mode: bool = True):
         self.feature_model.train(mode)
@@ -111,7 +111,6 @@ class Classifier:
 
     def update_model(self):
         self.optimizer.step()
-        a = 2
 
     def reset_client(self):
         self.optimizer.zero_grad()

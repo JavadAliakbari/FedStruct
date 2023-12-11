@@ -77,6 +77,9 @@ class Client:
     def get_structure_embeddings(self):
         return self.classifier.get_structure_embeddings()
 
+    def get_structure_embeddings2(self, node_ids):
+        return self.classifier.get_structure_embeddings2(node_ids)
+
     def predict_labels(self, x):
         return self.classifier.predict_labels(x)
 
@@ -98,31 +101,32 @@ class Client:
     def initialize_gnn_(
         graph: Graph,
         classifier: GNNClassifier,
-        num_classes,
         propagate_type=config.model.propagate_type,
-        dim_in=None,
-        additional_layer_dims=0,
+        num_input_features=None,
+        structure=False,
+        get_structure_embeddings=None,
     ) -> None:
         classifier.prepare_data(
             graph=graph,
             batch_size=config.model.batch_size,
             num_neighbors=config.model.num_samples,
         )
-        if propagate_type == "GNN":
-            classifier.set_GNN_classifier(
-                dim_in=dim_in, additional_layer_dims=additional_layer_dims
-            )
-        elif propagate_type == "MP":
-            classifier.set_MP_classifier(
-                dim_in=dim_in, additional_layer_dims=additional_layer_dims
-            )
 
-        SPM_layer_sizes = (
-            [config.structure_model.num_structural_features]
-            + config.structure_model.MP_structure_layers_sizes
-            + [num_classes]
-        )
-        classifier.set_SPM(SPM_layer_sizes)
+        if propagate_type == "GNN":
+            classifier.set_GNN_FPM(dim_in=num_input_features)
+        elif propagate_type == "MP":
+            classifier.set_DGCN_FPM(dim_in=num_input_features)
+
+        if structure:
+            if propagate_type == "GNN":
+                classifier.set_GNN_SPM(
+                    dim_in=config.structure_model.num_structural_features,
+                    get_structure_embeddings=get_structure_embeddings,
+                )
+            elif propagate_type == "MP":
+                classifier.set_DGCN_SPM(
+                    dim_in=config.structure_model.num_structural_features
+                )
 
     def initialize_mlp_(
         data: Data_,
@@ -139,16 +143,18 @@ class Client:
         self,
         propagate_type=config.model.propagate_type,
         input_dimension=None,
-        additional_layer_dims=0,
+        structure=False,
+        get_structure_embeddings=None,
     ) -> None:
         if self.classifier_type == "GNN":
             Client.initialize_gnn_(
                 self.subgraph,
                 self.classifier,
-                self.num_classes,
+                # self.num_classes,
                 propagate_type,
                 input_dimension,
-                additional_layer_dims,
+                structure,
+                get_structure_embeddings,
             )
         elif self.classifier_type == "MLP":
             Client.initialize_mlp_(

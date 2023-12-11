@@ -145,28 +145,18 @@ class Server(Client):
     def initialize_sd_predictor(
         self,
         propagate_type=config.model.propagate_type,
+        structure=False,
     ) -> None:
-        if propagate_type == "MP":
-            if config.structure_model.structure_type == "random":
-                additional_layer_dims = config.structure_model.num_structural_features
-            else:
-                additional_layer_dims = (
-                    config.structure_model.MP_structure_layers_sizes[-1]
-                )
-        elif propagate_type == "GNN":
-            additional_layer_dims = config.structure_model.GNN_structure_layers_sizes[
-                -1
-            ]
-
         self.initialize(
             propagate_type=propagate_type,
-            additional_layer_dims=additional_layer_dims,
+            structure=structure,
         )
         client: Client
         for client in self.clients:
             client.initialize(
                 propagate_type=propagate_type,
-                additional_layer_dims=additional_layer_dims,
+                structure=structure,
+                get_structure_embeddings=self.get_structure_embeddings2,
             )
 
         self.sd_predictor.initialize_structural_graph(
@@ -357,7 +347,7 @@ class Server(Client):
             client.initialize(propagate_type=propagate_type)
             client.reset_parameters()
 
-        classifier = self.classifier
+        classifier = self.classifier.feature_model
         server_parameters = list(classifier.parameters())
 
         optimizer = torch.optim.Adam(
@@ -419,7 +409,7 @@ class Server(Client):
             for client in self.clients:
                 client.eval()
                 client.classifier.zero_grad()
-                client.load_state_dict(server_weights)
+                client.classifier.feature_model.load_state_dict(server_weights)
 
             loss_list = torch.zeros(len(self.clients), dtype=torch.float32)
             self.classifier.zero_grad(set_to_none=True)
@@ -744,17 +734,23 @@ class Server(Client):
         propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
+        structure=False,
     ):
         self.LOGGER.info("local training starts!")
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
-        else:
-            self.initialize_sd_predictor(propagate_type=propagate_type)
+        # if self.initialized:
+        #     self.reset_sd_predictor_parameters()
+        # else:
+        #     self.initialize_sd_predictor(
+        #         propagate_type=propagate_type, structure=structure
+        #     )
+        self.initialize_sd_predictor(propagate_type=propagate_type, structure=structure)
         return self.sd_predictor.local_training(
             self.clients,
             epochs=epochs,
+            propagate_type=propagate_type,
             log=log,
             plot=plot,
+            structure=structure,
         )
 
     def local_training2(
@@ -763,15 +759,21 @@ class Server(Client):
         propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
+        structure=False,
     ):
         self.LOGGER.info("local training starts!")
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
-        else:
-            self.initialize_sd_predictor(propagate_type=propagate_type)
+        # if self.initialized:
+        #     self.reset_sd_predictor_parameters()
+        # else:
+        #     self.initialize_sd_predictor(
+        #         propagate_type=propagate_type, structure=structure
+        #     )
+        self.initialize_sd_predictor(propagate_type=propagate_type, structure=structure)
         return self.sd_predictor.local_training2(
             self.clients,
             epochs=epochs,
+            propagate_type=propagate_type,
             log=log,
             plot=plot,
+            structure=structure,
         )

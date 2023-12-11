@@ -1172,16 +1172,21 @@ class StructurePredictor:
         self,
         clients,
         epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
+        structure=False,
     ):
-        abar = self.obtain_a()
+        if structure:
+            self.server.set_SFV(self.graph.structural_features)
 
-        self.share_abar(abar, clients)
-        self.server.set_abar(abar)
+            if propagate_type == "MP":
+                abar = self.obtain_a()
 
-        self.share_SFV(clients)
-        self.server.set_SFV(self.graph.structural_features)
+                self.share_abar(abar, clients)
+                self.server.set_abar(abar)
+
+                self.share_SFV(clients)
 
         self.share_weights(clients)
 
@@ -1231,16 +1236,21 @@ class StructurePredictor:
         self,
         clients,
         epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
+        structure=False,
     ):
-        abar = self.obtain_a()
+        if structure:
+            self.server.set_SFV(self.graph.structural_features)
 
-        self.share_abar(abar, clients)
-        self.server.set_abar(abar)
+            if propagate_type == "MP":
+                abar = self.obtain_a()
 
-        self.share_SFV(clients)
-        self.server.set_SFV(self.graph.structural_features)
+                self.share_abar(abar, clients)
+                self.server.set_abar(abar)
+
+                self.share_SFV(clients)
 
         if log:
             bar = tqdm(total=epochs, position=0)
@@ -1259,7 +1269,6 @@ class StructurePredictor:
 
             clients_grads = get_grads(clients, True)
             grads = sum_grads(clients_grads)
-            # grads = sum_grads(clients_grads, self.num_nodes)
             self.share_grads(clients, grads)
             self.server.set_grads(grads)
 

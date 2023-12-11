@@ -136,14 +136,13 @@ class ModelBinder(torch.nn.Module):
         for grad, parameter in zip(grads, model_parameters):
             parameter.grad = grad
 
-    def step(self, h, edge_index=None) -> None:
-        for model in self.models:
-            if model.type_ == "MLP":
-                return model(h)
-            else:
-                return model(h, edge_index)
+    def step(self, model, h, edge_index=None) -> None:
+        if model.type_ == "MLP":
+            return model(h)
+        else:
+            return model(h, edge_index)
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index=None):
         h = x
         for model in self.models:
             h = self.step(model, h, edge_index)

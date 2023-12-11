@@ -11,9 +11,6 @@ from src.utils.config_parser import Config
 from src.models.GNN_models import (
     ModelBinder,
     ModelSpecs,
-    calc_accuracy,
-    test,
-    calc_f1_score,
 )
 
 config = Config()
@@ -34,13 +31,24 @@ class GNNClassifier(Classifier):
             logger=logger,
         )
 
-    def set_GNN_classifier(self, dim_in=None, additional_layer_dims=0):
+        self.abar = None
+        self.abar_i = None
+
+        self.GNN_structure_embedding = None
+        self.get_structure_embeddings_from_server = None
+
+    def reset_client(self):
+        super().reset_client()
+
+        self.GNN_structure_embedding = None
+
+    def set_GNN_FPM(self, dim_in=None):
         if dim_in is None:
             dim_in = self.graph.num_features
 
         gnn_layer_sizes = [dim_in] + config.feature_model.gnn_layer_sizes
         mlp_layer_sizes = (
-            [config.feature_model.gnn_layer_sizes[-1] + additional_layer_dims]
+            [config.feature_model.gnn_layer_sizes[-1]]
             # + config.feature_model.mlp_layer_sizes
             + [self.num_classes]
         )
@@ -71,7 +79,7 @@ class GNNClassifier(Classifier):
             weight_decay=config.model.weight_decay,
         )
 
-    def set_MP_classifier(self, dim_in=None, additional_layer_dims=0):
+    def set_DGCN_FPM(self, dim_in=None):
         if dim_in is None:
             dim_in = self.graph.num_features
 
@@ -106,7 +114,52 @@ class GNNClassifier(Classifier):
     def set_abar(self, abar):
         self.abar = abar
 
-    def set_SPM(self, SPM_layer_sizes):
+    def set_GNN_SPM(self, dim_in=None, get_structure_embeddings=None):
+        if self.id == "Server":
+            if dim_in is None:
+                dim_in = self.graph.num_structural_features
+
+            gnn_layer_sizes = [
+                dim_in
+            ] + config.structure_model.GNN_structure_layers_sizes
+            mlp_layer_sizes = (
+                [config.structure_model.GNN_structure_layers_sizes[-1]]
+                # + config.feature_model.mlp_layer_sizes
+                + [self.num_classes]
+            )
+
+            model_specs = [
+                ModelSpecs(
+                    type="GNN",
+                    layer_sizes=gnn_layer_sizes,
+                    final_activation_function="linear",
+                    # final_activation_function="relu",
+                    # normalization="layer",
+                    normalization="batch",
+                ),
+                ModelSpecs(
+                    type="MLP",
+                    layer_sizes=mlp_layer_sizes,
+                    final_activation_function="softmax",
+                    normalization=None,
+                ),
+            ]
+
+            self.structure_model: ModelBinder = ModelBinder(model_specs)
+            self.optimizer.add_param_group(
+                {"params": self.structure_model.parameters()}
+            )
+        else:
+            self.get_structure_embeddings_from_server = get_structure_embeddings
+
+    def set_DGCN_SPM(self, dim_in=None):
+        if dim_in is None:
+            dim_in = config.structure_model.num_structural_features
+        SPM_layer_sizes = (
+            [config.structure_model.num_structural_features]
+            + config.structure_model.MP_structure_layers_sizes
+            + [self.num_classes]
+        )
         model_specs = [
             ModelSpecs(
                 type="MLP",
@@ -118,6 +171,14 @@ class GNNClassifier(Classifier):
 
         self.structure_model: ModelBinder = ModelBinder(model_specs)
         self.optimizer.add_param_group({"params": self.structure_model.parameters()})
+
+    def get_structure_embeddings2(self, node_ids):
+        if self.GNN_structure_embedding is None:
+            x = self.SFV
+            edge_index = self.graph.edge_index
+            self.GNN_structure_embedding = self.structure_model(x, edge_index)
+
+        return self.GNN_structure_embedding[node_ids]
 
     def prepare_data(
         self,
@@ -145,8 +206,10 @@ class GNNClassifier(Classifier):
             self.optimizer.add_param_group({"params": self.SFV})
 
     def get_feature_embeddings(self):
-        F = self.structure_model.step(self.graph.x)
-        h = self.abar_i.matmul(F)
+        h = self.graph.x
+        edge_index = self.graph.edge_index
+        for model in self.feature_model[:-1]:
+            h = self.feature_model.step(model, h, edge_index)
         return h
 
     def get_structure_embeddings(self):
@@ -154,10 +217,11 @@ class GNNClassifier(Classifier):
         s = self.abar.matmul(G)
         return s
 
-    def get_embeddings(model, x, a):
-        H = model.step(x)
-        h = a.matmul(H)
-        return h
+    def get_embeddings(model, x, edge_index=None, a=None):
+        H = model(x, edge_index)
+        if a is not None:
+            H = a.matmul(H)
+        return H
 
     def predict_labels(self, h):
         edge_index = self.graph.edge_index
@@ -312,6 +376,7 @@ class GNNClassifier(Classifier):
         h = GNNClassifier.get_embeddings(
             self.feature_model,
             self.graph.x,
+            self.graph.edge_index,
             self.abar_i,
         )
 
@@ -319,15 +384,20 @@ class GNNClassifier(Classifier):
             s = GNNClassifier.get_embeddings(
                 self.structure_model,
                 self.SFV,
-                self.abar,
+                self.graph.edge_index,
+                a=self.abar,
             )
-            # h = s
-            h += s
+            o = h + s
+        elif self.get_structure_embeddings_from_server is not None:
+            s = self.get_structure_embeddings_from_server(self.graph.node_ids)
+            o = h + s
         elif self.SFV is not None:
             if self.SFV.requires_grad:
                 s = self.abar.matmul(self.SFV)
-                h += s
-        y_pred = torch.nn.functional.softmax(h, dim=1)
+                o = h + s
+        else:
+            o = h
+        y_pred = torch.nn.functional.softmax(o, dim=1)
 
         return y_pred
 
@@ -335,7 +405,7 @@ class GNNClassifier(Classifier):
         y_pred = self.SD_step()
         y = self.graph.y
 
-        train_mask, val_mask, test_mask = self.graph.get_masks()
+        train_mask, val_mask, _ = self.graph.get_masks()
 
         train_loss, train_acc, train_f1_score = calc_metrics(
             y, y_pred, train_mask, self.criterion
@@ -346,6 +416,6 @@ class GNNClassifier(Classifier):
 
         if scale:
             train_loss *= self.graph.num_nodes
-        train_loss.backward()
+        train_loss.backward(retain_graph=True)
 
         return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score

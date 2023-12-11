@@ -11,8 +11,8 @@ dataset:
 subgraph:
   num_subgraphs: 7
   delta: 20
-  train_ratio: 0.1
-  test_ratio: 0.5
+  train_ratio: 0.6
+  test_ratio: 0.2
 model:
   num_samples: [5, 10]
   batch: False
@@ -20,10 +20,10 @@ model:
   epochs_local: 1
   lr: 0.002
   weight_decay: 0.0005
-  dropout: 0.5
+  dropout: 0.4
   gnn_layer_type: "sage"
   propagate_type: "MP"
-  epoch_classifier: 30
+  epoch_classifier: 20
   metric: "acc"
 feature_model:
   gnn_layer_sizes: [256]
