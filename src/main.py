@@ -10,8 +10,9 @@ from torch_geometric.datasets import (
     WikipediaNetwork,
 )
 from torch_geometric.utils import to_undirected, remove_self_loops
+from src.GNN_server import GNNServer
+from src.MLP_server import MLPServer
 
-from src.server import Server
 from src.utils.graph import Graph
 from src.utils.logger import get_logger
 from src.utils.config_parser import Config
@@ -139,16 +140,12 @@ def set_up_system():
 
     subgraphs = louvain_graph_cut(graph, True)
 
-    MLP_server = Server(
-        graph, num_classes, classifier_type="MLP", save_path=save_path, logger=_LOGGER
-    )
+    MLP_server = MLPServer(graph, num_classes, save_path=save_path, logger=_LOGGER)
 
     for subgraph in subgraphs:
         MLP_server.add_client(subgraph)
 
-    GNN_server = Server(
-        graph, num_classes, classifier_type="GNN", save_path=save_path, logger=_LOGGER
-    )
+    GNN_server = GNNServer(graph, num_classes, save_path=save_path, logger=_LOGGER)
 
     for subgraph in subgraphs:
         GNN_server.add_client(subgraph)
