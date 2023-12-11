@@ -137,7 +137,7 @@ def set_up_system():
         test_size=config.subgraph.test_ratio,
     )
 
-    subgraphs = louvain_graph_cut(graph)
+    subgraphs = louvain_graph_cut(graph, True)
 
     MLP_server = Server(
         graph, num_classes, classifier_type="MLP", save_path=save_path, logger=_LOGGER
@@ -153,24 +153,21 @@ def set_up_system():
     for subgraph in subgraphs:
         GNN_server.add_client(subgraph)
 
-    # _LOGGER.info("MLP")
-    # MLP_server.train_local_classifier(config.model.epoch_classifier)
-    # _LOGGER.info(f"Server test accuracy: {MLP_server.test_local_classifier():.4f}")
-    # MLP_server.train_local_classifiers(config.model.epoch_classifier)
-    # MLP_server.train_FLWA(config.model.epoch_classifier)
-    # MLP_server.train_FLGA(config.model.epoch_classifier)
+    _LOGGER.info("MLP")
+    MLP_server.train_local_model()
+    MLP_server.joint_train_g(FL=False)
+    MLP_server.joint_train_g(FL=True)
+    MLP_server.joint_train_w(FL=True)
 
-    # _LOGGER.info("GNN")
-    # GNN_server.train_local_classifier(config.model.epoch_classifier)
-    # _LOGGER.info(f"Server test accuracy: {GNN_server.test_local_classifier():0.4f}")
-    # GNN_server.train_local_classifiers(config.model.epoch_classifier)
-    # GNN_server.train_FLWA(config.model.epoch_classifier)
-    # GNN_server.train_FLGA(config.model.epoch_classifier)
-    # GNN_server.train_SD_Server(config.model.epoch_classifier)
-    # GNN_server.train_SDWA(config.model.epoch_classifier)
-    # GNN_server.train_SDGA(config.model.epoch_classifier)
+    _LOGGER.info("GNN")
+    GNN_server.train_local_model()
+    GNN_server.joint_train_g(structure=False, FL=False)
+    GNN_server.joint_train_g(structure=False, FL=True)
+    GNN_server.joint_train_w(structure=False, FL=True)
+    GNN_server.joint_train_g(structure=True, FL=True)
+    GNN_server.joint_train_w(structure=True, FL=True)
 
-    GNN_server.local_training()
+    # GNN_server.train_fedSage_plus(config.model.epoch_classifier)
 
 
 if __name__ == "__main__":

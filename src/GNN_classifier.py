@@ -65,7 +65,7 @@ class GNNClassifier(Classifier):
             ModelSpecs(
                 type="MLP",
                 layer_sizes=mlp_layer_sizes,
-                final_activation_function="softmax",
+                final_activation_function="linear",
                 normalization=None,
             ),
         ]
@@ -140,7 +140,7 @@ class GNNClassifier(Classifier):
                 ModelSpecs(
                     type="MLP",
                     layer_sizes=mlp_layer_sizes,
-                    final_activation_function="softmax",
+                    final_activation_function="linear",
                     normalization=None,
                 ),
             ]
@@ -156,7 +156,7 @@ class GNNClassifier(Classifier):
         if dim_in is None:
             dim_in = config.structure_model.num_structural_features
         SPM_layer_sizes = (
-            [config.structure_model.num_structural_features]
+            [dim_in]
             + config.structure_model.MP_structure_layers_sizes
             + [self.num_classes]
         )
@@ -205,28 +205,11 @@ class GNNClassifier(Classifier):
         if self.SFV.requires_grad:
             self.optimizer.add_param_group({"params": self.SFV})
 
-    def get_feature_embeddings(self):
-        h = self.graph.x
-        edge_index = self.graph.edge_index
-        for model in self.feature_model[:-1]:
-            h = self.feature_model.step(model, h, edge_index)
-        return h
-
-    def get_structure_embeddings(self):
-        G = self.structure_model.step(self.SFV)
-        s = self.abar.matmul(G)
-        return s
-
     def get_embeddings(model, x, edge_index=None, a=None):
         H = model(x, edge_index)
         if a is not None:
             H = a.matmul(H)
         return H
-
-    def predict_labels(self, h):
-        edge_index = self.graph.edge_index
-        h = self.feature_model.step(self.feature_model[-1], h, edge_index)
-        return h
 
     def fit(
         self,
@@ -357,7 +340,7 @@ class GNNClassifier(Classifier):
         if self.structure_model is not None:
             self.structure_model.eval()
 
-        y_pred = self.SD_step()
+        y_pred = self.get_prediction()
         y = self.graph.y
         test_mask = self.graph.test_mask
 
@@ -372,7 +355,7 @@ class GNNClassifier(Classifier):
         else:
             return test_loss
 
-    def SD_step(self):
+    def get_prediction(self):
         h = GNNClassifier.get_embeddings(
             self.feature_model,
             self.graph.x,
@@ -401,8 +384,8 @@ class GNNClassifier(Classifier):
 
         return y_pred
 
-    def local_train(self, scale=False):
-        y_pred = self.SD_step()
+    def train_step(self, scale=False):
+        y_pred = self.get_prediction()
         y = self.graph.y
 
         train_mask, val_mask, _ = self.graph.get_masks()

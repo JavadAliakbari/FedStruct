@@ -1,7 +1,6 @@
 from ast import List
 
 import torch
-from torch_geometric.nn import MessagePassing
 from tqdm import tqdm
 
 from src.utils.utils import *
@@ -10,7 +9,6 @@ from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.GNN_classifier import GNNClassifier
 from src.MLP_classifier import MLPClassifier
-from src.structure_predictor import StructurePredictor
 
 config = Config()
 
@@ -25,7 +23,7 @@ class Server(Client):
         logger=None,
     ):
         super().__init__(
-            subgraph_=graph,
+            graph=graph,
             num_classes=num_classes,
             id="Server",
             classifier_type=classifier_type,
@@ -35,24 +33,9 @@ class Server(Client):
         self.clients: List[Client] = []
         self.num_clients = 0
 
-        if self.classifier_type == "GNN":
-            self.sd_predictor = StructurePredictor(
-                id=self.id,
-                edge_index=self.subgraph.get_edges(),
-                node_ids=self.subgraph.node_ids,
-                y=self.subgraph.y,
-                masks=self.subgraph.get_masks(),
-                save_path=self.save_path,
-                logger=logger,
-            )
-
-            self.initialized = False
-
-        # self.subgraph.add_structural_features()
-
     def add_client(self, subgraph):
         client = Client(
-            subgraph_=subgraph,
+            graph=subgraph,
             id=self.num_clients,
             num_classes=self.num_classes,
             classifier_type=self.classifier_type,
@@ -67,82 +50,7 @@ class Server(Client):
         self.clients.clear()
         self.num_clients = 0
 
-    def train_local_classifiers(
-        self,
-        epochs,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-    ):
-        final_result = {}
-        plot_results = {}
-        client: Client
-        for client in self.clients:
-            results = client.train_local_classifier(
-                epochs,
-                propagate_type=propagate_type,
-                log=log,
-                plot=False,
-            )
-            plot_results[f"Client{client.id}"] = results
-
-        average_results = []
-        for i in range(epochs):
-            average_result = {key: 0 for key in results[0].keys()}
-            for client in self.clients:
-                result = plot_results[f"Client{client.id}"][i]
-                for key, val in result.items():
-                    average_result[key] += val * client.num_nodes() / self.num_nodes()
-                average_results.append(average_result)
-
-        if plot:
-            title = f"Average local {self.classifier_type}"
-            plot_metrics(average_results, title=title, save_path=self.save_path)
-
-        average_test_acc = 0
-        for client in self.clients:
-            test_acc = client.test_classifier()
-            final_result[f"Client{client.id}"] = test_acc
-            if log:
-                self.LOGGER.info(f"Client{client.id} test accuracy: {test_acc:0.4f}")
-            average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
-
-        final_result["Average"] = average_test_acc
-        if log:
-            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
-
-        return final_result
-
-    def reset_sd_predictor_parameters(self):
-        self.sd_predictor.reset_parameters()
-
-    def get_sd_predictor_weights(self):
-        return self.sd_predictor.state_dict()
-
-    def set_sd_predictor_weights(self, weights):
-        self.sd_predictor.load_state_dict(weights)
-
-    # def initialize_sd_predictor(self) -> None:
-    #     sd_dims = [
-    #         config.structure_model.num_structural_features
-    #     ] + config.structure_model.structure_layers_size
-
-    #     self.create_local_sd_model(sd_dims)
-    #     server_model = self.get_local_sd_model()
-
-    #     client_models = []
-    #     for client in self.clients:
-    #         client.create_local_sd_model(sd_dims)
-    #         client_models.append(client.get_local_sd_model())
-
-    #     self.sd_predictor.initialize_structural_graph(
-    #         client_models=client_models,
-    #         server_model=server_model,
-    #         sd_layer_size=sd_dims,
-    #         num_classes=self.num_classes,
-    #     )
-
-    def initialize_sd_predictor(
+    def initialize_FL(
         self,
         propagate_type=config.model.propagate_type,
         structure=False,
@@ -159,439 +67,275 @@ class Server(Client):
                 get_structure_embeddings=self.get_structure_embeddings2,
             )
 
-        self.sd_predictor.initialize_structural_graph(
-            client_models=self.clients,
-            server_model=self,
-            propagate_type=propagate_type,
-        )
+        if structure:
+            self.graph.add_structural_features(
+                structure_type=config.structure_model.structure_type,
+                num_structural_features=config.structure_model.num_structural_features,
+            )
+
+            self.set_SFV(self.graph.structural_features)
+
+            if propagate_type == "MP":
+                abar = self.obtain_a()
+
+                self.share_abar(abar)
+                self.set_abar(abar)
+
+                self.share_SFV()
 
         self.initialized = True
 
-    def train(self, mode: bool = True):
-        self.sd_predictor.train(mode)
-        super().train(mode)
-
-    def eval(self):
-        self.sd_predictor.eval()
-        super().eval()
-
-    def get_structure_embeddings(self):
-        return self.sd_predictor.get_structure_embeddings()
-
-    def fit_sd_predictor(self, epochs, bar=False, plot=False, predict=False) -> None:
-        return self.sd_predictor.fit(epochs=epochs, bar=bar, plot=plot, predict=predict)
-
-    def train_sd_predictor(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        bar=True,
-        plot=True,
-        predict=False,
-    ) -> None:
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
+    def obtain_a(self):
+        if config.structure_model.estimate:
+            abar = estimate_a(
+                self.graph.edge_index,
+                self.graph.num_nodes,
+                config.structure_model.mp_layers,
+            )
         else:
-            self.initialize_sd_predictor(propagate_type=propagate_type)
-        return self.fit_sd_predictor(epochs, bar=bar, plot=plot, predict=predict)
+            abar = obtain_a(
+                self.graph.edge_index,
+                self.graph.num_nodes,
+                config.structure_model.mp_layers,
+            )
 
-    def test_sd_predictor(self) -> None:
-        test_acc = self.sd_predictor.test_cls()
-        self.LOGGER.info(f"SD predictor test accuracy: {test_acc}")
+        # abar_ = abar.to_dense().numpy()
+        # abar1_ = abar1.to_dense().numpy()
+        # e = np.mean(np.abs(abar_ - abar1_) ** 2)
+        # print(e)
 
-    def train_FLWA(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-    ):
-        if log:
-            self.LOGGER.info("FLWA starts!")
-        final_result = {}
-        criterion = torch.nn.CrossEntropyLoss()
+        return abar
 
-        self.initialize(propagate_type=propagate_type)
-        self.reset_parameters()
+    def share_abar(self, abar):
+        num_nodes = self.graph.num_nodes
+        row, col, val = abar.coo()
 
         client: Client
         for client in self.clients:
-            client.initialize(propagate_type=propagate_type)
-            client.reset_parameters()
+            nodes = client.get_nodes()
+            node_map = client.graph.node_map
 
-        server_results = []
-        average_results = []
-        if log:
-            bar = tqdm(total=epochs)
-        for epoch in range(epochs):
-            metrics = {}
-            weights = self.state_dict()
-            self.classifier.eval()
-            if self.classifier_type == "GNN":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.step(
-                    x=self.subgraph.x,
-                    y=self.subgraph.y,
-                    edge_index=self.subgraph.edge_index,
-                    model=self.classifier.feature_model,
-                    criterion=criterion,
-                    train_mask=self.subgraph.train_mask,
-                    val_mask=self.subgraph.val_mask,
-                )
-            elif self.classifier_type == "MLP":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.step(
-                    x=self.subgraph.x,
-                    y=self.subgraph.y,
-                    # client.subgraph.edge_index
-                    model=self.classifier.feature_model,
-                    criterion=criterion,
-                    train_mask=self.subgraph.train_mask,
-                    val_mask=self.subgraph.val_mask,
-                )
+            cond = torch.isin(row, nodes)
+            row_i = row[cond]
+            row_i = torch.tensor(itemgetter(*np.array(row_i))(node_map))
+            col_i = col[cond]
+            val_i = val[cond]
+            abar_i = SparseTensor(
+                row=row_i,
+                col=col_i,
+                value=val_i,
+                sparse_sizes=(len(nodes), num_nodes),
+            )
 
-            result = {
-                "Train Loss": round(train_loss.item(), 4),
-                "Train Acc": round(train_acc, 4),
-                "Val Loss": round(val_loss.item(), 4),
-                "Val Acc": round(val_acc, 4),
-                "Epoch": epoch,
-            }
-            server_results.append(result)
+            client.set_abar(abar_i)
 
-            if log:
-                metrics[f"server train acc"] = result["Train Acc"]
-                metrics[f"server val acc"] = result["Val Acc"]
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"FLWA results for client{self.id}:")
-                    self.LOGGER.info(f"{result}")
-
-            for client in self.clients:
-                client.load_state_dict(weights)
-
-            sum_weights = None
-            average_result = {}
-            for client in self.clients:
-                res = client.fit(config.model.epochs_local)
-
-                new_weights = client.state_dict()
-                sum_weights = add_weights(sum_weights, new_weights)
-
-                result = res[-1]
-
-                ratio = client.num_nodes() / self.num_nodes()
-                for key, val in result.items():
-                    if key not in average_result.keys():
-                        average_result[key] = ratio * val
-                    else:
-                        average_result[key] += ratio * val
-
-                if log:
-                    if epoch == epochs - 1:
-                        self.LOGGER.info(f"FLWA results for client{client.id}:")
-                        self.LOGGER.info(f"{result}")
-
-            mean_weights = calc_mean_weights(sum_weights, self.num_clients)
-            self.load_state_dict(mean_weights)
-
-            average_result["Epoch"] = epoch + 1
-            average_results.append(average_result)
-
-            if log:
-                metrics[f"average train acc"] = average_result["Train Acc"]
-                metrics[f"average val acc"] = average_result["Val Acc"]
-                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-                bar.set_postfix(metrics)
-                bar.update()
-
-        test_acc = self.test_classifier()
-        final_result["Server"] = test_acc
-
-        if log:
-            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
-
-        average_test_acc = 0
-        for client in self.clients:
-            test_acc = client.test_classifier()
-            final_result[f"Clinet{client.id}"] = test_acc
-            if log:
-                self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
-            average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
-
-        final_result["Average"] = average_test_acc
-        if log:
-            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
-
-        if plot:
-            title = f"Server FLWA {self.classifier_type}"
-            plot_metrics(server_results, title=title, save_path=self.save_path)
-
-            title = f"Average FLWA {self.classifier_type}"
-            plot_metrics(average_results, title=title, save_path=self.save_path)
-
-        return final_result
-
-    def train_FLGA(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-    ):
-        # return self.model.fit2(self.graph, clients, epochs)
-        self.LOGGER.info("FLGA starts!")
-        final_result = {}
-        self.initialize(propagate_type=propagate_type)
-        self.reset_parameters()
+    def share_weights(self):
+        server_weights = self.state_dict()
 
         client: Client
         for client in self.clients:
-            client.initialize(propagate_type=propagate_type)
-            client.reset_parameters()
+            client.load_state_dict(server_weights)
 
-        classifier = self.classifier.feature_model
-        server_parameters = list(classifier.parameters())
+    def report_results(self, results, framework=""):
+        client: Client
+        for client, result in zip(self.clients, results):
+            client.report_result(result, framework)
 
-        optimizer = torch.optim.Adam(
-            server_parameters,
-            lr=config.model.lr,
-            weight_decay=config.model.weight_decay,
-        )
-        criterion = torch.nn.CrossEntropyLoss()
+    def get_weights(self):
+        pass
 
-        server_results = []
-        average_results = []
+    def create_SFV(self):
+        pass
+
+    def share_SFV(self):
+        SFV = self.graph.structural_features
+
+        client: Client
+        for client in self.clients:
+            client.set_SFV(SFV)
+
+    def share_grads(self, grads):
+        client: Client
+        for client in self.clients:
+            client.set_grads(grads)
+
+        self.set_grads(grads)
+
+    def set_train_mode(self, mode: bool = True):
+        self.train(mode)
+
+        client: Client
+        for client in self.clients:
+            client.train(mode)
+
+    def train_clients(self, scale=False):
+        results = []
+
+        client: Client
+        for client in self.clients:
+            result = client.get_train_results(scale)
+            results.append(result)
+
+        return results
+
+    def test_clients(self):
+        results = {}
+
+        client: Client
+        for client in self.clients:
+            result = client.get_test_results()
+            results[f"Client{client.id}"] = result
+
+        return results
+
+    def report_test_results(self, test_results):
+        for client_id, result in test_results.items():
+            for key, val in result.items():
+                self.LOGGER.info(f"{client_id} {key}: {val:0.4f}")
+
+    def report_average_results(self, test_results, log=True):
+        sum = sum_dictofdicts(test_results)
+        for key, val in sum.items():
+            self.LOGGER.info(f"Average {key}: {val / len(test_results):0.4f}")
+
+    def server_test_report(self, log=True):
+        test_acc = self.test_classifier()
+        if log:
+            self.LOGGER.info(f"Server test: {test_acc:0.4f}")
+
+    def update_models(self):
+        client: Client
+        for client in self.clients:
+            client.update_model()
+
+        self.update_model()
+
+    def reset_trainings(self):
+        self.reset_model()
+        client: Client
+        for client in self.clients:
+            client.reset_model()
+
+    def joint_train_g(
+        self,
+        epochs=config.model.epoch_classifier,
+        propagate_type=config.model.propagate_type,
+        log=True,
+        plot=True,
+        structure=False,
+        FL=True,
+    ):
+        self.LOGGER.info("joint training starts!")
+        # if self.initialized:
+        #     self.reset_sd_predictor_parameters()
+        # else:
+        #     self.initialize_sd_predictor(
+        #         propagate_type=propagate_type, structure=structure
+        #     )
+        self.initialize_FL(propagate_type=propagate_type, structure=structure)
+
+        if FL:
+            self.share_weights()
 
         if log:
-            bar = tqdm(total=epochs)
+            bar = tqdm(total=epochs, position=0)
+
+        average_results = []
         for epoch in range(epochs):
-            # server
-            self.classifier.eval()
-            if self.classifier_type == "GNN":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.step(
-                    x=self.subgraph.x,
-                    y=self.subgraph.y,
-                    edge_index=client.subgraph.edge_index,
-                    model=self.classifier.feature_model,
-                    criterion=criterion,
-                    train_mask=self.subgraph.train_mask,
-                    val_mask=self.subgraph.val_mask,
-                )
-            elif self.classifier_type == "MLP":
-                (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.step(
-                    x=self.subgraph.x,
-                    y=self.subgraph.y,
-                    # edge_index=client.subgraph.edge_index,
-                    model=self.classifier.feature_model,
-                    criterion=criterion,
-                    train_mask=self.subgraph.train_mask,
-                    val_mask=self.subgraph.val_mask,
-                )
+            self.reset_trainings()
 
-            result = {
-                "Train Loss": round(train_loss.item(), 4),
-                "Train Acc": round(train_acc, 4),
-                "Val Loss": round(val_loss.item(), 4),
-                "Val Acc": round(val_acc, 4),
-                "Epoch": epoch,
-            }
-
-            server_results.append(result)
-            metrics = {}
-            if log:
-                metrics[f"server train acc"] = result["Train Acc"]
-                metrics[f"server val acc"] = result["Val Acc"]
-                if epoch == epochs - 1:
-                    self.LOGGER.info(f"FLGA results for client{self.id}:")
-                    self.LOGGER.info(f"{result}")
-
-            optimizer.zero_grad(set_to_none=True)
-            server_weights = classifier.state_dict()
-
-            for client in self.clients:
-                client.eval()
-                client.classifier.zero_grad()
-                client.classifier.feature_model.load_state_dict(server_weights)
-
-            loss_list = torch.zeros(len(self.clients), dtype=torch.float32)
-            self.classifier.zero_grad(set_to_none=True)
-
-            average_result = {}
-            for ind, client in enumerate(self.clients):
-                client.train()
-                if self.classifier_type == "GNN":
-                    (
-                        train_loss,
-                        train_acc,
-                        _,
-                        val_loss,
-                        val_acc,
-                        _,
-                    ) = GNNClassifier.step(
-                        x=client.subgraph.x,
-                        y=client.subgraph.y,
-                        edge_index=client.subgraph.edge_index,
-                        model=client.classifier.feature_model,
-                        criterion=criterion,
-                        train_mask=client.subgraph.train_mask,
-                        val_mask=client.subgraph.val_mask,
-                    )
-                elif self.classifier_type == "MLP":
-                    (
-                        train_loss,
-                        train_acc,
-                        _,
-                        val_loss,
-                        val_acc,
-                        _,
-                    ) = MLPClassifier.step(
-                        x=client.subgraph.x,
-                        y=client.subgraph.y,
-                        # edge_index=client.subgraph.edge_index,
-                        model=client.classifier.feature_model,
-                        criterion=criterion,
-                        train_mask=client.subgraph.train_mask,
-                        val_mask=client.subgraph.val_mask,
-                    )
-                loss_list[ind] = train_loss * client.num_nodes()
-
-                result = {
-                    "Train Loss": round(train_loss.item(), 4),
-                    "Train Acc": round(train_acc, 4),
-                    "Val Loss": round(val_loss.item(), 4),
-                    "Val Acc": round(val_acc, 4),
-                }
-
-                ratio = client.num_nodes() / self.num_nodes()
-                for key, val in result.items():
-                    if key not in average_result.keys():
-                        average_result[key] = ratio * val
-                    else:
-                        average_result[key] += ratio * val
-
-                if log:
-                    if epoch == epochs - 1:
-                        self.LOGGER.info(f"FLGA results for client{client.id}:")
-                        self.LOGGER.info(f"{result}")
-
+            self.set_train_mode()
+            results = self.train_clients(True & FL)
+            average_result = calc_average_result(results)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
+            if FL:
+                clients_grads = get_grads(self.clients)
+                grads = sum_grads(clients_grads, self.num_nodes())
+                self.share_grads(grads)
+
+            self.update_models()
+
             if log:
-                metrics[f"average train acc"] = average_result["Train Acc"]
-                metrics[f"average val acc"] = average_result["Val Acc"]
-                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-                bar.set_postfix(metrics)
+                bar.set_postfix(average_result)
                 bar.update()
 
-            total_loss = loss_list.sum() / self.num_nodes()
-            total_loss.backward()
-            clients_grads = get_grads(self.clients)
-            grads = sum_grads(clients_grads)
-            self.set_grads(grads)
-            optimizer.step()
-            # metrics["Total Loss"] = round(total_loss.item(), 4)
-
-        test_acc = self.test_classifier()
-        final_result["Server"] = test_acc
-        if log:
-            self.LOGGER.info(f"Server test accuracy: {test_acc:0.4f}")
-
-        average_test_acc = 0
-        for client in self.clients:
-            test_acc = client.test_classifier()
-            final_result[f"Clinet{client.id}"] = test_acc
-            if log:
-                self.LOGGER.info(f"Clinet{client.id} test accuracy: {test_acc:0.4f}")
-
-            average_test_acc += test_acc * client.num_nodes() / self.num_nodes()
-
-        final_result["Average"] = average_test_acc
-        if log:
-            self.LOGGER.info(f"Average test accuracy: {average_test_acc:0.4f}")
+                if epoch == epochs - 1:
+                    self.report_results(results, "Joint Training")
 
         if plot:
-            title = f"Server FLGA {self.classifier_type}"
-            plot_metrics(server_results, title=title, save_path=self.save_path)
-
-            title = f"Average FLGA {self.classifier_type}"
+            title = f"Average joint Training G GNN"
             plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        self.server_test_report(log)
+        test_results = self.test_clients()
+        final_result = self.report_test_results(test_results)
+        self.report_average_results(test_results, log)
 
         return final_result
 
-    def train_SD_Server(
+    def joint_train_w(
         self,
         epochs=config.model.epoch_classifier,
         propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
+        structure=False,
+        FL=True,
     ):
+        self.LOGGER.info("joint training starts!")
+        # if self.initialized:
+        #     self.reset_sd_predictor_parameters()
+        # else:
+        #     self.initialize_sd_predictor(
+        #         propagate_type=propagate_type, structure=structure
+        #     )
+        self.initialize_FL(propagate_type=propagate_type, structure=structure)
+
         if log:
-            self.LOGGER.info("SD_Server starts!")
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
-        else:
-            self.initialize_sd_predictor(propagate_type=propagate_type)
-        return self.sd_predictor.train_SD_Server(
-            epochs=epochs,
-            log=log,
-            plot=plot,
-        )
+            bar = tqdm(total=epochs, position=0)
 
-    def train_SDWA(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-    ):
-        self.LOGGER.info("SDWA starts!")
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
-        else:
-            self.initialize_sd_predictor(propagate_type=propagate_type)
-        return self.sd_predictor.train_SDWA(
-            self.clients,
-            epochs=epochs,
-            log=log,
-            plot=plot,
-        )
+        average_results = []
+        for epoch in range(epochs):
+            if FL:
+                self.share_weights()
+            self.reset_trainings()
 
-    def train_SDGA(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-    ):
-        self.LOGGER.info("SDGA starts!")
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
-        else:
-            self.initialize_sd_predictor(propagate_type=propagate_type)
-        return self.sd_predictor.train_SDGA(
-            self.clients,
-            epochs=epochs,
-            log=log,
-            plot=plot,
-        )
+            self.set_train_mode()
+            results = self.train_clients()
+            average_result = calc_average_result(results)
+            average_result["Epoch"] = epoch + 1
+            average_results.append(average_result)
 
-    def train_local_sd(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-    ):
-        self.LOGGER.info("Local SD starts!")
-        if self.initialized:
-            self.reset_sd_predictor_parameters()
-        else:
-            self.initialize_sd_predictor(propagate_type=propagate_type)
-        self.sd_predictor.train_local_sd(
-            self.clients,
-            epochs=epochs,
-            log=log,
-            plot=plot,
-        )
+            if FL:
+                clients_grads = get_grads(self.clients, True)
+                grads = sum_grads(clients_grads)
+                self.share_grads(grads)
+
+            self.update_models()
+
+            if FL:
+                mean_weights = sum_weights(self.clients)
+                self.load_state_dict(mean_weights)
+
+            if log:
+                bar.set_postfix(average_result)
+                bar.update()
+
+                if epoch == epochs - 1:
+                    self.report_results(results, "Joint Training")
+
+        if plot:
+            title = f"Average Joint Training W GNN"
+            plot_metrics(average_results, title=title, save_path=self.save_path)
+
+        self.server_test_report(log)
+        test_results = self.test_clients()
+        final_result = self.report_test_results(test_results)
+        self.report_average_results(test_results, log)
+
+        return final_result
 
     def train_locsages(self, log=True, plot=True):
         client: Client
@@ -644,23 +388,23 @@ class Server(Client):
             self.classifier.eval()
             if self.classifier_type == "GNN":
                 (train_loss, train_acc, _, val_loss, val_acc, _) = GNNClassifier.step(
-                    x=self.subgraph.x,
-                    y=self.subgraph.y,
-                    edge_index=self.subgraph.edge_index,
+                    x=self.graph.x,
+                    y=self.graph.y,
+                    edge_index=self.graph.edge_index,
                     model=self.classifier.feature_model,
                     criterion=criterion,
-                    train_mask=self.subgraph.train_mask,
-                    val_mask=self.subgraph.val_mask,
+                    train_mask=self.graph.train_mask,
+                    val_mask=self.graph.val_mask,
                 )
             elif self.classifier_type == "MLP":
                 (train_loss, train_acc, _, val_loss, val_acc, _) = MLPClassifier.step(
-                    x=self.subgraph.x,
-                    y=self.subgraph.y,
+                    x=self.graph.x,
+                    y=self.graph.y,
                     # client.subgraph.edge_index
                     model=self.classifier.feature_model,
                     criterion=criterion,
-                    train_mask=self.subgraph.train_mask,
-                    val_mask=self.subgraph.val_mask,
+                    train_mask=self.graph.train_mask,
+                    val_mask=self.graph.val_mask,
                 )
 
             result = {
@@ -727,53 +471,3 @@ class Server(Client):
 
         title = f"Average fedsage+ {self.classifier_type}"
         plot_metrics(average_results, title=title, save_path=self.save_path)
-
-    def local_training(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-        structure=False,
-    ):
-        self.LOGGER.info("local training starts!")
-        # if self.initialized:
-        #     self.reset_sd_predictor_parameters()
-        # else:
-        #     self.initialize_sd_predictor(
-        #         propagate_type=propagate_type, structure=structure
-        #     )
-        self.initialize_sd_predictor(propagate_type=propagate_type, structure=structure)
-        return self.sd_predictor.local_training(
-            self.clients,
-            epochs=epochs,
-            propagate_type=propagate_type,
-            log=log,
-            plot=plot,
-            structure=structure,
-        )
-
-    def local_training2(
-        self,
-        epochs=config.model.epoch_classifier,
-        propagate_type=config.model.propagate_type,
-        log=True,
-        plot=True,
-        structure=False,
-    ):
-        self.LOGGER.info("local training starts!")
-        # if self.initialized:
-        #     self.reset_sd_predictor_parameters()
-        # else:
-        #     self.initialize_sd_predictor(
-        #         propagate_type=propagate_type, structure=structure
-        #     )
-        self.initialize_sd_predictor(propagate_type=propagate_type, structure=structure)
-        return self.sd_predictor.local_training2(
-            self.clients,
-            epochs=epochs,
-            propagate_type=propagate_type,
-            log=log,
-            plot=plot,
-            structure=structure,
-        )

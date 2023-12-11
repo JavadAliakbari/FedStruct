@@ -35,7 +35,7 @@ class MLPClassifier(Classifier):
         )
         self.feature_model = MLP(
             layer_sizes=layer_sizes,
-            last_layer="softmax",
+            last_layer="linear",
             dropout=config.model.dropout,
             normalization="layer",
             # normalization="batch",
@@ -228,3 +228,27 @@ class MLPClassifier(Classifier):
             val_acc = calc_f1_score(out.argmax(dim=1), test_y)
 
         return val_acc
+
+    def get_prediction(self):
+        h = self.feature_model(self.data.x)
+        y_pred = torch.nn.functional.softmax(h, dim=1)
+        return y_pred
+
+    def train_step(self, scale=False):
+        y_pred = self.get_prediction()
+        y = self.data.y
+
+        train_mask, val_mask, _ = self.data.get_masks()
+
+        train_loss, train_acc, train_f1_score = calc_metrics(
+            y, y_pred, train_mask, self.criterion
+        )
+        val_loss, val_acc, val_f1_score = calc_metrics(
+            y, y_pred, val_mask, self.criterion
+        )
+
+        if scale:
+            train_loss *= self.data.num_nodes
+        train_loss.backward(retain_graph=True)
+
+        return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
