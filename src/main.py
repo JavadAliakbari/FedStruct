@@ -12,6 +12,7 @@ from torch_geometric.datasets import (
 from torch_geometric.utils import to_undirected, remove_self_loops
 from src.GNN_server import GNNServer
 from src.MLP_server import MLPServer
+from src.fedsage_server import FedSAGEServer
 
 from src.utils.graph import Graph
 from src.utils.logger import get_logger
@@ -150,6 +151,13 @@ def set_up_system():
     for subgraph in subgraphs:
         GNN_server.add_client(subgraph)
 
+    FedSage_server = FedSAGEServer(
+        graph, num_classes, save_path=save_path, logger=_LOGGER
+    )
+
+    for subgraph in subgraphs:
+        FedSage_server.add_client(subgraph)
+
     _LOGGER.info("MLP")
     MLP_server.train_local_model()
     MLP_server.joint_train_g(FL=False)
@@ -164,7 +172,8 @@ def set_up_system():
     GNN_server.joint_train_g(structure=True, FL=True)
     GNN_server.joint_train_w(structure=True, FL=True)
 
-    # GNN_server.train_fedSage_plus(config.model.epoch_classifier)
+    FedSage_server.train_locsages()
+    FedSage_server.train_fedSage_plus()
 
 
 if __name__ == "__main__":

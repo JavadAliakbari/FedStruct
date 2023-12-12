@@ -11,6 +11,7 @@ class Config:
         self.feature_model = FeatureModelConfig(self.config["feature_model"])
         self.structure_model = StructureModelConfig(self.config["structure_model"])
         self.node2vec = Node2VecConfig(self.config["node2vec"])
+        self.fedsage = FedSAGEConfig(self.config["fedsage"])
 
     def load_config(path):
         with open(path) as f:
@@ -100,3 +101,17 @@ class Node2VecConfig:
         self.p = node2vec["p"]
         self.q = node2vec["q"]
         self.show_bar = node2vec["show_bar"]
+
+
+class FedSAGEConfig:
+    def __init__(self, fedsage):
+        self.load_config(fedsage)
+
+    def load_config(self, fedsage):
+        self.neighgen_epochs = fedsage["neighgen_epochs"]
+        self.num_pred = fedsage["num_pred"]
+        self.latent_dim = fedsage["latent_dim"]
+        self.hidden_layer_sizes = fedsage["hidden_layer_sizes"]
+        self.impaired_train_nodes_ratio = fedsage["impaired_train_nodes_ratio"]
+        self.impaired_test_nodes_ratio = fedsage["impaired_test_nodes_ratio"]
+        self.hidden_portion = fedsage["hidden_portion"]

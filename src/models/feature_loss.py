@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from src.utils.config_parser import Config
 
 config = Config()
-config.num_pred = 5
 
 
 def greedy_loss(pred_feats, true_feats, pred_missing):
@@ -17,7 +16,7 @@ def greedy_loss(pred_feats, true_feats, pred_missing):
     with torch.no_grad():
         pred_len = len(pred_feats)
         pred_missing_np = torch.round(pred_missing.detach()).type(torch.int32)
-        pred_missing_np = torch.clip(pred_missing_np, 0, config.num_pred)
+        pred_missing_np = torch.clip(pred_missing_np, 0, config.fedsage.num_pred)
 
         true_missing = np.array([len(true_feature) for true_feature in true_feats])
         array_size = sum(pred_missing_np[true_missing > 0])

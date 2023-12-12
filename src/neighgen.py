@@ -18,6 +18,7 @@ from src.models.models import MendGraph
 from src.models.models import calc_accuracy
 from src.models.models import LocalSage_Plus
 from src.models.feature_loss import greedy_loss
+from src.utils.utils import *
 
 config = Config()
 
@@ -30,8 +31,7 @@ class NeighGen:
         save_path="./",
         logger=None,
     ):
-        self.num_pred = 5
-        # self.num_pred = config.num_pred
+        self.num_pred = config.fedsage.num_pred
         self.id = id
         self.num_classes = num_classes
         self.save_path = save_path
@@ -63,9 +63,11 @@ class NeighGen:
         node_ids,
         edges,
     ):
-        train_portion = 0.6
-        test_portion = 0.2
-        hide_portion = (1 - train_portion - test_portion) * 0.5
+        train_portion = config.fedsage.impaired_train_nodes_ratio
+        test_portion = config.fedsage.impaired_test_nodes_ratio
+        hide_portion = (
+            1 - train_portion - test_portion
+        ) * config.fedsage.hidden_portion
         # hide_portion = (1 - train_portion - test_portion) * config.hidden_portion
         hide_length = int(len(node_ids) * hide_portion)
 
@@ -120,7 +122,7 @@ class NeighGen:
         self.true_features = []
 
         for node_id in self.impaired_graph.node_ids.numpy():
-            subgraph_neighbors = Graph.find_neighbors_(
+            subgraph_neighbors = find_neighbors_(
                 node_id=node_id,
                 edge_index=edges,
             )

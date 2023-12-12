@@ -2,16 +2,12 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import SAGEConv
-from src.models.GNN_models import GNN
 
+from src.models.GNN_models import GNN
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
 
 config = Config()
-config.num_pred = 5
-config.latent_dim = 128
-config.hidden_layer_sizes = [64, 32]
 
 
 def calc_accuracy(pred_y, y):
@@ -28,56 +24,6 @@ def test(model, data: Graph):
     label = data.y[: len(data.test_mask)]
     acc = calc_accuracy(out.argmax(dim=1)[data.test_mask], label[data.test_mask])
     return acc
-
-
-class GraphSAGE(torch.nn.Module):
-    """GraphSAGE"""
-
-    def __init__(self, dim_in, dim_h, dim_out, dropout=0.5, last_layer="softmax"):
-        super().__init__()
-        self.layers = nn.ParameterList()
-        input_layer = SAGEConv(dim_in, dim_h[0])
-        self.layers.append(input_layer)
-        for layer_num in range(len(dim_h) - 1):
-            hidden_layer = SAGEConv(dim_h[layer_num], dim_h[layer_num + 1])
-            self.layers.append(hidden_layer)
-
-        # output_layer = SAGEConv(dim_h[-1],dim_out)
-        output_layer = nn.Linear(dim_h[-1], dim_out)
-        self.layers.append(output_layer)
-
-        self.dropout = dropout
-        self.last_layer = last_layer
-
-    def reset_parameters(self) -> None:
-        for layers in self.layers:
-            layers.reset_parameters()
-
-    def state_dict(self):
-        weights = {}
-        for id, layer in enumerate(self.layers):
-            weights[f"layer{id}"] = layer.state_dict()
-        return weights
-
-    def load_state_dict(self, weights: dict) -> None:
-        for id, layer in enumerate(self.layers):
-            layer.load_state_dict(weights[f"layer{id}"])
-
-    def forward(self, x, edge_index):
-        h = x
-        for layer in self.layers[:-1]:
-            h = layer(h, edge_index).relu()
-            h = F.dropout(h, p=self.dropout, training=self.training)
-
-        out = self.layers[-1](h)
-        # out = self.layers[-1](h, edge_index)
-
-        if self.last_layer == "softmax":
-            return F.softmax(out, dim=1)
-        elif self.last_layer == "relu":
-            return F.relu(out)
-        else:
-            return out
 
 
 class Sampling(nn.Module):
@@ -161,9 +107,13 @@ class MendGraph(nn.Module):
         num_node = len(x)
         predict_missing_nodes = torch.round(predict_missing_nodes).int()
         predict_missing_nodes = torch.clip(
-            predict_missing_nodes, 0, config.num_pred
+            predict_missing_nodes, 0, config.fedsage.num_pred
         ).tolist()
-        predicted_features = predicted_features.view(num_node, config.num_pred, -1)
+        predicted_features = predicted_features.view(
+            num_node,
+            config.fedsage.num_pred,
+            -1,
+        )
         predicted_features = predicted_features.tolist()
         new_added_nodes = 0
 
@@ -292,8 +242,8 @@ class RegModel(nn.Module):
         self.reg_1.load_state_dict(weights["reg1"])
 
     def forward(self, x):
-        # x = F.relu(self.reg_1(x))
-        x = config.num_pred * F.sigmoid(self.reg_1(x))
+        x = F.relu(self.reg_1(x))
+        # x = config.fedsage.num_pred * F.sigmoid(self.reg_1(x))
         return x.squeeze(1)
 
 
@@ -301,7 +251,11 @@ class LocalSage_Plus(nn.Module):
     def __init__(self, feat_shape, node_len, n_classes, node_ids):
         super(LocalSage_Plus, self).__init__()
 
-        layer_sizes = [feat_shape] + config.hidden_layer_sizes + [config.latent_dim]
+        layer_sizes = (
+            [feat_shape]
+            + config.fedsage.hidden_layer_sizes
+            + [config.fedsage.latent_dim]
+        )
         self.encoder_model = GNN(
             layer_sizes=layer_sizes,
             dropout=config.model.dropout,
@@ -317,37 +271,29 @@ class LocalSage_Plus(nn.Module):
         #     last_layer="relu",
         # )
 
-        self.reg_model = RegModel(latent_dim=config.latent_dim)
+        self.reg_model = RegModel(latent_dim=config.fedsage.latent_dim)
 
         self.gen = Gen(
-            latent_dim=config.latent_dim,
+            latent_dim=config.fedsage.latent_dim,
             dropout=config.model.dropout,
-            num_pred=config.num_pred,
+            num_pred=config.fedsage.num_pred,
             feat_shape=feat_shape,
         )
 
         self.mend_graph = MendGraph(
             node_len=node_len,
-            num_pred=config.num_pred,
+            num_pred=config.fedsage.num_pred,
             feat_shape=feat_shape,
             node_ids=node_ids,
         )
 
-        layer_sizes = [feat_shape] + config.hidden_layer_sizes + [n_classes]
+        layer_sizes = [feat_shape] + config.fedsage.hidden_layer_sizes + [n_classes]
         self.classifier = GNN(
             layer_sizes=layer_sizes,
             dropout=config.model.dropout,
             last_layer="softmax",
             normalization="batch",
         )
-
-        # self.classifier = GraphSAGE(
-        #     dim_in=feat_shape,
-        #     dim_h=config.hidden_layer_sizes,
-        #     dim_out=n_classes,
-        #     dropout=config.model.dropout,
-        #     last_layer="softmax",
-        # )
 
     def reset_parameters(self) -> None:
         self.encoder_model.reset_parameters()

@@ -59,3 +59,12 @@ node2vec:
   p: 1
   q: 1
   show_bar: True
+fedsage:
+  neighgen_epochs: 30
+  num_pred: 5
+  latent_dim: 128
+  hidden_layer_sizes: [32]
+  impaired_train_nodes_ratio: 0.6
+  impaired_test_nodes_ratio: 0.2
+  hidden_portion: 0.5
+

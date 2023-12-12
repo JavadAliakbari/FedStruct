@@ -138,7 +138,7 @@ class Client:
 
         test_results = self.get_test_results()
         for key, val in test_results.items():
-            self.LOGGER.info(f"{self.id} {key}: {val:0.4f}")
+            self.LOGGER.info(f"Client {self.id} {key}: {val:0.4f}")
 
         return test_results
 

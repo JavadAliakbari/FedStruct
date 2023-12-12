@@ -1,7 +1,6 @@
 from ast import List
 
 import torch
-from tqdm import tqdm
 from torch_geometric.loader import NeighborLoader
 
 from src.utils.utils import *
@@ -192,13 +191,13 @@ class GNNClassifier(Classifier):
         if self.graph.train_mask is None:
             self.graph.add_masks()
 
-        self.data_loader = NeighborLoader(
-            self.graph,
-            num_neighbors=num_neighbors,
-            batch_size=batch_size,
-            # input_nodes=self.graph.train_mask,
-            shuffle=True,
-        )
+        # self.data_loader = NeighborLoader(
+        #     self.graph,
+        #     num_neighbors=num_neighbors,
+        #     batch_size=batch_size,
+        #     # input_nodes=self.graph.train_mask,
+        #     shuffle=True,
+        # )
 
     def set_SFV(self, SFV):
         self.SFV = deepcopy(SFV)
@@ -210,129 +209,6 @@ class GNNClassifier(Classifier):
         if a is not None:
             H = a.matmul(H)
         return H
-
-    def fit(
-        self,
-        epochs: int,
-        batch=False,
-        plot=False,
-        log=False,
-        type="local",
-    ):
-        if log:
-            bar = tqdm(total=epochs, position=0)
-        res = []
-        if batch:
-            data_loader = self.data_loader
-        else:
-            data_loader = [self.graph]
-        for epoch in range(epochs):
-            (
-                loss,
-                acc,
-                f1_score,
-                val_loss,
-                val_acc,
-                val_f1_score,
-            ) = self.batch_training(data_loader)
-
-            metrics = {
-                "Train Loss": round(loss.item(), 4),
-                "Train Acc": round(acc, 4),
-                "Train F1 Score": round(f1_score, 4),
-                "Val Loss": round(val_loss.item(), 4),
-                "Val Acc": round(val_acc, 4),
-                "Val F1 Score": round(val_f1_score, 4),
-            }
-
-            if log:
-                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-                bar.set_postfix(metrics)
-                bar.update(1)
-
-            metrics["Epoch"] = epoch + 1
-            res.append(metrics)
-
-        if log:
-            self.LOGGER.info(f"{type} classifier for client{self.id}:")
-            self.LOGGER.info(metrics)
-
-        if plot:
-            title = f"Client {self.id} {type} GNN"
-            plot_metrics(res, title=title, save_path=self.save_path)
-
-        return res
-
-    def batch_training(self, data_loader):
-        # Train on batches
-        total_loss = 0
-        total_acc = 0
-        total_f1_score = 0
-        total_val_loss = 0
-        total_val_acc = 0
-        total_val_f1_score = 0
-        train_count = 1e-6
-        val_count = 1e-6
-        self.feature_model.train()
-        for batch in data_loader:
-            if batch.train_mask.any():
-                self.optimizer.zero_grad()
-                (
-                    loss,
-                    acc,
-                    f1_score,
-                    val_loss,
-                    val_acc,
-                    val_f1_score,
-                ) = GNNClassifier.step(
-                    batch.x,
-                    batch.y,
-                    batch.edge_index,
-                    self.feature_model,
-                    self.criterion,
-                    batch.train_mask,
-                    batch.val_mask,
-                )
-                train_count += 1
-
-                total_loss += loss
-                total_acc += acc
-                total_f1_score += f1_score
-                loss.backward()
-                self.optimizer.step()
-
-            if batch.val_mask.any():
-                val_count += 1
-                total_val_loss += val_loss
-                total_val_acc += val_acc
-                total_val_f1_score += val_f1_score
-
-        return (
-            total_loss / train_count,
-            total_acc / train_count,
-            total_f1_score / train_count,
-            total_val_loss / val_count,
-            total_val_acc / val_count,
-            total_val_f1_score / val_count,
-        )
-
-    def step(
-        x,
-        y,
-        edge_index,
-        model: ModelBinder,
-        criterion,
-        train_mask,
-        val_mask,
-    ):
-        y_pred = model(x, edge_index)
-
-        train_loss, train_acc, train_f1_score = calc_metrics(
-            y, y_pred, train_mask, criterion
-        )
-        val_loss, val_acc, val_f1_score = calc_metrics(y, y_pred, val_mask, criterion)
-
-        return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
 
     @torch.no_grad()
     def calc_test_accuracy(self, metric="acc"):
