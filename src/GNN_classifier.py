@@ -1,3 +1,4 @@
+import os
 from ast import List
 
 import torch
@@ -12,7 +13,8 @@ from src.models.GNN_models import (
     ModelSpecs,
 )
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class GNNClassifier(Classifier):
@@ -36,8 +38,8 @@ class GNNClassifier(Classifier):
         self.GNN_structure_embedding = None
         self.get_structure_embeddings_from_server = None
 
-    def reset_client(self):
-        super().reset_client()
+    def reset_classifier(self):
+        super().reset_classifier()
 
         self.GNN_structure_embedding = None
 
@@ -149,6 +151,7 @@ class GNNClassifier(Classifier):
                 {"params": self.structure_model.parameters()}
             )
         else:
+            self.structure_model = None
             self.get_structure_embeddings_from_server = get_structure_embeddings
 
     def set_DGCN_SPM(self, dim_in=None):

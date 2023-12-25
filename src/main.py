@@ -1,3 +1,4 @@
+import os
 import random
 
 import torch
@@ -25,17 +26,19 @@ plt.rcParams["figure.figsize"] = [24, 16]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
 plt.rcParams.update({"figure.max_open_warning": 0})
 
-seed = 4
+seed = 9
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 def log_config(_LOGGER):
     _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
     _LOGGER.info(f"num subgraphs: {config.subgraph.num_subgraphs}")
+    _LOGGER.info(f"random assignment: {config.subgraph.random}")
     _LOGGER.info(f"num Epochs: {config.model.epoch_classifier}")
     _LOGGER.info(f"batch: {config.model.batch}")
     _LOGGER.info(f"batch size: {config.model.batch_size}")
@@ -48,7 +51,6 @@ def log_config(_LOGGER):
     _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
     _LOGGER.info(f"structure mp layers: {config.structure_model.mp_layers}")
     _LOGGER.info(f"feature mp layers: {config.feature_model.mp_layers}")
-    _LOGGER.info(f"sd ratio: {config.structure_model.sd_ratio}")
     if config.model.propagate_type == "GNN":
         _LOGGER.info(
             f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
@@ -61,7 +63,6 @@ def log_config(_LOGGER):
     _LOGGER.info(
         f"num structural features: {config.structure_model.num_structural_features}"
     )
-    _LOGGER.info(f"loss: {config.structure_model.loss}")
     _LOGGER.info(
         f"Train-Test ratio: [{config.subgraph.train_ratio}, {config.subgraph.test_ratio}]"
     )
@@ -139,7 +140,7 @@ def set_up_system():
         test_size=config.subgraph.test_ratio,
     )
 
-    subgraphs = louvain_graph_cut(graph, True)
+    subgraphs = louvain_graph_cut(graph, config.subgraph.random)
 
     MLP_server = MLPServer(graph, num_classes, save_path=save_path, logger=_LOGGER)
 
@@ -172,7 +173,7 @@ def set_up_system():
     GNN_server.joint_train_g(structure=True, FL=True)
     GNN_server.joint_train_w(structure=True, FL=True)
 
-    FedSage_server.train_locsages()
+    # FedSage_server.train_locsages()
     FedSage_server.train_fedSage_plus()
 
 

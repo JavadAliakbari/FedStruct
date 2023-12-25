@@ -1,3 +1,5 @@
+import os
+
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -5,7 +7,8 @@ from torch_geometric.nn.models import Node2Vec
 
 from src.utils.config_parser import Config
 
-config = Config().node2vec
+path = os.environ.get("CONFIG_PATH")
+config = Config(path).node2vec
 
 
 def train(model: Node2Vec, loader, optimizer: torch.optim.SparseAdam):

@@ -1,3 +1,4 @@
+import os
 from ast import List
 
 from src.utils.utils import *
@@ -6,7 +7,8 @@ from src.utils.config_parser import Config
 from src.server import Server
 from src.MLP_client import MLPClient
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class MLPServer(Server, MLPClient):

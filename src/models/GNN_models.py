@@ -1,4 +1,5 @@
-from copy import deepcopy
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -10,7 +11,8 @@ from torch_geometric.utils import add_self_loops
 
 from src.utils.config_parser import Config
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 def calc_accuracy(pred_y, y):
@@ -329,7 +331,6 @@ class MLP(nn.Module):
         self.normalization = normalization
 
         self.layers = self.create_models(layer_sizes)
-        a = 2
         # self.net = nn.Sequential(*self.layers)
 
         # self.default_weights = self.state_dict()
@@ -364,6 +365,8 @@ class MLP(nn.Module):
             layers.append(nn.Softmax(dim=1))
         elif self.last_layer == "relu":
             layers.append(nn.ReLU())
+        elif self.last_layer == "tanh":
+            layers.append(nn.Tanh())
 
         return layers
 

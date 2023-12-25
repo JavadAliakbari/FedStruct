@@ -1,3 +1,4 @@
+import os
 from itertools import cycle
 from collections import defaultdict
 
@@ -12,7 +13,8 @@ from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.utils.plot_graph import plot_graph
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 def plot_communities(graph, community):

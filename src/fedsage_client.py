@@ -1,13 +1,16 @@
-import numpy as np
-from src.GNN_client import GNNClient
+import os
 
+import numpy as np
+
+from src.GNN_client import GNNClient
 from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.neighgen import NeighGen
 from src.models.feature_loss import greedy_loss
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class FedSAGEClient(GNNClient):
@@ -34,17 +37,16 @@ class FedSAGEClient(GNNClient):
             logger=self.LOGGER,
         )
 
-        self.mend_graph = None
-
     def initialize(
         self,
         propagate_type=config.model.propagate_type,
         num_input_features=None,
         **kwargs,
     ) -> None:
-        if self.mend_graph is not None:
+        mend_graph = self.neighgen.get_mend_graph()
+        if mend_graph is not None:
             self.classifier.prepare_data(
-                graph=self.mend_graph,
+                graph=mend_graph,
                 batch_size=config.model.batch_size,
                 num_neighbors=config.model.num_samples,
             )
@@ -71,12 +73,7 @@ class FedSAGEClient(GNNClient):
         self.neighgen.load_state_dict(weights)
 
     def initialize_neighgen(self) -> None:
-        self.neighgen.prepare_data(
-            x=self.graph.x,
-            y=self.graph.y,
-            edges=self.graph.get_edges(),
-            node_ids=self.graph.node_ids,
-        )
+        self.neighgen.prepare_data(self.graph)
         self.neighgen.set_model()
 
     def predict_neighgen(self):
@@ -120,17 +117,22 @@ class FedSAGEClient(GNNClient):
 
         return inter_loss
 
-    def fit_neighgen(self, epochs, inter_client_features_creators: list = []) -> None:
-        self.neighgen.fit(epochs, inter_client_features_creators)
-
-    def train_neighgen(self, inter_client_features_creators: list = []) -> None:
+    def train_neighgen(
+        self,
+        inter_client_features_creators: list = [],
+        log=True,
+        plot=True,
+    ) -> None:
         self.initialize_neighgen()
-        self.fit_neighgen(
-            config.fedsage.neighgen_epochs, inter_client_features_creators
+        self.neighgen.fit(
+            config.fedsage.neighgen_epochs,
+            inter_client_features_creators,
+            log=log,
+            plot=plot,
         )
 
     def create_mend_graph(self):
-        self.mend_graph = self.neighgen.create_mend_graph(self.graph)
+        self.neighgen.create_mend_graph()
 
     def train_locsage(
         self,

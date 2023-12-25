@@ -1,3 +1,5 @@
+import os
+
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -8,7 +10,8 @@ from src.classifier import Classifier
 from src.utils.config_parser import Config
 from src.models.GNN_models import MLP, calc_accuracy, calc_f1_score
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class MLPClassifier(Classifier):

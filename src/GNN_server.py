@@ -1,3 +1,4 @@
+import os
 from ast import List
 
 import torch
@@ -10,7 +11,8 @@ from src.utils.config_parser import Config
 from src.server import Server
 from src.GNN_classifier import GNNClassifier
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class GNNServer(Server, GNNClient):
@@ -46,22 +48,25 @@ class GNNServer(Server, GNNClient):
         self,
         propagate_type=config.model.propagate_type,
         structure=False,
+        structure_type=config.structure_model.structure_type,
     ) -> None:
         self.initialize(
             propagate_type=propagate_type,
             structure=structure,
+            structure_type=structure_type,
         )
         client: GNNClient
         for client in self.clients:
             client.initialize(
                 propagate_type=propagate_type,
                 structure=structure,
+                structure_type=structure_type,
                 get_structure_embeddings=self.get_structure_embeddings2,
             )
 
         if structure:
             self.graph.add_structural_features(
-                structure_type=config.structure_model.structure_type,
+                structure_type=structure_type,
                 num_structural_features=config.structure_model.num_structural_features,
             )
 
@@ -135,12 +140,17 @@ class GNNServer(Server, GNNClient):
         self,
         epochs=config.model.epoch_classifier,
         propagate_type=config.model.propagate_type,
+        FL=True,
+        structure=False,
+        structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
-        structure=False,
-        FL=True,
     ):
-        self.initialize_FL(propagate_type=propagate_type, structure=structure)
+        self.initialize_FL(
+            propagate_type=propagate_type,
+            structure=structure,
+            structure_type=structure_type,
+        )
 
         if FL & structure:
             model_type = "SDGA"
@@ -155,19 +165,28 @@ class GNNServer(Server, GNNClient):
             model_type += "_MP"
 
         return super().joint_train_g(
-            epochs=epochs, log=log, plot=plot, FL=FL, model_type=model_type
+            epochs=epochs,
+            FL=FL,
+            log=log,
+            plot=plot,
+            model_type=model_type,
         )
 
     def joint_train_w(
         self,
         epochs=config.model.epoch_classifier,
         propagate_type=config.model.propagate_type,
+        FL=True,
+        structure=False,
+        structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
-        structure=False,
-        FL=True,
     ):
-        self.initialize_FL(propagate_type=propagate_type, structure=structure)
+        self.initialize_FL(
+            propagate_type=propagate_type,
+            structure=structure,
+            structure_type=structure_type,
+        )
 
         if FL & structure:
             model_type = "SDWA"
@@ -182,5 +201,9 @@ class GNNServer(Server, GNNClient):
             model_type += "_MP"
 
         return super().joint_train_w(
-            epochs=epochs, log=log, plot=plot, FL=FL, model_type=model_type
+            epochs=epochs,
+            FL=FL,
+            log=log,
+            plot=plot,
+            model_type=model_type,
         )

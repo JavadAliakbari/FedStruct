@@ -1,3 +1,4 @@
+import os
 from ast import List
 
 from src.utils.utils import *
@@ -6,7 +7,8 @@ from src.utils.config_parser import Config
 from src.GNN_server import GNNServer
 from src.fedsage_client import FedSAGEClient
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class FedSAGEServer(GNNServer, FedSAGEClient):
@@ -76,7 +78,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
             FL=False,
         )
 
-    def train_fedgen(self):
+    def train_fedgen(self, log=True, plot=True):
         client: FedSAGEClient
         other_client: FedSAGEClient
         for client in self.clients:
@@ -87,7 +89,11 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
                         other_client.create_inter_features
                     )
 
-            client.train_neighgen(inter_client_features_creators)
+            client.train_neighgen(
+                inter_client_features_creators,
+                log=log,
+                plot=plot,
+            )
 
     def train_fedSage_plus(
         self,
@@ -97,11 +103,25 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         plot=True,
     ):
         self.LOGGER.info("FedSage+ starts!")
-        self.train_fedgen()
+        self.train_fedgen(log=log, plot=plot)
         self.create_mend_graphs()
-        self.joint_train_w(
+        res1 = self.joint_train_w(
             epochs=epochs,
             propagate_type=propagate_type,
             log=log,
             plot=plot,
         )
+
+        res2 = self.joint_train_g(
+            epochs=epochs,
+            propagate_type=propagate_type,
+            log=log,
+            plot=plot,
+        )
+
+        results = {
+            "WA": res1,
+            "GA": res2,
+        }
+
+        return results

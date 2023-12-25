@@ -1,19 +1,15 @@
+import os
 import logging
 
-import numpy as np
 from tqdm import tqdm
 from src.classifier import Classifier
 
 from src.utils.utils import *
 from src.utils.config_parser import Config
-from src.utils.graph import Data_, Graph
-from src.GNN_classifier import GNNClassifier
-from src.MLP_classifier import MLPClassifier
-from src.neighgen import NeighGen
-from src.models.feature_loss import greedy_loss
+from src.utils.graph import Graph
 
-config = Config()
-config.num_pred = 5
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class Client:
@@ -152,7 +148,7 @@ class Client:
         self.classifier.update_model()
 
     def reset_model(self):
-        self.classifier.reset_client()
+        self.classifier.reset_classifier()
 
     def train_step(self, scale=False):
         return self.classifier.train_step(scale)

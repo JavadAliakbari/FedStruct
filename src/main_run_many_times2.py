@@ -1,9 +1,11 @@
+import os
 from copy import deepcopy
 import random
 import json
 
 import torch
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from torch_geometric.datasets import (
     TUDataset,
@@ -13,6 +15,9 @@ from torch_geometric.datasets import (
 )
 from torch_geometric.utils import to_undirected, remove_self_loops
 from tqdm import tqdm
+from src.GNN_server import GNNServer
+from src.MLP_server import MLPServer
+from src.fedsage_server import FedSAGEServer
 
 from src.server import Server
 from src.utils.graph import Graph
@@ -32,10 +37,11 @@ random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
-def define_graph():
+def define_graph() -> Graph:
     try:
         dataset = None
         if config.dataset.dataset_name in ["Cora", "PubMed", "CiteSeer"]:
@@ -89,6 +95,7 @@ def define_graph():
             y=dataset[0].y,
             edge_index=edge_index,
             node_ids=node_ids,
+            keep_sfvs=True,
         )
     else:
         num_classes = max(graph.y).item() + 1
@@ -102,280 +109,137 @@ def define_graph():
     return graph
 
 
-def run(
-    graph,
-    MLP_server: Server,
-    degree_server: Server,
-    GDV_server: Server,
-    node2vec_server: Server,
-    random_server: Server,
-):
-    MLP_server.remove_clients()
-    degree_server.remove_clients()
-    GDV_server.remove_clients()
-    node2vec_server.remove_clients()
-    random_server.remove_clients()
+def save_average_result(average_result):
+    final_result = {}
+    for key, val in average_result.items():
+        if "Average" in val.keys():
+            final_result[key] = val["Average"]["Test Acc"]
+        else:
+            final_result[key] = val["Test Acc"]
 
-    subgraphs = louvain_graph_cut(graph)
+    df = pd.DataFrame.from_dict(final_result, orient="index")
+    df.to_csv(f"{save_path}final_result.csv")
+
+
+def run(
+    graph: Graph,
+    MLP_server: MLPServer,
+    GNN_server: GNNServer,
+    FedSage_server: FedSAGEServer,
+    bar: tqdm,
+):
+    graph.add_masks(
+        train_size=config.subgraph.train_ratio, test_size=config.subgraph.test_ratio
+    )
+
+    MLP_server.remove_clients()
+    GNN_server.remove_clients()
+    FedSage_server.remove_clients()
+
+    subgraphs = louvain_graph_cut(graph, config.subgraph.random)
 
     for subgraph in subgraphs:
         MLP_server.add_client(subgraph)
-        degree_server.add_client(subgraph)
-        GDV_server.add_client(subgraph)
-        node2vec_server.add_client(subgraph)
-        random_server.add_client(subgraph)
+        GNN_server.add_client(subgraph)
+        FedSage_server.add_client(subgraph)
 
     result = {}
 
-    MLP_server.train_local_classifier(
-        config.model.epoch_classifier, log=False, plot=False
-    )
-    test_acc = MLP_server.test_classifier()
-    result["server_mlp"] = test_acc
+    res = MLP_server.train_local_model(log=False, plot=False)
+    result["server_mlp"] = res
+    bar.set_postfix_str(f"server_mlp: {res['Test Acc']}")
+    res = MLP_server.joint_train_g(FL=False, log=False, plot=False)
+    result["local_mlp"] = res
+    bar.set_postfix_str(f"local_mlp: {res['Average']['Test Acc']}")
+    res = MLP_server.joint_train_w(FL=True, log=False, plot=False)
+    result["flwa_mlp"] = res
+    bar.set_postfix_str(f"flwa_mlp: {res['Average']['Test Acc']}")
+    res = MLP_server.joint_train_g(FL=True, log=False, plot=False)
+    result["flga_mlp"] = res
+    bar.set_postfix_str(f"flga_mlp: {res['Average']['Test Acc']}")
 
-    result["local_mlp"] = MLP_server.train_local_classifiers(
-        config.model.epoch_classifier, log=False, plot=False
-    )
-    result["flwa_mlp"] = MLP_server.train_FLWA(
-        config.model.epoch_classifier, log=False, plot=False
-    )
-    result["flga_mlp"] = MLP_server.train_FLGA(
-        config.model.epoch_classifier, log=False, plot=False
-    )
+    for propagate_type in ["MP", "GNN"]:
+        res = GNN_server.train_local_model(
+            propagate_type=propagate_type,
+            log=False,
+            plot=False,
+        )
+        result[f"server_{propagate_type}"] = res
+        bar.set_postfix_str(f"server_{propagate_type}: {res['Test Acc']}")
 
-    propagate_type = "MP"
-    degree_server.train_local_classifier(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    test_acc = degree_server.test_classifier()
-    result["server_mp"] = test_acc
+        res = GNN_server.joint_train_g(
+            propagate_type=propagate_type,
+            FL=False,
+            structure=False,
+            log=False,
+            plot=False,
+        )
+        result[f"local_{propagate_type}"] = res
+        bar.set_postfix_str(f"local_{propagate_type}: {res['Average']['Test Acc']}")
 
-    result["local_mp"] = degree_server.train_local_classifiers(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["flwa_mp"] = degree_server.train_FLWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["flga_mp"] = degree_server.train_FLGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
+        res = GNN_server.joint_train_w(
+            propagate_type=propagate_type,
+            FL=True,
+            structure=False,
+            log=False,
+            plot=False,
+        )
+        result[f"flwa_{propagate_type}"] = res
+        bar.set_postfix_str(f"flwa_{propagate_type}: {res['Average']['Test Acc']}")
 
-    propagate_type = "GNN"
-    degree_server.train_local_classifier(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    test_acc = degree_server.test_classifier()
-    result["server_gnn"] = test_acc
-
-    result["local_gnn"] = degree_server.train_local_classifiers(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["flwa_gnn"] = degree_server.train_FLWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["flga_gnn"] = degree_server.train_FLGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-
-    propagate_type = "MP"
-    config.structure_model.structure_type = "degree"
-    degree_server.initialized = False
-    config.structure_model.num_structural_features = 256
-    result["degree_sd_mp"] = degree_server.train_SD_Server(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["degree_sdwa_mp"] = degree_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["degree_sdga_mp"] = degree_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
+        res = GNN_server.joint_train_g(
+            propagate_type=propagate_type,
+            FL=True,
+            structure=False,
+            log=False,
+            plot=False,
+        )
+        result[f"flga_{propagate_type}"] = res
+        bar.set_postfix_str(f"flga_{propagate_type}: {res['Average']['Test Acc']}")
 
     propagate_type = "GNN"
-    degree_server.initialized = False
-    result["degree_sd_gnn"] = degree_server.train_SD_Server(
-        config.model.epoch_classifier,
+    res = FedSage_server.train_fedSage_plus(
         propagate_type=propagate_type,
         log=False,
         plot=False,
     )
-    result["degree_sdwa_gnn"] = degree_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
+    result[f"fedsage+_WA_{propagate_type}"] = res["WA"]
+    bar.set_postfix_str(
+        f"fedsage+_WA_{propagate_type}: {res['WA']['Average']['Test Acc']}"
     )
-    result["degree_sdga_gnn"] = degree_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
+    result[f"fedsage+_GA_{propagate_type}"] = res["GA"]
+    bar.set_postfix_str(
+        f"fedsage+_GA_{propagate_type}: {res['GA']['Average']['Test Acc']}"
     )
 
-    propagate_type = "MP"
-    config.structure_model.structure_type = "GDV"
-    config.structure_model.num_structural_features = 73
-    GDV_server.initialized = False
-    result["GDV_sd_mp"] = GDV_server.train_SD_Server(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["GDV_sdwa_mp"] = GDV_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["GDV_sdga_mp"] = GDV_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
+    # for structure_type in ["random"]:
+    for structure_type in ["degree", "GDV", "node2vec", "random"]:
+        for propagate_type in ["MP", "GNN"]:
+            res = GNN_server.joint_train_w(
+                propagate_type=propagate_type,
+                FL=True,
+                structure=True,
+                structure_type=structure_type,
+                log=False,
+                plot=False,
+            )
+            result[f"{structure_type}_sdwa_{propagate_type}"] = res
+            bar.set_postfix_str(
+                f"{structure_type}_sdwa_{propagate_type}: {res['Average']['Test Acc']}"
+            )
 
-    propagate_type = "GNN"
-    GDV_server.initialized = False
-    result["GDV_sd_gnn"] = GDV_server.train_SD_Server(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["GDV_sdwa_gnn"] = GDV_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["GDV_sdga_gnn"] = GDV_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-
-    propagate_type = "MP"
-    config.structure_model.structure_type = "node2vec"
-    config.structure_model.num_structural_features = 256
-    node2vec_server.initialized = False
-    result["node2vec_sd_mp"] = node2vec_server.train_SD_Server(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["node2vec_sdwa_mp"] = node2vec_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["node2vec_sdga_mp"] = node2vec_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-
-    propagate_type = "GNN"
-    node2vec_server.initialized = False
-    result["node2vec_sd_gnn"] = node2vec_server.train_SD_Server(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["node2vec_sdwa_gnn"] = node2vec_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["node2vec_dga_gnn"] = node2vec_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-
-    propagate_type = "MP"
-    config.structure_model.structure_type = "random"
-    config.structure_model.num_structural_features = 256
-    random_server.initialized = False
-    result["random_sd_mp"] = random_server.train_SD_Server(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["random_sdwa_mp"] = random_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["random_sdga_mp"] = random_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-
-    propagate_type = "GNN"
-    random_server.initialized = False
-    result["random_sd_gnn"] = random_server.train_SD_Server(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["random_sdwa_gnn"] = random_server.train_SDWA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
-    result["random_sdga_gnn"] = random_server.train_SDGA(
-        config.model.epoch_classifier,
-        propagate_type=propagate_type,
-        log=False,
-        plot=False,
-    )
+            res = GNN_server.joint_train_g(
+                propagate_type=propagate_type,
+                FL=True,
+                structure=True,
+                structure_type=structure_type,
+                log=False,
+                plot=False,
+            )
+            result[f"{structure_type}_sdga_{propagate_type}"] = res
+            bar.set_postfix_str(
+                f"{structure_type}_sdga_{propagate_type}: {res['Average']['Test Acc']}"
+            )
 
     return result
 
@@ -409,43 +273,20 @@ if __name__ == "__main__":
 
     log_config(_LOGGER)
 
-    graph = define_graph()
-    MLP_server = Server(
+    graph: Graph = define_graph()
+    MLP_server = MLPServer(
         graph,
         graph.num_classes,
-        classifier_type="MLP",
     )
 
-    config.structure_model.structure_type = "degree"
-    config.structure_model.num_structural_features = 256
-    degree_server = Server(
+    GNN_server = GNNServer(
         graph,
         graph.num_classes,
-        classifier_type="GNN",
     )
 
-    config.structure_model.structure_type = "GDV"
-    config.structure_model.num_structural_features = 73
-    GDV_server = Server(
+    FedSage_server = FedSAGEServer(
         graph,
         graph.num_classes,
-        classifier_type="GNN",
-    )
-
-    config.structure_model.structure_type = "node2vec"
-    config.structure_model.num_structural_features = 256
-    node2vec_server = Server(
-        graph,
-        graph.num_classes,
-        classifier_type="GNN",
-    )
-
-    config.structure_model.structure_type = "random"
-    config.structure_model.num_structural_features = 256
-    random_server = Server(
-        graph,
-        graph.num_classes,
-        classifier_type="GNN",
     )
 
     rep = 10
@@ -456,35 +297,17 @@ if __name__ == "__main__":
         result = run(
             graph,
             MLP_server,
-            degree_server,
-            GDV_server,
-            node2vec_server,
-            random_server,
+            GNN_server,
+            FedSage_server,
+            bar,
         )
         _LOGGER2.info(f"Run id: {i}")
         _LOGGER2.info(json.dumps(result, indent=4))
 
         average_result = calc_average_results(result, average_result, i)
-        # bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-        metrics = {
-            # "local_mlp": average_result["server_mlp"]
-            # "local_mlp": average_result["server_mlp"]
-            # "server": average_result["server_gnn"],
-            # "local": average_result["local_gnn"]["Average"],
-            # "flwa": average_result["flwa_gnn"]["Average"],
-            # "flga": average_result["flga_gnn"]["Average"],
-            # "sd": average_result["sd_gnn"]["Server"],
-            # "sdwa": average_result["sdwa_gnn"]["Average"],
-            # "sdga": average_result["sdga_mp"]["Average"],
-            # "server": average_result["server_mp"],
-            # "local": average_result["local_mp"]["Average"],
-            # "flwa": average_result["flwa_mp"]["Average"],
-            # "flga": average_result["flga_mp"]["Average"],
-            # "sd": average_result["sd_mp"]["Server"],
-            # "sdwa": average_result["sdwa_mp"]["Average"],
-            # "sdga": average_result["sdga_mp"]["Average"],
-        }
-        # bar.set_postfix(metrics)
+        save_average_result(average_result)
         bar.update()
 
     _LOGGER.info(json.dumps(average_result, indent=4))
+
+    save_average_result(average_result)

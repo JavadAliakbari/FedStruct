@@ -112,5 +112,5 @@ class Classifier:
     def update_model(self):
         self.optimizer.step()
 
-    def reset_client(self):
+    def reset_classifier(self):
         self.optimizer.zero_grad()

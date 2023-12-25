@@ -1,3 +1,4 @@
+import os
 from tqdm import tqdm
 
 from src.utils.utils import *
@@ -5,7 +6,8 @@ from src.client import Client
 from src.utils.graph import Graph
 from src.utils.config_parser import Config
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class Server(Client):
@@ -81,15 +83,23 @@ class Server(Client):
             for key, val in result.items():
                 self.LOGGER.info(f"{client_id} {key}: {val:0.4f}")
 
-    def report_average_results(self, test_results, log=True):
-        sum = sum_dictofdicts(test_results)
+    def report_average_results(self, average_result):
+        sum = sum_dictofdicts(average_result)
         for key, val in sum.items():
-            self.LOGGER.info(f"Average {key}: {val / len(test_results):0.4f}")
+            self.LOGGER.info(f"Average {key}: {val / len(average_result):0.4f}")
 
-    def server_test_report(self, log=True):
+    def calc_average_result(self, test_results):
+        sum = sum_dictofdicts(test_results)
+
+        average_result = {}
+        for key, val in sum.items():
+            average_result[key] = round(val / len(test_results), 4)
+
+        return average_result
+
+    def report_server_test(self):
         test_acc = self.test_classifier()
-        if log:
-            self.LOGGER.info(f"Server test: {test_acc:0.4f}")
+        self.LOGGER.info(f"Server test: {test_acc:0.4f}")
 
     def update_models(self):
         client: Client
@@ -107,12 +117,12 @@ class Server(Client):
     def joint_train_g(
         self,
         epochs=config.model.epoch_classifier,
+        FL=True,
         log=True,
         plot=True,
-        FL=True,
         model_type="GNN",
     ):
-        self.LOGGER.info("joint training starts!")
+        self.LOGGER.info(f"{model_type} starts!")
         # if self.initialized:
         #     self.reset_sd_predictor_parameters()
         # else:
@@ -154,12 +164,15 @@ class Server(Client):
             title = f"Average joint Training G {model_type}"
             plot_metrics(average_results, title=title, save_path=self.save_path)
 
-        self.server_test_report(log)
+        if log:
+            self.report_server_test()
         test_results = self.test_clients()
-        final_result = self.report_test_results(test_results)
-        self.report_average_results(test_results, log)
+        average_result = self.calc_average_result(test_results)
+        test_results["Average"] = average_result
+        if log:
+            self.report_test_results(test_results)
 
-        return final_result
+        return test_results
 
     def joint_train_w(
         self,
@@ -169,7 +182,7 @@ class Server(Client):
         FL=True,
         model_type="GNN",
     ):
-        self.LOGGER.info("joint training starts!")
+        self.LOGGER.info(f"{model_type} starts!")
         # if self.initialized:
         #     self.reset_sd_predictor_parameters()
         # else:
@@ -214,9 +227,12 @@ class Server(Client):
             title = f"Average Joint Training W {model_type}"
             plot_metrics(average_results, title=title, save_path=self.save_path)
 
-        self.server_test_report(log)
+        if log:
+            self.report_server_test()
         test_results = self.test_clients()
-        final_result = self.report_test_results(test_results)
-        self.report_average_results(test_results, log)
+        average_result = self.calc_average_result(test_results)
+        test_results["Average"] = average_result
+        if log:
+            self.report_test_results(test_results)
 
-        return final_result
+        return test_results

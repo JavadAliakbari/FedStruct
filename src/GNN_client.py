@@ -1,10 +1,13 @@
+import os
+
 from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.client import Client
 from src.utils.graph import Graph
 from src.GNN_classifier import GNNClassifier
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class GNNClient(Client):
@@ -42,6 +45,7 @@ class GNNClient(Client):
         propagate_type=config.model.propagate_type,
         num_input_features=None,
         structure=False,
+        structure_type=config.structure_model.structure_type,
         get_structure_embeddings=None,
     ) -> None:
         self.classifier.prepare_data(
@@ -56,7 +60,7 @@ class GNNClient(Client):
             self.classifier.set_DGCN_FPM(dim_in=num_input_features)
 
         if structure:
-            if config.structure_model.structure_type != "GDV":
+            if structure_type != "GDV":
                 dim_in = config.structure_model.num_structural_features
             else:
                 dim_in = 73

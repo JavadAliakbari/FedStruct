@@ -1,4 +1,4 @@
-from ast import Dict
+import os
 from copy import deepcopy
 from operator import itemgetter
 
@@ -7,7 +7,7 @@ import numpy as np
 from sklearn import model_selection
 import torch.nn.functional as F
 from torch_geometric.data import Data
-from torch_geometric.typing import OptTensor, Tensor
+from torch_geometric.typing import OptTensor
 from torch_geometric.utils import degree
 from sklearn.preprocessing import StandardScaler, normalize
 from torch_geometric.nn import MessagePassing
@@ -18,7 +18,8 @@ from src.utils.GDV2 import GDV
 from utils.utils import find_neighbors_
 
 
-config = Config().structure_model
+path = os.environ.get("CONFIG_PATH")
+config = Config(path).structure_model
 
 
 class Data_(Data):
@@ -66,6 +67,7 @@ class Graph(Data_):
         y: OptTensor = None,
         pos: OptTensor = None,
         node_ids=None,
+        keep_sfvs=False,
         **kwargs,
     ) -> None:
         if node_ids is None:
@@ -85,6 +87,9 @@ class Graph(Data_):
         self.inv_map = {v: k for k, v in node_map.items()}
 
         self.sfv_initialized = "None"
+        self.keep_sfvs = keep_sfvs
+        if self.keep_sfvs:
+            self.sfvs = {}
 
     def get_edges(self):
         new_edges = np.vstack(
@@ -116,22 +121,43 @@ class Graph(Data_):
     ):
         if (
             self.sfv_initialized
-            != "None"
+            == structure_type
             # and num_structural_features == self.num_structural_features
         ):
             return
 
-        (
-            node_degree,
-            node_neighbors,
-            structural_features,
-            node_negative_samples,
-        ) = Graph.add_structural_features_(
-            self.get_edges(),
-            self.node_ids,
-            structure_type=structure_type,
-            num_structural_features=num_structural_features,
-        )
+        structural_features = None
+        if self.keep_sfvs:
+            if structure_type in self.sfvs.keys():
+                structural_features = self.sfvs[structure_type]
+
+        if structural_features is None:
+            (
+                node_degree,
+                node_neighbors,
+                structural_features,
+                node_negative_samples,
+            ) = Graph.add_structural_features_(
+                self.get_edges(),
+                self.node_ids,
+                structure_type=structure_type,
+                num_structural_features=num_structural_features,
+            )
+            if structure_type in ["degree", "GDV", "node2vec"]:
+                if self.keep_sfvs:
+                    self.sfvs[structure_type] = deepcopy(structural_features)
+        else:
+            (
+                node_degree,
+                node_neighbors,
+                _,
+                node_negative_samples,
+            ) = Graph.add_structural_features_(
+                self.get_edges(),
+                self.node_ids,
+                structure_type="None",
+                num_structural_features=num_structural_features,
+            )
 
         if structure_type in ["degree", "GDV", "node2vec"]:
             self.sfv_initialized = deepcopy(structure_type)
@@ -185,6 +211,8 @@ class Graph(Data_):
             )
         # elif structure_type == "struc2vec":
         #     structural_features = Graph.calc_stuc2vec()
+        else:
+            structural_features = None
 
         return node_degree, node_neighbors, structural_features, node_negative_samples
 
@@ -274,10 +302,16 @@ class Graph(Data_):
 
         return np.array(other_nodes)
 
-    def find_neigbors(self, node_id, include_node=False):
+    def find_neigbors(self, node_id, include_node=False, include_external=False):
+        if include_external and "inter_edges" in self.keys:
+            edges = torch.concat((self.get_edges(), self.inter_edges), dim=1)
+        else:
+            edges = self.get_edges()
+
         return find_neighbors_(
             node_id=node_id,
-            edge_index=self.edge_index,
-            node_map=self.node_map,
+            edge_index=edges,
+            # edge_index=edges,
+            # node_map=self.node_map,
             include_node=include_node,
         )

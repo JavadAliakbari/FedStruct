@@ -10,3 +10,4 @@
 *.log
 *.edgelist
 *.emb
+*results

@@ -18,16 +18,16 @@ model:
   batch: False
   batch_size: 64
   epochs_local: 1
-  lr: 0.002
-  weight_decay: 0.0005
+  lr: 0.001
+  weight_decay: 0.0001
   dropout: 0.5
   gnn_layer_type: "sage"
   propagate_type: "MP"
   epoch_classifier: 30
   metric: "acc"
 feature_model:
-  gnn_layer_sizes: [256]
-  mlp_layer_sizes: [64]
+  gnn_layer_sizes: [128,64]
+  mlp_layer_sizes: [32]
   mp_layers: 3
 structure_model:
   sd_ratio: 0

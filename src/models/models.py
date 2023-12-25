@@ -1,13 +1,16 @@
+import os
+
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.models.GNN_models import GNN
+from src.models.GNN_models import GNN, MLP
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 def calc_accuracy(pred_y, y):
@@ -88,7 +91,52 @@ class MendGraph(nn.Module):
     def load_state_dict(self, weights: dict) -> None:
         pass
 
-    @torch.no_grad()
+    # @torch.no_grad()
+    # def mend_graph(
+    #     x,
+    #     edges,
+    #     predict_missing_nodes,
+    #     predicted_features,
+    #     node_ids=None,
+    # ):
+    #     x = x.tolist()
+    #     edges = edges.tolist()
+    #     if node_ids is None:
+    #         node_ids = list(range(len(x)))
+    #     else:
+    #         node_ids = node_ids.tolist()
+
+    #     max_node_id = max(node_ids) + 1
+    #     num_node = len(x)
+    #     predict_missing_nodes = torch.round(predict_missing_nodes).int()
+    #     predict_missing_nodes = torch.clip(
+    #         predict_missing_nodes, 0, config.fedsage.num_pred
+    #     ).tolist()
+    #     predicted_features = predicted_features.view(
+    #         num_node,
+    #         config.fedsage.num_pred,
+    #         -1,
+    #     )
+    #     predicted_features = predicted_features.tolist()
+    #     new_added_nodes = 0
+
+    #     new_x = []
+    #     for i in range(len(x)):
+    #         for j in range(predict_missing_nodes[i]):
+    #             new_node_id = max_node_id + new_added_nodes
+    #             node_ids.append(new_node_id)
+    #             edges[0] += [node_ids[i], new_node_id]
+    #             edges[1] += [new_node_id, node_ids[i]]
+    #             x.append(predicted_features[i][j])
+    #             new_added_nodes += 1
+
+    #     # all_x = torch.cat((x, new_x))
+    #     x = torch.tensor(np.array(x), dtype=torch.float32)
+    #     # concatenated_x = torch.cat([x, *new_x], dim=0)
+    #     edges = torch.tensor(np.array(edges))
+    #     node_ids = torch.tensor(np.array(node_ids))
+    #     return x, edges, node_ids, new_added_nodes
+
     def mend_graph(
         x,
         edges,
@@ -96,7 +144,7 @@ class MendGraph(nn.Module):
         predicted_features,
         node_ids=None,
     ):
-        x = x.tolist()
+        # x = x.tolist()
         edges = edges.tolist()
         if node_ids is None:
             node_ids = list(range(len(x)))
@@ -104,7 +152,7 @@ class MendGraph(nn.Module):
             node_ids = node_ids.tolist()
 
         max_node_id = max(node_ids) + 1
-        num_node = len(x)
+        num_node = x.shape[0]
         predict_missing_nodes = torch.round(predict_missing_nodes).int()
         predict_missing_nodes = torch.clip(
             predict_missing_nodes, 0, config.fedsage.num_pred
@@ -114,22 +162,24 @@ class MendGraph(nn.Module):
             config.fedsage.num_pred,
             -1,
         )
-        predicted_features = predicted_features.tolist()
+        # predicted_features = predicted_features.tolist()
         new_added_nodes = 0
 
-        for i in range(len(x)):
+        new_x = []
+        for i in range(x.shape[0]):
             for j in range(predict_missing_nodes[i]):
                 new_node_id = max_node_id + new_added_nodes
                 node_ids.append(new_node_id)
                 edges[0] += [node_ids[i], new_node_id]
                 edges[1] += [new_node_id, node_ids[i]]
-                x.append(predicted_features[i][j])
+                new_x.append(predicted_features[i, j].unsqueeze(0))
                 new_added_nodes += 1
 
-        x = torch.tensor(np.array(x), dtype=torch.float32)
+        # all_x = torch.cat((x, new_x))
+        concatenated_x = torch.cat([x, *new_x], dim=0)
         edges = torch.tensor(np.array(edges))
         node_ids = torch.tensor(np.array(node_ids))
-        return x, edges, node_ids, new_added_nodes
+        return concatenated_x, edges, node_ids, new_added_nodes
 
     @torch.no_grad()
     def fill_graph(
@@ -183,68 +233,27 @@ class MendGraph(nn.Module):
         return fill_feats, fill_edges
 
 
-class Gen(nn.Module):
-    def __init__(self, latent_dim, dropout, num_pred, feat_shape):
-        super(Gen, self).__init__()
-        self.num_pred = num_pred
-        self.feat_shape = feat_shape
+class Gen(MLP):
+    # def __init__(self, latent_dim, dropout, num_pred, feat_shape):
+    def __init__(
+        self,
+        layer_sizes,
+        last_layer="softmax",
+        dropout=0.5,
+        normalization=None,
+    ):
+        super().__init__(
+            layer_sizes=layer_sizes,
+            last_layer=last_layer,
+            dropout=dropout,
+            normalization=normalization,
+        )
         self.sample = Sampling()
-
-        self.fc1 = nn.Linear(latent_dim, 256)
-        self.fc2 = nn.Linear(256, 2048)
-        self.fc_flat = nn.Linear(2048, self.num_pred * self.feat_shape)
-
-        self.dropout = dropout
-
-    def reset_parameters(self) -> None:
-        self.fc1.reset_parameters()
-        self.fc2.reset_parameters()
-        self.fc_flat.reset_parameters()
-        self.sample.reset_parameters()
-
-    def state_dict(self):
-        weights = {}
-        weights["fc1"] = self.fc1.state_dict()
-        weights["fc2"] = self.fc2.state_dict()
-        weights["fc_flat"] = self.fc2.state_dict()
-        weights["sample"] = self.sample.state_dict()
-        return weights
-
-    def load_state_dict(self, weights: dict) -> None:
-        self.fc1.load_state_dict(weights["fc1"])
-        self.fc2.load_state_dict(weights["fc2"])
-        self.fc_flat.load_state_dict(weights["fc_flat"])
-        self.sample.load_state_dict(weights["sample"])
 
     def forward(self, x) -> torch.Tensor:
         x = self.sample(x)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.dropout(x, self.dropout, training=self.training)
-        x = torch.tanh(self.fc_flat(x))
+        x = super().forward(x)
         return x
-
-
-class RegModel(nn.Module):
-    def __init__(self, latent_dim):
-        super(RegModel, self).__init__()
-        self.reg_1 = nn.Linear(latent_dim, 1)
-
-    def reset_parameters(self) -> None:
-        self.reg_1.reset_parameters()
-
-    def state_dict(self):
-        weights = {}
-        weights["reg1"] = self.reg_1.state_dict()
-        return weights
-
-    def load_state_dict(self, weights: dict) -> None:
-        self.reg_1.load_state_dict(weights["reg1"])
-
-    def forward(self, x):
-        x = F.relu(self.reg_1(x))
-        # x = config.fedsage.num_pred * F.sigmoid(self.reg_1(x))
-        return x.squeeze(1)
 
 
 class LocalSage_Plus(nn.Module):
@@ -263,21 +272,24 @@ class LocalSage_Plus(nn.Module):
             # normalization="batch",
         )
 
-        # self.encoder_model = GraphSAGE(
-        #     dim_in=feat_shape,
-        #     dim_h=config.hidden_layer_sizes,
-        #     dim_out=config.latent_dim,
-        #     dropout=config.model.dropout,
-        #     last_layer="relu",
-        # )
-
-        self.reg_model = RegModel(latent_dim=config.fedsage.latent_dim)
-
-        self.gen = Gen(
-            latent_dim=config.fedsage.latent_dim,
+        self.reg_model = MLP(
+            layer_sizes=[config.fedsage.latent_dim, 1],
             dropout=config.model.dropout,
-            num_pred=config.fedsage.num_pred,
-            feat_shape=feat_shape,
+            last_layer="relu",
+            normalization="batch",
+        )
+
+        gen_layer_sizes = [
+            config.fedsage.latent_dim,
+            config.fedsage.neighen_feature_gen[0],
+            config.fedsage.neighen_feature_gen[1],
+            config.fedsage.num_pred * feat_shape,
+        ]
+        self.gen = Gen(
+            layer_sizes=gen_layer_sizes,
+            last_layer="tanh",
+            dropout=config.model.dropout,
+            normalization="batch",
         )
 
         self.mend_graph = MendGraph(
@@ -320,7 +332,7 @@ class LocalSage_Plus(nn.Module):
 
     def forward(self, feat, edges):
         x = self.encoder_model(feat, edges)
-        degree = self.reg_model(x)
+        degree = self.reg_model(x).squeeze(1)
         gen_feat = self.gen(x)
         mend_feats, mend_edges, _, _ = MendGraph.mend_graph(
             feat, edges, degree, gen_feat

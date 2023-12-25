@@ -1,3 +1,4 @@
+import os
 from itertools import compress
 import logging
 import time
@@ -20,7 +21,8 @@ from src.models.models import LocalSage_Plus
 from src.models.feature_loss import greedy_loss
 from src.utils.utils import *
 
-config = Config()
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class NeighGen:
@@ -37,38 +39,34 @@ class NeighGen:
         self.save_path = save_path
         self.LOGGER = logger or logging
 
-    def prepare_data(
-        self,
-        x,
-        y,
-        edges,
-        node_ids=None,
-    ):
-        self.impaired_graph = NeighGen.create_impaired_graph(
-            x=x,
-            y=y,
-            edges=edges,
-            node_ids=node_ids,
+        self.original_graph: Graph = None
+        self.impaired_graph: Graph = None
+        self.mend_graph: Graph = None
+
+    def prepare_data(self, graph: Graph):
+        self.original_graph = graph
+        self.impaired_graph = NeighGen.create_impaired_graph(self.original_graph)
+        # self.create_true_missing_features(graph.x, graph.get_edges(), graph.node_ids)
+
+        (
+            self.true_missing,
+            self.true_features,
+        ) = NeighGen.create_true_missing_features(
+            self.original_graph, self.impaired_graph
         )
 
-        self.create_true_missing_features(x=x, edges=edges, node_ids=node_ids)
+    def create_impaired_graph(graph: Graph):
+        node_ids = graph.node_ids
+        edges = graph.get_edges()
+        x = graph.x
+        y = graph.y
+        train_mask, val_mask, test_mask = graph.get_masks()
 
-        # if config.cuda:
-        #     torch.cuda.empty_cache()
-        #     self.impaired_graph.cuda()
-
-    def create_impaired_graph(
-        x,
-        y,
-        node_ids,
-        edges,
-    ):
         train_portion = config.fedsage.impaired_train_nodes_ratio
         test_portion = config.fedsage.impaired_test_nodes_ratio
         hide_portion = (
             1 - train_portion - test_portion
         ) * config.fedsage.hidden_portion
-        # hide_portion = (1 - train_portion - test_portion) * config.hidden_portion
         hide_length = int(len(node_ids) * hide_portion)
 
         hide_nodes = torch.tensor(
@@ -78,30 +76,71 @@ class NeighGen:
                 replace=False,
             )
         )
+
         node_mask = ~torch.isin(node_ids, hide_nodes)
         impaired_nodes = node_ids[node_mask]
-
         impaired_edges = subgraph(impaired_nodes, edges, num_nodes=max(node_ids) + 1)[0]
-
         impaired_x = x[node_mask]
         impaired_y = y[node_mask]
-
-        impaired_train_portion = train_portion * (1 - hide_portion)
-        impaired_test_portion = test_portion * (1 - hide_portion)
+        impaired_train_mask = train_mask[node_mask]
+        impaired_val_mask = val_mask[node_mask]
+        impaired_test_mask = test_mask[node_mask]
 
         impaired_graph = Graph(
             x=impaired_x,
             y=impaired_y,
             edge_index=impaired_edges,
             node_ids=impaired_nodes,
+            train_mask=impaired_train_mask,
+            val_mask=impaired_val_mask,
+            test_mask=impaired_test_mask,
         )
 
-        impaired_graph.add_masks(
-            train_size=impaired_train_portion,
-            test_size=impaired_test_portion,
-        )
+        # impaired_train_portion = train_portion * (1 - hide_portion)
+        # impaired_test_portion = test_portion * (1 - hide_portion)
+
+        # impaired_graph.add_masks(
+        #     train_size=impaired_train_portion,
+        #     test_size=impaired_test_portion,
+        # )
 
         return impaired_graph
+
+    def create_true_missing_features(original_graph: Graph, impaired_graph: Graph):
+        true_missing = []
+        true_features = []
+
+        node_ids = original_graph.node_ids
+
+        for node_id in impaired_graph.node_ids.numpy():
+            subgraph_neighbors = original_graph.find_neigbors(
+                node_id,
+                include_external=config.fedsage.use_inter_connections,
+            )
+            impaired_graph_neighbors = impaired_graph.find_neigbors(node_id)
+            missing_nodes = torch.tensor(
+                np.setdiff1d(
+                    subgraph_neighbors, impaired_graph_neighbors, assume_unique=True
+                )
+            )
+
+            num_missing_neighbors = missing_nodes.shape[0]
+
+            if num_missing_neighbors > 0:
+                if num_missing_neighbors <= config.fedsage.num_pred:
+                    missing_x = original_graph.x[torch.isin(node_ids, missing_nodes)]
+                else:
+                    missing_x = original_graph.x[
+                        torch.isin(node_ids, missing_nodes[: config.fedsage.num_pred])
+                    ]
+            else:
+                missing_x = []
+            true_missing.append(num_missing_neighbors)
+            true_features.append(missing_x)
+        true_missing = torch.tensor(np.array(true_missing), dtype=torch.float32)
+        # self.true_features = torch.tensor(np.array(self.true_features))
+
+        return true_missing, true_features
 
     def set_model(self):
         self.predictor = LocalSage_Plus(
@@ -117,47 +156,21 @@ class NeighGen:
             weight_decay=config.model.weight_decay,
         )
 
-    def create_true_missing_features(self, x, edges, node_ids):
-        self.true_missing = []
-        self.true_features = []
-
-        for node_id in self.impaired_graph.node_ids.numpy():
-            subgraph_neighbors = find_neighbors_(
-                node_id=node_id,
-                edge_index=edges,
-            )
-
-            impaired_graph_neighbors = self.impaired_graph.find_neigbors(node_id)
-            missing_nodes = torch.tensor(
-                np.setdiff1d(subgraph_neighbors, impaired_graph_neighbors)
-            )
-
-            num_missing_neighbors = missing_nodes.shape[0]
-
-            if num_missing_neighbors > 0:
-                if num_missing_neighbors <= self.num_pred:
-                    missing_x = x[torch.isin(node_ids, missing_nodes)]
-                else:
-                    missing_x = x[torch.isin(node_ids, missing_nodes[: self.num_pred])]
-            else:
-                missing_x = []
-            self.true_missing.append(num_missing_neighbors)
-            self.true_features.append(missing_x)
-        self.true_missing = torch.tensor(np.array(self.true_missing))
-        # self.true_features = torch.tensor(np.array(self.true_features))
-
     @torch.no_grad()
-    def create_mend_graph(self, graph: Graph):
+    def create_mend_graph(self):
         pred_missing, pred_features, _ = NeighGen.predict_missing_neigh_(
-            graph.x,
-            graph.edge_index,
+            self.original_graph.x,
+            self.original_graph.edge_index,
             self.predictor,
         )
-        return MendGraph.fill_graph(
-            graph,
+        self.mend_graph = MendGraph.fill_graph(
+            self.original_graph,
             pred_missing,
             pred_features,
         )
+
+    def get_mend_graph(self):
+        return self.mend_graph
 
     def predict_missing_neigh_(
         x,
@@ -209,7 +222,7 @@ class NeighGen:
 
         loss_feat = torch.tensor([0], dtype=torch.float32)
         inter_client_loss = torch.tensor([0], dtype=torch.float32)
-        if loss_missing < 0.5:
+        if loss_missing < 10000:
             true_train_features = list(compress(self.true_features, mask))
 
             loss_feat = greedy_loss(
@@ -283,17 +296,13 @@ class NeighGen:
         )
 
         loss = (
-            loss_train_missing + loss_train_feat + loss_train_client + loss_train_label
+            config.fedsage.a * loss_train_missing
+            + config.fedsage.b * loss_train_feat
+            + config.fedsage.b * loss_train_client
+            + config.fedsage.c * loss_train_label
         ).float()
-        # loss = (
-        #     config.a * loss_train_missing
-        #     + config.b * loss_train_feat
-        #     + config.b * loss_train_client
-        #     + config.c * loss_train_label
-        # ).float()
 
         loss.backward()
-
         optimizer.step()
 
         acc_train_missing, acc_train_label = self.calc_accuracy(
@@ -341,10 +350,14 @@ class NeighGen:
         self,
         epochs,
         inter_client_features_creators: list = [],
+        log=True,
+        plot=True,
     ):
-        self.LOGGER.info(f"Start Neighgen Train for client {self.id}")
+        if log:
+            self.LOGGER.info(f"Start Neighgen Train for client {self.id}")
         res = []
-        bar = tqdm(total=epochs, bar_format="{l_bar}{bar:25}{r_bar}{bar:-10b}")
+        if log:
+            bar = tqdm(total=epochs, bar_format="{l_bar}{bar:25}{r_bar}{bar:-10b}")
         for epoch in range(epochs):
             metrics = self.train_neighgen(
                 self.optimizer,
@@ -357,9 +370,10 @@ class NeighGen:
 
             res.append(metrics)
 
-            bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
-            bar.set_postfix(metrics)
-            bar.update(1)
+            if log:
+                bar.set_description(f"Epoch [{epoch+1}/{epochs}]")
+                bar.set_postfix(metrics)
+                bar.update(1)
 
         # self.trained = True
         if len(inter_client_features_creators) > 0:
@@ -367,50 +381,49 @@ class NeighGen:
         else:
             type = "local"
 
-        self.LOGGER.info(f"{type} for client{self.id}:")
-        self.LOGGER.info(metrics)
+        if log:
+            self.LOGGER.info(f"{type} for client{self.id}:")
+            self.LOGGER.info(metrics)
+        if plot:
+            dataset = pd.DataFrame.from_dict(res)
+            dataset.set_index("Epoch", inplace=True)
+            # plt.figure()
+            dataset[
+                [
+                    "lt",
+                    "lmt",
+                    "lct",
+                    # "lft",
+                    "lmv",
+                    "lcv",
+                    # "lfv",
+                ]
+            ].plot()
+            title = f"Neighgen loss client {self.id}"
+            plt.title(title)
+            plt.savefig(f"{self.save_path}{type} {title}.png")
 
-        dataset = pd.DataFrame.from_dict(res)
-        dataset.set_index("Epoch", inplace=True)
-        # plt.figure()
-        dataset[
-            [
-                "lt",
-                "lmt",
-                "lct",
-                # "lft",
-                "lmv",
-                "lcv",
-                # "lfv",
-            ]
-        ].plot()
-        title = f"Neighgen loss client {self.id}"
-        plt.title(title)
-        plt.savefig(f"{self.save_path}{type} {title}.png")
+            dataset[
+                [
+                    "lft",
+                    "lfv",
+                ]
+            ].plot()
+            title = f"Neighgen Feature loss client {self.id}"
+            plt.title(title)
+            plt.savefig(f"{self.save_path}{type} {title}.png")
 
-        dataset[
-            [
-                "lft",
-                "lfv",
-            ]
-        ].plot()
-        title = f"Neighgen Feature loss client {self.id}"
-        plt.title(title)
-        plt.savefig(f"{self.save_path}{type} {title}.png")
-
-        dataset[
-            [
-                "amt",
-                "act",
-                "amv",
-                "acv",
-            ]
-        ].plot()
-        title = f"Neighgen accuracy Client {self.id}"
-        plt.title(title)
-        plt.savefig(f"{self.save_path}{type} {title}.png")
-
-        self.LOGGER.info("NeighGen Finished!")
+            dataset[
+                [
+                    "amt",
+                    "act",
+                    "amv",
+                    "acv",
+                ]
+            ].plot()
+            title = f"Neighgen accuracy Client {self.id}"
+            plt.title(title)
+            plt.savefig(f"{self.save_path}{type} {title}.png")
 
     def state_dict(self):
         return self.predictor.state_dict()
