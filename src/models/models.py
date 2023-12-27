@@ -13,22 +13,6 @@ path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
 
-def calc_accuracy(pred_y, y):
-    """Calculate accuracy."""
-    return ((pred_y == y).sum() / len(y)).item()
-
-
-@torch.no_grad()
-def test(model, data: Graph):
-    """Evaluate the model on test set and print the accuracy score."""
-    model.eval()
-    out = model(data.x, data.edge_index)
-    # out = out[: len(data.test_mask)]
-    label = data.y[: len(data.test_mask)]
-    acc = calc_accuracy(out.argmax(dim=1)[data.test_mask], label[data.test_mask])
-    return acc
-
-
 class Sampling(nn.Module):
     def __init__(self):
         super(Sampling, self).__init__()
@@ -275,8 +259,9 @@ class LocalSage_Plus(nn.Module):
         self.reg_model = MLP(
             layer_sizes=[config.fedsage.latent_dim, 1],
             dropout=config.model.dropout,
+            # last_layer="softmax",
             last_layer="relu",
-            normalization="batch",
+            # normalization="batch",
         )
 
         gen_layer_sizes = [
@@ -289,7 +274,7 @@ class LocalSage_Plus(nn.Module):
             layer_sizes=gen_layer_sizes,
             last_layer="tanh",
             dropout=config.model.dropout,
-            normalization="batch",
+            # normalization="batch",
         )
 
         self.mend_graph = MendGraph(
@@ -332,6 +317,7 @@ class LocalSage_Plus(nn.Module):
 
     def forward(self, feat, edges):
         x = self.encoder_model(feat, edges)
+        # degree = config.fedsage.num_pred * self.reg_model(x).squeeze(1)
         degree = self.reg_model(x).squeeze(1)
         gen_feat = self.gen(x)
         mend_feats, mend_edges, _, _ = MendGraph.mend_graph(

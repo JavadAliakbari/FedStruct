@@ -145,6 +145,7 @@ class GNNServer(Server, GNNClient):
         structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
+        model_type="",
     ):
         self.initialize_FL(
             propagate_type=propagate_type,
@@ -153,13 +154,13 @@ class GNNServer(Server, GNNClient):
         )
 
         if FL & structure:
-            model_type = "SDGA"
+            model_type += "SDGA"
         elif FL and not structure:
-            model_type = "FLGA GNN"
+            model_type += "FLGA GNN"
         elif not FL and structure:
-            model_type = "LocaL SDGA"
+            model_type += "LocaL SDGA"
         else:
-            model_type = "Local GNN"
+            model_type += "Local GNN"
 
         if propagate_type == "MP":
             model_type += "_MP"
@@ -181,6 +182,7 @@ class GNNServer(Server, GNNClient):
         structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
+        model_type="",
     ):
         self.initialize_FL(
             propagate_type=propagate_type,
@@ -189,13 +191,13 @@ class GNNServer(Server, GNNClient):
         )
 
         if FL & structure:
-            model_type = "SDWA"
+            model_type += "SDWA"
         elif FL and not structure:
-            model_type = "FLWA GNN"
+            model_type += "FLWA GNN"
         elif not FL and structure:
-            model_type = "LocaL SDWA"
+            model_type += "LocaL SDWA"
         else:
-            model_type = "Local GNN"
+            model_type += "Local GNN"
 
         if propagate_type == "MP":
             model_type += "_MP"

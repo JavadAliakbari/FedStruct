@@ -10,12 +10,11 @@ from scipy.sparse import coo_matrix
 import torch
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score
 from torch_sparse import SparseTensor
 from torch_geometric.utils import add_self_loops
 from torch_geometric.utils import degree
 from tqdm import tqdm
-
-from src.models.GNN_models import calc_accuracy, calc_f1_score
 
 plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
@@ -23,40 +22,65 @@ plt.rcParams.update({"figure.max_open_warning": 0})
 plt.rcParams["font.size"] = 20
 
 
+def calc_accuracy(pred_y, y):
+    """Calculate accuracy."""
+    return ((pred_y == y).sum() / len(y)).item()
+
+
+@torch.no_grad()
+def calc_f1_score(pred_y, y):
+    # P = pred_y[y == 1]
+    # Tp = ((P == 1).sum() / len(P)).item()
+
+    f1score = f1_score(
+        pred_y.data,
+        y.data,
+        average="micro",
+        labels=np.unique(pred_y)
+        # pred_y.data, y.data, average="weighted", labels=np.unique(pred_y)
+    )
+    return f1score
+
+
+@torch.no_grad()
+def test(model, data):
+    """Evaluate the model on test set and print the accuracy score."""
+    model.eval()
+    out = model(data.x, data.edge_index)
+    # out = out[: len(data.test_mask)]
+    label = data.y[: len(data.test_mask)]
+    acc = calc_accuracy(out.argmax(dim=1)[data.test_mask], label[data.test_mask])
+    return acc
+
+
 def find_neighbors_(
     node_id: int,
     edge_index: torch.Tensor,
-    node_map: Dict = None,
     include_node=False,
+    flow="undirected",  # could be "undirected", "source_to_target" or "target_to_source"
 ):
-    if node_map is not None:
-        new_node_id = node_map[node_id]
-    else:
-        new_node_id = node_id
-    all_neighbors = np.unique(
-        np.hstack(
-            (
-                edge_index[1, edge_index[0] == new_node_id],
-                edge_index[0, edge_index[1] == new_node_id],
+    if flow == "undirected":
+        all_neighbors = np.unique(
+            np.hstack(
+                (
+                    edge_index[1, edge_index[0] == node_id],
+                    edge_index[0, edge_index[1] == node_id],
+                )
             )
         )
-    )
+    elif flow == "source_to_target":
+        all_neighbors = np.unique(
+            edge_index[0, edge_index[1] == node_id],
+        )
+    elif flow == "target_to_source":
+        all_neighbors = np.unique(
+            edge_index[1, edge_index[0] == node_id],
+        )
 
     if not include_node:
-        all_neighbors = np.setdiff1d(all_neighbors, new_node_id)
+        all_neighbors = np.setdiff1d(all_neighbors, node_id)
 
-    if len(all_neighbors) == 0:
-        return all_neighbors
-
-    if node_map is not None:
-        inv_map = {v: k for k, v in node_map.items()}
-        res = itemgetter(*all_neighbors)(inv_map)
-        if len(all_neighbors) == 1:
-            return [res]
-        else:
-            return list(res)
-    else:
-        return all_neighbors
+    return all_neighbors
 
 
 def plot_metrics(
@@ -145,10 +169,8 @@ def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
     return abar
 
 
-def calc_metrics(y, y_pred, mask, criterion: None):
-    if criterion is None:
-        criterion = torch.nn.CrossEntropyLoss()
-
+def calc_metrics(y, y_pred, mask):
+    criterion = torch.nn.CrossEntropyLoss()
     loss = criterion(y_pred[mask], y[mask])
 
     with torch.no_grad():
@@ -245,5 +267,15 @@ def calc_average_result(results):
     average_result = {}
     for key, val in results_dict.items():
         average_result[key] = mean(val)
+
+    return average_result
+
+
+def calc_average_result2(test_results):
+    sum = sum_dictofdicts(test_results)
+
+    average_result = {}
+    for key, val in sum.items():
+        average_result[key] = round(val / len(test_results), 4)
 
     return average_result

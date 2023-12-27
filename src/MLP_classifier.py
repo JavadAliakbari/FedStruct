@@ -243,12 +243,8 @@ class MLPClassifier(Classifier):
 
         train_mask, val_mask, _ = self.data.get_masks()
 
-        train_loss, train_acc, train_f1_score = calc_metrics(
-            y, y_pred, train_mask, self.criterion
-        )
-        val_loss, val_acc, val_f1_score = calc_metrics(
-            y, y_pred, val_mask, self.criterion
-        )
+        train_loss, train_acc, train_f1_score = calc_metrics(y, y_pred, train_mask)
+        val_loss, val_acc, val_f1_score = calc_metrics(y, y_pred, val_mask)
 
         if scale:
             train_loss *= self.data.num_nodes

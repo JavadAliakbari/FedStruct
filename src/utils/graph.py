@@ -73,6 +73,7 @@ class Graph(Data_):
         if node_ids is None:
             node_ids = np.arange(len(x))
 
+        original_edge_index = edge_index
         node_map, new_edges = Graph.reindex_nodes(node_ids, edge_index)
         super().__init__(
             x=x,
@@ -83,6 +84,7 @@ class Graph(Data_):
             **kwargs,
         )
         self.node_ids = node_ids
+        self.original_edge_index = original_edge_index
         self.node_map = node_map
         self.inv_map = {v: k for k, v in node_map.items()}
 
@@ -92,17 +94,11 @@ class Graph(Data_):
             self.sfvs = {}
 
     def get_edges(self):
-        new_edges = np.vstack(
-            (
-                itemgetter(*np.array(self.edge_index[0]))(self.inv_map),
-                itemgetter(*np.array(self.edge_index[1]))(self.inv_map),
-            )
-        )
-
-        return torch.tensor(new_edges)
+        return self.original_edge_index
 
     def reindex_nodes(nodes, edges):
         node_map = {node.item(): ind for ind, node in enumerate(nodes)}
+
         # node_map = dict.fromkeys(nodes, np.arange(len(nodes)))
         # new_edges = np.vstack((node_map[edges[0, :]], node_map[edges[1, :]]))
         new_edges = np.vstack(
@@ -209,8 +205,6 @@ class Graph(Data_):
             structural_features = Graph.initialize_random_features(
                 size=(len(node_ids), num_structural_features)
             )
-        # elif structure_type == "struc2vec":
-        #     structural_features = Graph.calc_stuc2vec()
         else:
             structural_features = None
 
@@ -245,18 +239,6 @@ class Graph(Data_):
         mp = np.array(mp, dtype=np.float32).transpose([1, 2, 0])
         mp = torch.tensor(mp)
         return mp
-
-    # def calc_stuc2vec():
-    #     with open(f"chameleon.emb", "r") as f:
-    #         lines = []
-    #         for line in f:
-    #             lines.append([float(x) for x in line.split()])
-    #         # lines = f.readlines()
-    #         x = np.zeros((int(lines[0][0]), int(lines[0][1])), dtype=np.float32)
-    #         for line in lines[1:]:
-    #             x[int(line[0])] = np.array(line[1:])
-
-    #     return torch.Tensor(x)
 
     def initialize_random_features(size):
         return torch.normal(
@@ -311,7 +293,5 @@ class Graph(Data_):
         return find_neighbors_(
             node_id=node_id,
             edge_index=edges,
-            # edge_index=edges,
-            # node_map=self.node_map,
             include_node=include_node,
         )

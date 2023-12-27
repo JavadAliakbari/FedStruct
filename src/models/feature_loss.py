@@ -23,10 +23,17 @@ def greedy_loss(pred_feats, true_feats, pred_missing):
         if num_missing == 0 or pred_missing_np[i] == 0:
             continue
 
-        pred = pred_feats[i][: pred_missing_np[i]].unsqueeze(1)
+        pred = pred_feats[i][: pred_missing_np[i]]
         true_features = true_feats[i][:num_missing]
 
-        mse_loss = torch.mean((true_features - pred) ** 2, dim=2)
+        # abs_pred = torch.einsum("ij,ij->i", pred, pred)
+        # abs_true = torch.einsum("kj,kj->k", true_features, true_features)
+        # dot_pred_true = torch.einsum("ij,kj->ik", pred, true_features)
+
+        diff = true_features - pred.unsqueeze(1)
+        mse_loss = torch.einsum("ikj,ikj->ik", diff, diff) / diff.shape[2]
+
+        # mse_loss2 = torch.mean(diff**2, dim=2)
 
         min_mse_values = torch.min(mse_loss, dim=1)[0]
         loss_list += [*min_mse_values]

@@ -24,7 +24,6 @@ class Classifier:
         self.structure_model: Union[None, ModelBinder] = None
         self.SFV: Union[None, torch.Tensor] = None
         self.optimizer = None
-        self.criterion = None
 
     def state_dict(self):
         weights = {}

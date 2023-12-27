@@ -223,9 +223,7 @@ class GNNClassifier(Classifier):
         y = self.graph.y
         test_mask = self.graph.test_mask
 
-        test_loss, test_acc, test_f1_score = calc_metrics(
-            y, y_pred, test_mask, self.criterion
-        )
+        test_loss, test_acc, test_f1_score = calc_metrics(y, y_pred, test_mask)
 
         if metric == "acc":
             return test_acc
@@ -269,12 +267,8 @@ class GNNClassifier(Classifier):
 
         train_mask, val_mask, _ = self.graph.get_masks()
 
-        train_loss, train_acc, train_f1_score = calc_metrics(
-            y, y_pred, train_mask, self.criterion
-        )
-        val_loss, val_acc, val_f1_score = calc_metrics(
-            y, y_pred, val_mask, self.criterion
-        )
+        train_loss, train_acc, train_f1_score = calc_metrics(y, y_pred, train_mask)
+        val_loss, val_acc, val_f1_score = calc_metrics(y, y_pred, val_mask)
 
         if scale:
             train_loss *= self.graph.num_nodes

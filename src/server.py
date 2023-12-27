@@ -88,15 +88,6 @@ class Server(Client):
         for key, val in sum.items():
             self.LOGGER.info(f"Average {key}: {val / len(average_result):0.4f}")
 
-    def calc_average_result(self, test_results):
-        sum = sum_dictofdicts(test_results)
-
-        average_result = {}
-        for key, val in sum.items():
-            average_result[key] = round(val / len(test_results), 4)
-
-        return average_result
-
     def report_server_test(self):
         test_acc = self.test_classifier()
         self.LOGGER.info(f"Server test: {test_acc:0.4f}")
@@ -167,7 +158,7 @@ class Server(Client):
         if log:
             self.report_server_test()
         test_results = self.test_clients()
-        average_result = self.calc_average_result(test_results)
+        average_result = calc_average_result2(test_results)
         test_results["Average"] = average_result
         if log:
             self.report_test_results(test_results)
@@ -230,7 +221,7 @@ class Server(Client):
         if log:
             self.report_server_test()
         test_results = self.test_clients()
-        average_result = self.calc_average_result(test_results)
+        average_result = calc_average_result2(test_results)
         test_results["Average"] = average_result
         if log:
             self.report_test_results(test_results)
