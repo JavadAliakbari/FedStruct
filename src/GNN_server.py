@@ -1,3 +1,4 @@
+from operator import itemgetter
 import os
 from ast import List
 
@@ -72,13 +73,16 @@ class GNNServer(Server, GNNClient):
 
             self.set_SFV(self.graph.structural_features)
 
-            if propagate_type == "MP":
-                abar = self.obtain_a()
+            if propagate_type == "DGCN":
+                if self.graph.abar is None:
+                    abar = self.obtain_a()
+                else:
+                    abar = self.graph.abar
 
                 self.share_abar(abar)
                 self.set_abar(abar)
 
-                self.share_SFV()
+            self.share_SFV()
 
         self.initialized = True
 
@@ -104,6 +108,12 @@ class GNNServer(Server, GNNClient):
         return abar
 
     def share_abar(self, abar):
+        if abar is None:
+            for client in self.clients:
+                client.set_abar(None)
+
+            return
+
         num_nodes = self.graph.num_nodes
         row, col, val = abar.coo()
 
@@ -162,8 +172,8 @@ class GNNServer(Server, GNNClient):
         else:
             model_type += "Local GNN"
 
-        if propagate_type == "MP":
-            model_type += "_MP"
+        if propagate_type == "DGCN":
+            model_type += "_DGCN"
 
         return super().joint_train_g(
             epochs=epochs,
@@ -199,8 +209,8 @@ class GNNServer(Server, GNNClient):
         else:
             model_type += "Local GNN"
 
-        if propagate_type == "MP":
-            model_type += "_MP"
+        if propagate_type == "DGCN":
+            model_type += "_DGCN"
 
         return super().joint_train_w(
             epochs=epochs,

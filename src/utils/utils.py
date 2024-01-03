@@ -1,6 +1,3 @@
-from ast import Dict
-from collections import defaultdict
-from operator import itemgetter
 import os
 from copy import deepcopy
 from statistics import mean
@@ -109,7 +106,6 @@ def plot_metrics(
 
 
 def obtain_a(edge_index, num_nodes, num_layers):
-    # num_nodes = self.num_nodes()
     eye = torch.Tensor.repeat(torch.arange(num_nodes), [2, 1])
     abar = SparseTensor(
         row=eye[0],
@@ -139,8 +135,44 @@ def obtain_a(edge_index, num_nodes, num_layers):
     for _ in range(num_layers):
         abar = adj_hat.matmul(abar)  # Sparse-dense matrix multiplication
 
-    # row, col, v = abar.coo()
     return abar
+
+
+def sparse_matrix_pow(mat, power):
+    # eye = torch.Tensor.repeat(torch.arange(dim), [2, 1])
+    res = deepcopy(mat)
+    current_power = 1
+
+    while current_power < power:
+        if current_power * 2 <= power:
+            res = res.matmul(res)
+            current_power *= 2
+        else:
+            res = res.matmul(mat)
+            current_power += 1
+
+    return res
+
+
+def sparse_matrix_pow2(mat, power, dim):
+    binary = list(bin(power)[2:])
+    binary.reverse()
+    if binary[0] == "0":
+        res = torch.Tensor.repeat(torch.arange(dim), [2, 1])
+        res = SparseTensor(
+            row=res[0],
+            col=res[1],
+            sparse_sizes=(dim, dim),
+        )
+    else:
+        res = deepcopy(mat)
+    powers = deepcopy(mat)
+    for val in binary[1:]:
+        powers = powers.matmul(powers)
+        if val == "1":
+            res = res.matmul(powers)
+
+    return res
 
 
 def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
@@ -181,11 +213,11 @@ def calc_metrics(y, y_pred, mask):
 
 
 def lod2dol(list_of_dicts):
+    if len(list_of_dicts) == 0:
+        return {}
     # convert list of dicts to dict of lists
-    dict_of_lists = defaultdict(
-        list,
-        {key: [d[key] for d in list_of_dicts] for key in set().union(*list_of_dicts)},
-    )
+    keys = list_of_dicts[0].keys()
+    dict_of_lists = {key: [d[key] for d in list_of_dicts] for key in keys}
 
     return dict_of_lists
 
@@ -227,6 +259,7 @@ def calc_mean_weights(sum_weights, count):
 
 def sum_weights(clients):
     sum_weights = None
+
     for client in clients:
         client_weight = client.state_dict()
         sum_weights = add_weights(sum_weights, client_weight)

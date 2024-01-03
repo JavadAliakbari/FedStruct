@@ -70,8 +70,8 @@ class ModelBinder(torch.nn.Module):
                     dropout=config.model.dropout,
                     normalization=model_propertises.normalization,
                 )
-            elif model_propertises.type == "MP":
-                model = MP(
+            elif model_propertises.type == "DGCN":
+                model = DGCN(
                     num_layers=model_propertises.num_layers,
                     last_layer=model_propertises.final_activation_function,
                     aggr="mean",
@@ -120,7 +120,7 @@ class ModelBinder(torch.nn.Module):
         return h
 
 
-class MP(MessagePassing):
+class DGCN(MessagePassing):
     def __init__(
         self,
         aggr="mean",
@@ -131,7 +131,7 @@ class MP(MessagePassing):
         **kwargs,
     ):
         super().__init__(aggr=aggr, **kwargs)
-        self.type_ = "MP"
+        self.type_ = DGCN
         self.num_layers = num_layers
         self.last_layer = last_layer
         self.a = a

@@ -6,11 +6,11 @@ import torch
 import numpy as np
 from sklearn import model_selection
 import torch.nn.functional as F
-from torch_geometric.data import Data
 from torch_geometric.typing import OptTensor
-from torch_geometric.utils import degree
-from sklearn.preprocessing import StandardScaler, normalize
+from torch_geometric.utils import degree, add_self_loops
+from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
+from torch_sparse import SparseTensor
 
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
@@ -22,18 +22,28 @@ path = os.environ.get("CONFIG_PATH")
 config = Config(path).structure_model
 
 
-class Data_(Data):
+class Data:
     def __init__(
         self,
         x: OptTensor = None,
         y: OptTensor = None,
+        dataset_name=None,
         **kwargs,
     ) -> None:
-        super().__init__(
-            x=x,
-            y=y,
-            **kwargs,
-        )
+        # super().__init__(
+        #     x=x,
+        #     y=y,
+        #     **kwargs,
+        # )
+        self.x = x
+        self.y = y
+        self.num_nodes = x.shape[0]
+        self.num_features = x.shape[1]
+        self.dataset_name = dataset_name
+
+        self.train_mask = kwargs.get("train_mask", None)
+        self.test_mask = kwargs.get("val_mask", None)
+        self.val_mask = kwargs.get("test_mask", None)
 
     def get_masks(self):
         return (self.train_mask, self.val_mask, self.test_mask)
@@ -58,7 +68,7 @@ class Data_(Data):
         self.val_mask = ~(self.test_mask | self.train_mask)
 
 
-class Graph(Data_):
+class Graph(Data):
     def __init__(
         self,
         edge_index: OptTensor,
@@ -68,30 +78,37 @@ class Graph(Data_):
         pos: OptTensor = None,
         node_ids=None,
         keep_sfvs=False,
+        dataset_name=None,
         **kwargs,
     ) -> None:
-        if node_ids is None:
-            node_ids = np.arange(len(x))
-
-        original_edge_index = edge_index
-        node_map, new_edges = Graph.reindex_nodes(node_ids, edge_index)
         super().__init__(
             x=x,
             y=y,
-            edge_index=new_edges,
-            edge_attr=edge_attr,
-            pos=pos,
+            # edge_index=new_edges,
+            # edge_attr=edge_attr,
+            # pos=pos,
+            dataset_name=dataset_name,
             **kwargs,
         )
+        if node_ids is None:
+            node_ids = np.arange(len(x))
+
         self.node_ids = node_ids
-        self.original_edge_index = original_edge_index
+        self.original_edge_index = edge_index
+        node_map, new_edges = Graph.reindex_nodes(node_ids, edge_index)
+        self.edge_index = new_edges
         self.node_map = node_map
+        self.edge_attr = edge_attr
+        self.pos = pos
         self.inv_map = {v: k for k, v in node_map.items()}
+        self.num_edges = edge_index.shape[1]
 
         self.sfv_initialized = "None"
         self.keep_sfvs = keep_sfvs
         if self.keep_sfvs:
             self.sfvs = {}
+
+        self.abar = None
 
     def get_edges(self):
         return self.original_edge_index
@@ -99,8 +116,6 @@ class Graph(Data_):
     def reindex_nodes(nodes, edges):
         node_map = {node.item(): ind for ind, node in enumerate(nodes)}
 
-        # node_map = dict.fromkeys(nodes, np.arange(len(nodes)))
-        # new_edges = np.vstack((node_map[edges[0, :]], node_map[edges[1, :]]))
         new_edges = np.vstack(
             (
                 itemgetter(*np.array(edges[0]))(node_map),
@@ -109,6 +124,35 @@ class Graph(Data_):
         )
 
         return node_map, torch.tensor(new_edges)
+
+    def obtain_a(self, num_layers):
+        eye = torch.Tensor.repeat(torch.arange(self.num_nodes), [2, 1])
+
+        edge_index_ = add_self_loops(self.edge_index)[0]
+
+        adj = SparseTensor(
+            row=edge_index_[0],
+            col=edge_index_[1],
+            sparse_sizes=(self.num_nodes, self.num_nodes),
+        )
+
+        node_degree = 1 / degree(edge_index_[0], self.num_nodes).long()
+        D = SparseTensor(
+            row=eye[0],
+            col=eye[1],
+            value=node_degree,
+            sparse_sizes=(self.num_nodes, self.num_nodes),
+        )
+
+        adj_hat = D.matmul(adj)
+
+        self.abar = SparseTensor(
+            row=eye[0],
+            col=eye[1],
+            sparse_sizes=(self.num_nodes, self.num_nodes),
+        )
+        for _ in range(num_layers):
+            self.abar = adj_hat.matmul(self.abar)  # Sparse-dense matrix multiplication
 
     def add_structural_features(
         self,
@@ -135,9 +179,12 @@ class Graph(Data_):
                 node_negative_samples,
             ) = Graph.add_structural_features_(
                 self.get_edges(),
+                self.num_nodes,
                 self.node_ids,
                 structure_type=structure_type,
                 num_structural_features=num_structural_features,
+                dataset_name=self.dataset_name,
+                save=True,
             )
             if structure_type in ["degree", "GDV", "node2vec"]:
                 if self.keep_sfvs:
@@ -150,6 +197,7 @@ class Graph(Data_):
                 node_negative_samples,
             ) = Graph.add_structural_features_(
                 self.get_edges(),
+                self.num_nodes,
                 self.node_ids,
                 structure_type="None",
                 num_structural_features=num_structural_features,
@@ -166,12 +214,17 @@ class Graph(Data_):
 
     def add_structural_features_(
         edge_index,
+        num_nodes=None,
         node_ids=None,
         structure_type="degree",
         num_structural_features=100,
+        dataset_name=None,
+        save=False,
     ):
+        if num_nodes is None:
+            num_nodes = max(torch.flatten(edge_index)) + 1
         if node_ids is None:
-            node_ids = np.arange(max(torch.flatten(edge_index)) + 1)
+            node_ids = np.arange(num_nodes)
         node_neighbors = []
         node_negative_samples = []
         for node_id in node_ids:
@@ -183,19 +236,50 @@ class Graph(Data_):
 
         node_degree = degree(edge_index[0]).long()
 
+        structural_features = None
         if structure_type == "degree":
             structural_features = Graph.calc_degree_features(
-                edge_index, num_structural_features
+                edge_index, num_nodes, num_structural_features
             )
         elif structure_type == "GDV":
-            structural_features = Graph.calc_GDV(edge_index)
+            if dataset_name is not None:
+                path = (
+                    f"models/{dataset_name}/{structure_type}/{structure_type}_model.pkl"
+                )
+                if os.path.exists(path):
+                    structural_features = torch.load(path)
+            if structural_features is None:
+                structural_features = Graph.calc_GDV(edge_index)
+                if save:
+                    if dataset_name is not None:
+                        directory = f"models/{dataset_name}/{structure_type}/"
+                        if not os.path.exists(directory):
+                            os.makedirs(directory)
+                        path = f"{directory}{structure_type}_model.pkl"
+                        torch.save(structural_features, path)
         elif structure_type == "node2vec":
-            structural_features = find_node2vect_embedings(
-                edge_index,
-                embedding_dim=num_structural_features,
-            )
+            if dataset_name is not None:
+                path = (
+                    f"models/{dataset_name}/{structure_type}/{structure_type}_model.pkl"
+                )
+                if os.path.exists(path):
+                    structural_features = torch.load(path)
+            if structural_features is None:
+                structural_features = find_node2vect_embedings(
+                    edge_index,
+                    embedding_dim=num_structural_features,
+                )
+                if save:
+                    if dataset_name is not None:
+                        directory = f"models/{dataset_name}/{structure_type}/"
+                        if not os.path.exists(directory):
+                            os.makedirs(directory)
+                        path = f"{directory}{structure_type}_model.pkl"
+                        torch.save(structural_features, path)
         elif structure_type == "mp":
-            d = Graph.calc_degree_features(edge_index, num_structural_features)
+            d = Graph.calc_degree_features(
+                edge_index, num_nodes, num_structural_features
+            )
             structural_features = Graph.calc_mp(
                 edge_index,
                 d,
@@ -210,8 +294,10 @@ class Graph(Data_):
 
         return node_degree, node_neighbors, structural_features, node_negative_samples
 
-    def calc_degree_features(edge_index, num_structural_features=100):
-        node_degree = degree(edge_index[0]).long()
+    def calc_degree_features(edge_index, num_nodes, num_structural_features=100):
+        node_degree1 = degree(edge_index[0], num_nodes).float()
+        node_degree2 = degree(edge_index[1], num_nodes).float()
+        node_degree = torch.round((node_degree1 + node_degree2) / 2).long()
         clipped_degree = torch.clip(node_degree, 0, num_structural_features - 1)
         structural_features = F.one_hot(clipped_degree, num_structural_features).float()
 

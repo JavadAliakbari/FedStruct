@@ -7,24 +7,17 @@ import torch
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from torch_geometric.datasets import (
-    TUDataset,
-    Planetoid,
-    HeterophilousGraphDataset,
-    WikipediaNetwork,
-)
-from torch_geometric.utils import to_undirected, remove_self_loops
 from tqdm import tqdm
+
+from utils.utils import *
+from src.define_graph import define_graph
 from src.GNN_server import GNNServer
 from src.MLP_server import MLPServer
 from src.fedsage_server import FedSAGEServer
-
-from src.server import Server
 from src.utils.graph import Graph
 from src.utils.logger import get_logger
 from src.utils.config_parser import Config
-from src.utils.graph_partitioning import louvain_graph_cut
-from src.utils.create_graph import create_homophilic_graph2, create_heterophilic_graph2
+from src.utils.graph_partitioning import partition_graph
 from src.main import log_config
 
 # Change plot canvas size
@@ -41,102 +34,25 @@ path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
 
-def define_graph() -> Graph:
-    try:
-        dataset = None
-        if config.dataset.dataset_name in ["Cora", "PubMed", "CiteSeer"]:
-            dataset = Planetoid(
-                root=f"/tmp/{config.dataset.dataset_name}",
-                name=config.dataset.dataset_name,
-            )
-            node_ids = torch.arange(dataset[0].num_nodes)
-            edge_index = dataset[0].edge_index
-            num_classes = dataset.num_classes
-        elif config.dataset.dataset_name in ["chameleon", "crocodile", "squirrel"]:
-            dataset = WikipediaNetwork(
-                root=f"/tmp/{config.dataset.dataset_name}",
-                geom_gcn_preprocess=True,
-                name=config.dataset.dataset_name,
-            )
-            node_ids = torch.arange(dataset[0].num_nodes)
-            edge_index = dataset[0].edge_index
-            num_classes = dataset.num_classes
-        elif config.dataset.dataset_name in [
-            "Roman-empire",
-            "Amazon-ratings",
-            "Minesweeper",
-            "Tolokers",
-            "Questions",
-        ]:
-            dataset = HeterophilousGraphDataset(
-                root=f"/tmp/{config.dataset.dataset_name}",
-                name=config.dataset.dataset_name,
-            )
-        elif config.dataset.dataset_name == "Heterophilic_example":
-            num_patterns = 500
-            graph = create_heterophilic_graph2(num_patterns, use_random_features=True)
-        elif config.dataset.dataset_name == "Homophilic_example":
-            num_patterns = 100
-            graph = create_homophilic_graph2(num_patterns, use_random_features=True)
-
-    except:
-        # _LOGGER.info("dataset name does not exist!")
-        return
-
-    if dataset is not None:
-        node_ids = torch.arange(dataset[0].num_nodes)
-        edge_index = dataset[0].edge_index
-        num_classes = dataset.num_classes
-
-        edge_index = to_undirected(edge_index)
-        edge_index = remove_self_loops(edge_index)[0]
-        graph = Graph(
-            x=dataset[0].x,
-            y=dataset[0].y,
-            edge_index=edge_index,
-            node_ids=node_ids,
-            keep_sfvs=True,
-        )
-    else:
-        num_classes = max(graph.y).item() + 1
-
-    graph.add_masks(
-        train_size=config.subgraph.train_ratio,
-        test_size=config.subgraph.test_ratio,
-    )
-    graph.num_classes = num_classes
-
-    return graph
-
-
-def save_average_result(average_result):
-    final_result = {}
-    for key, val in average_result.items():
-        if "Average" in val.keys():
-            final_result[key] = val["Average"]["Test Acc"]
-        else:
-            final_result[key] = val["Test Acc"]
-
-    df = pd.DataFrame.from_dict(final_result, orient="index")
-    df.to_csv(f"{save_path}final_result.csv")
-
-
 def run(
     graph: Graph,
     MLP_server: MLPServer,
     GNN_server: GNNServer,
     FedSage_server: FedSAGEServer,
     bar: tqdm,
+    epochs=config.model.epoch_classifier,
+    train_ratio=config.subgraph.train_ratio,
+    test_ratio=config.subgraph.test_ratio,
+    num_subgraphs=config.subgraph.num_subgraphs,
+    partitioning=config.subgraph.partitioning,
 ):
-    graph.add_masks(
-        train_size=config.subgraph.train_ratio, test_size=config.subgraph.test_ratio
-    )
+    graph.add_masks(train_size=train_ratio, test_size=test_ratio)
 
     MLP_server.remove_clients()
     GNN_server.remove_clients()
     FedSage_server.remove_clients()
 
-    subgraphs = louvain_graph_cut(graph, config.subgraph.random)
+    subgraphs = partition_graph(graph, num_subgraphs, partitioning)
 
     for subgraph in subgraphs:
         MLP_server.add_client(subgraph)
@@ -145,21 +61,22 @@ def run(
 
     result = {}
 
-    res = MLP_server.train_local_model(log=False, plot=False)
+    res = MLP_server.train_local_model(epochs=epochs, log=False, plot=False)
     result["server_mlp"] = res
     bar.set_postfix_str(f"server_mlp: {res['Test Acc']}")
-    res = MLP_server.joint_train_g(FL=False, log=False, plot=False)
+    res = MLP_server.joint_train_g(epochs=epochs, FL=False, log=False, plot=False)
     result["local_mlp"] = res
     bar.set_postfix_str(f"local_mlp: {res['Average']['Test Acc']}")
-    res = MLP_server.joint_train_w(FL=True, log=False, plot=False)
+    res = MLP_server.joint_train_w(epochs=epochs, FL=True, log=False, plot=False)
     result["flwa_mlp"] = res
     bar.set_postfix_str(f"flwa_mlp: {res['Average']['Test Acc']}")
-    res = MLP_server.joint_train_g(FL=True, log=False, plot=False)
+    res = MLP_server.joint_train_g(epochs=epochs, FL=True, log=False, plot=False)
     result["flga_mlp"] = res
     bar.set_postfix_str(f"flga_mlp: {res['Average']['Test Acc']}")
 
-    for propagate_type in ["MP", "GNN"]:
+    for propagate_type in ["DGCN", "GNN"]:
         res = GNN_server.train_local_model(
+            epochs=epochs,
             propagate_type=propagate_type,
             log=False,
             plot=False,
@@ -168,6 +85,7 @@ def run(
         bar.set_postfix_str(f"server_{propagate_type}: {res['Test Acc']}")
 
         res = GNN_server.joint_train_g(
+            epochs=epochs,
             propagate_type=propagate_type,
             FL=False,
             structure=False,
@@ -178,6 +96,7 @@ def run(
         bar.set_postfix_str(f"local_{propagate_type}: {res['Average']['Test Acc']}")
 
         res = GNN_server.joint_train_w(
+            epochs=epochs,
             propagate_type=propagate_type,
             FL=True,
             structure=False,
@@ -188,6 +107,7 @@ def run(
         bar.set_postfix_str(f"flwa_{propagate_type}: {res['Average']['Test Acc']}")
 
         res = GNN_server.joint_train_g(
+            epochs=epochs,
             propagate_type=propagate_type,
             FL=True,
             structure=False,
@@ -199,6 +119,7 @@ def run(
 
     propagate_type = "GNN"
     res = FedSage_server.train_fedSage_plus(
+        epochs=epochs,
         propagate_type=propagate_type,
         log=False,
         plot=False,
@@ -214,8 +135,9 @@ def run(
 
     # for structure_type in ["random"]:
     for structure_type in ["degree", "GDV", "node2vec", "random"]:
-        for propagate_type in ["MP", "GNN"]:
+        for propagate_type in ["DGCN", "GNN"]:
             res = GNN_server.joint_train_w(
+                epochs=epochs,
                 propagate_type=propagate_type,
                 FL=True,
                 structure=True,
@@ -229,6 +151,7 @@ def run(
             )
 
             res = GNN_server.joint_train_g(
+                epochs=epochs,
                 propagate_type=propagate_type,
                 FL=True,
                 structure=True,
@@ -257,6 +180,40 @@ def calc_average_results(result, average_result, i):
     return average_result
 
 
+def calc_average_std_result(results):
+    results_dict = lod2dol(results)
+
+    average_result = {}
+    for method, res in results_dict.items():
+        dict_of_clients = lod2dol(res)
+        method_results = {}
+        for client_id, vals in dict_of_clients.items():
+            try:
+                final_vals = lod2dol(vals)["Test Acc"]
+            except:
+                final_vals = vals
+            method_results[
+                client_id
+            ] = f"{np.mean(final_vals):0.5f}\u00B1{np.std(final_vals):0.5f}"
+            # method_results[client_id] = [np.mean(final_vals), np.std(final_vals)]
+
+        average_result[method] = method_results
+
+    return average_result
+
+
+def save_average_result(average_result, file_name="results.csv", save_path="./"):
+    final_result = {}
+    for key, val in average_result.items():
+        if "Average" in val.keys():
+            final_result[key] = val["Average"]
+        else:
+            final_result[key] = val["Test Acc"]
+
+    df = pd.DataFrame.from_dict(final_result, orient="index")
+    df.to_csv(f"{save_path}{file_name}")
+
+
 if __name__ == "__main__":
     save_path = f"./results/{config.dataset.dataset_name}/{config.structure_model.structure_type}/average/"
     _LOGGER = get_logger(
@@ -273,26 +230,32 @@ if __name__ == "__main__":
 
     log_config(_LOGGER)
 
-    graph: Graph = define_graph()
+    graph, num_classes = define_graph()
+    graph.add_masks(
+        train_size=config.subgraph.train_ratio,
+        test_size=config.subgraph.test_ratio,
+    )
+
     MLP_server = MLPServer(
         graph,
-        graph.num_classes,
+        num_classes,
     )
 
     GNN_server = GNNServer(
         graph,
-        graph.num_classes,
+        num_classes,
     )
 
     FedSage_server = FedSAGEServer(
         graph,
-        graph.num_classes,
+        num_classes,
     )
 
     rep = 10
     average_result = None
 
     bar = tqdm(total=rep)
+    results = []
     for i in range(rep):
         result = run(
             graph,
@@ -300,14 +263,21 @@ if __name__ == "__main__":
             GNN_server,
             FedSage_server,
             bar,
+            epochs=config.model.epoch_classifier,
+            train_ratio=config.subgraph.train_ratio,
+            test_ratio=config.subgraph.test_ratio,
+            num_subgraphs=config.subgraph.num_subgraphs,
+            partitioning=config.subgraph.partitioning,
         )
         _LOGGER2.info(f"Run id: {i}")
         _LOGGER2.info(json.dumps(result, indent=4))
 
-        average_result = calc_average_results(result, average_result, i)
-        save_average_result(average_result)
+        results.append(result)
+
+        average_result = calc_average_std_result(results)
+
+        file_name = f"{save_path}final_result.csv"
+        save_average_result(average_result, file_name)
         bar.update()
 
     _LOGGER.info(json.dumps(average_result, indent=4))
-
-    save_average_result(average_result)

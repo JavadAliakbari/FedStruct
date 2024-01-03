@@ -114,12 +114,6 @@ class Server(Client):
         model_type="GNN",
     ):
         self.LOGGER.info(f"{model_type} starts!")
-        # if self.initialized:
-        #     self.reset_sd_predictor_parameters()
-        # else:
-        #     self.initialize_sd_predictor(
-        #         propagate_type=propagate_type, structure=structure
-        #     )
 
         if FL:
             self.share_weights()
@@ -152,7 +146,7 @@ class Server(Client):
                     self.report_results(results, "Joint Training")
 
         if plot:
-            title = f"Average joint Training G {model_type}"
+            title = f"Average joint Training {model_type}"
             plot_metrics(average_results, title=title, save_path=self.save_path)
 
         if log:
@@ -174,12 +168,6 @@ class Server(Client):
         model_type="GNN",
     ):
         self.LOGGER.info(f"{model_type} starts!")
-        # if self.initialized:
-        #     self.reset_sd_predictor_parameters()
-        # else:
-        #     self.initialize_sd_predictor(
-        #         propagate_type=propagate_type, structure=structure
-        #     )
 
         if log:
             bar = tqdm(total=epochs, position=0)
@@ -215,7 +203,7 @@ class Server(Client):
                     self.report_results(results, "Joint Training")
 
         if plot:
-            title = f"Average Joint Training W {model_type}"
+            title = f"Average Joint Training {model_type}"
             plot_metrics(average_results, title=title, save_path=self.save_path)
 
         if log:

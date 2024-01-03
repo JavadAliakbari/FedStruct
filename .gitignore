@@ -11,3 +11,4 @@
 *.edgelist
 *.emb
 *results
+*.pkl

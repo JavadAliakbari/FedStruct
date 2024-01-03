@@ -111,5 +111,11 @@ class Classifier:
     def update_model(self):
         self.optimizer.step()
 
-    def reset_classifier(self):
+    def reset(self):
         self.optimizer.zero_grad()
+
+    def restart(self):
+        self.feature_model = None
+        self.structure_model = None
+        self.SFV = None
+        self.optimizer = None

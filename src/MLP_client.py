@@ -2,7 +2,7 @@ import os
 
 from src.utils.utils import *
 from src.utils.config_parser import Config
-from src.utils.graph import Data_
+from src.utils.graph import Data
 from src.client import Client
 from src.MLP_classifier import MLPClassifier
 
@@ -13,7 +13,7 @@ config = Config(path)
 class MLPClient(Client):
     def __init__(
         self,
-        graph: Data_,
+        graph: Data,
         num_classes,
         id: int = 0,
         save_path="./",
@@ -39,6 +39,7 @@ class MLPClient(Client):
         self,
         dim_in=None,
     ):
+        self.classifier.restart()
         self.classifier.prepare_data(
             data=self.graph,
             batch_size=config.model.batch_size,

@@ -37,7 +37,7 @@ class SubgraphConfig:
         self.delta = subgraph["delta"]
         self.train_ratio = subgraph["train_ratio"]
         self.test_ratio = subgraph["test_ratio"]
-        self.random = subgraph["random"]
+        self.partitioning = subgraph["partitioning"]
 
 
 class ModelConfig:
@@ -65,6 +65,7 @@ class FeatureModelConfig:
     def load_config(self, feature_model):
         self.gnn_layer_sizes = feature_model["gnn_layer_sizes"]
         self.mlp_layer_sizes = feature_model["mlp_layer_sizes"]
+        self.desicion_layer_sizes = feature_model["desicion_layer_sizes"]
         self.mp_layers = feature_model["mp_layers"]
 
 

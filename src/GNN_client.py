@@ -48,6 +48,7 @@ class GNNClient(Client):
         structure_type=config.structure_model.structure_type,
         get_structure_embeddings=None,
     ) -> None:
+        self.classifier.restart()
         self.classifier.prepare_data(
             graph=self.graph,
             batch_size=config.model.batch_size,
@@ -56,7 +57,7 @@ class GNNClient(Client):
 
         if propagate_type == "GNN":
             self.classifier.set_GNN_FPM(dim_in=num_input_features)
-        elif propagate_type == "MP":
+        elif propagate_type == "DGCN":
             self.classifier.set_DGCN_FPM(dim_in=num_input_features)
 
         if structure:
@@ -70,7 +71,7 @@ class GNNClient(Client):
                     dim_in=dim_in,
                     get_structure_embeddings=get_structure_embeddings,
                 )
-            elif propagate_type == "MP":
+            elif propagate_type == "DGCN":
                 self.classifier.set_DGCN_SPM(dim_in=dim_in)
 
     def train_local_model(

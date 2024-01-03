@@ -38,10 +38,17 @@ class GNNClassifier(Classifier):
         self.GNN_structure_embedding = None
         self.get_structure_embeddings_from_server = None
 
-    def reset_classifier(self):
-        super().reset_classifier()
+    def reset(self):
+        super().reset()
 
         self.GNN_structure_embedding = None
+
+    def restart(self):
+        super().restart()
+        self.abar = None
+        self.abar_i = None
+        self.GNN_structure_embedding = None
+        self.get_structure_embeddings_from_server = None
 
     def set_GNN_FPM(self, dim_in=None):
         if dim_in is None:
@@ -80,12 +87,14 @@ class GNNClassifier(Classifier):
             weight_decay=config.model.weight_decay,
         )
 
+        self.abar_i = None
+
     def set_DGCN_FPM(self, dim_in=None):
         if dim_in is None:
             dim_in = self.graph.num_features
 
         mlp_layer_sizes = (
-            [dim_in] + config.feature_model.mlp_layer_sizes + [self.num_classes]
+            [dim_in] + config.feature_model.desicion_layer_sizes + [self.num_classes]
         )
 
         model_specs = [
@@ -154,6 +163,8 @@ class GNNClassifier(Classifier):
             self.structure_model = None
             self.get_structure_embeddings_from_server = get_structure_embeddings
 
+        self.abar = None
+
     def set_DGCN_SPM(self, dim_in=None):
         if dim_in is None:
             dim_in = config.structure_model.num_structural_features
@@ -167,7 +178,7 @@ class GNNClassifier(Classifier):
                 type="MLP",
                 layer_sizes=SPM_layer_sizes,
                 final_activation_function="linear",
-                normalization="batch",
+                normalization="layer",
             )
         ]
 
@@ -189,8 +200,6 @@ class GNNClassifier(Classifier):
         num_neighbors: List = [5, 10],
     ):
         self.graph = graph
-        if "train_mask" not in self.graph.keys:
-            self.graph.add_masks()
         if self.graph.train_mask is None:
             self.graph.add_masks()
 

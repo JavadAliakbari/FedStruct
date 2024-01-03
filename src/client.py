@@ -148,7 +148,7 @@ class Client:
         self.classifier.update_model()
 
     def reset_model(self):
-        self.classifier.reset_classifier()
+        self.classifier.reset()
 
     def train_step(self, scale=False):
         return self.classifier.train_step(scale)

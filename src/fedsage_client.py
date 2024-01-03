@@ -59,7 +59,7 @@ class FedSAGEClient(GNNClient):
         # self.classifier.set_GNN_FPM(dim_in=num_input_features)
         if propagate_type == "GNN":
             self.classifier.set_GNN_FPM(dim_in=num_input_features)
-        elif propagate_type == "MP":
+        elif propagate_type == "DGCN":
             self.classifier.set_DGCN_FPM(dim_in=num_input_features)
 
     def initialize_neighgen(self) -> None:
