@@ -118,10 +118,11 @@ def plot_metrics(
 
 
 def obtain_a(edge_index, num_nodes, num_layers):
-    if dev == "mps":
-        local_dev = "cpu"
-    else:
-        local_dev = dev
+    # if dev == "mps":
+    #     local_dev = "cpu"
+    # else:
+    #     local_dev = dev
+    local_dev = "cpu"
 
     vals = torch.ones(num_nodes, dtype=torch.float32, device=local_dev)
     eye = torch.Tensor.repeat(torch.arange(num_nodes, device=local_dev), [2, 1])
@@ -160,6 +161,8 @@ def obtain_a(edge_index, num_nodes, num_layers):
     # t2 = time.time()
     # print("Finished...........................")
     # print(f"total time: {t2-t1}")
+
+    abar = abar.to(dev)
     return abar
 
 

@@ -50,18 +50,18 @@ if __name__ == "__main__":
         num_classes,
     )
 
-    rep = 25
+    rep = 10
 
-    for partitioning in [config.subgraph.partitioning]:
-        # for partitioning in ["random", "louvian", "kmeans"]:
-        for num_subgraphs in [config.subgraph.num_subgraphs]:
-            # for num_subgraphs in [5, 10, 20]:
-            # for train_ratio in [config.subgraph.train_ratio]:
-            for train_ratio in np.arange(0.1, 0.65, 0.05):
-                # test_ratio = config.subgraph.test_ratio
-                test_ratio = (1 - train_ratio) / 2
-                # epochs = config.model.epoch_classifier
-                epochs = int(train_ratio * 100 + 30)
+    # for partitioning in [config.subgraph.partitioning]:
+    for partitioning in ["random", "louvian", "kmeans"]:
+        # for num_subgraphs in [config.subgraph.num_subgraphs]:
+        for num_subgraphs in [5, 10, 20]:
+            for train_ratio in [config.subgraph.train_ratio]:
+                # for train_ratio in np.arange(0.1, 0.65, 0.05):
+                test_ratio = config.subgraph.test_ratio
+                # test_ratio = (1 - train_ratio) / 2
+                epochs = config.model.epoch_classifier
+                # epochs = int(train_ratio * 100 + 30)
 
                 save_path = (
                     "./results/Paper Results/"
