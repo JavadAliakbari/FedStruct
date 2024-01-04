@@ -15,18 +15,18 @@ model:
   weight_decay: 0.0005
   dropout: 0.7
   gnn_layer_type: sage
-  propagate_type: GNN
+  propagate_type: DGCN
   epoch_classifier: 40
   metric: acc
 feature_model:
   gnn_layer_sizes: [128,64]
   desicion_layer_sizes: [64]
   mlp_layer_sizes: [64]
-  mp_layers: 2
+  DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64, 32]
   MP_structure_layers_size: [256]
-  mp_layers: 10
+  DGCN_layers: 10
   # structure_type: degree
   # structure_type: GDV
   structure_type: random

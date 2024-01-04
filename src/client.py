@@ -32,7 +32,6 @@ class Client:
 
         self.LOGGER.info(f"Client{self.id} statistics:")
         self.LOGGER.info(f"Number of nodes: {self.graph.num_nodes}")
-        self.LOGGER.info(f"Number of features: {self.graph.num_features}")
 
         self.classifier: Classifier = None
 
@@ -70,10 +69,8 @@ class Client:
         (
             train_loss,
             train_acc,
-            train_f1_score,
             val_loss,
             val_acc,
-            val_f1_score,
         ) = self.train_step(scale)
 
         result = {

@@ -33,7 +33,7 @@ config = Config(path)
 
 if __name__ == "__main__":
     graph, num_classes = define_graph(config.dataset.dataset_name)
-    graph.obtain_a(config.structure_model.mp_layers)
+    graph.obtain_a(config.structure_model.DGCN_layers)
 
     MLP_server = MLPServer(
         graph,

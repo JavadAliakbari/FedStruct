@@ -66,7 +66,7 @@ class FeatureModelConfig:
         self.gnn_layer_sizes = feature_model["gnn_layer_sizes"]
         self.mlp_layer_sizes = feature_model["mlp_layer_sizes"]
         self.desicion_layer_sizes = feature_model["desicion_layer_sizes"]
-        self.mp_layers = feature_model["mp_layers"]
+        self.DGCN_layers = feature_model["DGCN_layers"]
 
 
 class StructureModelConfig:
@@ -76,7 +76,7 @@ class StructureModelConfig:
     def load_config(self, structure_model):
         self.GNN_structure_layers_sizes = structure_model["GNN_structure_layers_sizes"]
         self.MP_structure_layers_sizes = structure_model["MP_structure_layers_size"]
-        self.mp_layers = structure_model["mp_layers"]
+        self.DGCN_layers = structure_model["DGCN_layers"]
         self.structure_type = structure_model["structure_type"]
         self.num_structural_features = structure_model["num_structural_features"]
         self.estimate = structure_model["estimate"]

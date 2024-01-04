@@ -15,7 +15,10 @@ from torch_sparse import SparseTensor
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.GDV2 import GDV
-from utils.utils import find_neighbors_
+from utils.utils import find_neighbors_, obtain_a
+
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
 
 
 path = os.environ.get("CONFIG_PATH")
@@ -115,44 +118,21 @@ class Graph(Data):
 
     def reindex_nodes(nodes, edges):
         node_map = {node.item(): ind for ind, node in enumerate(nodes)}
+        new_edges = edges.to("cpu").numpy()
 
         new_edges = np.vstack(
             (
-                itemgetter(*np.array(edges[0]))(node_map),
-                itemgetter(*np.array(edges[1]))(node_map),
+                itemgetter(*new_edges[0])(node_map),
+                itemgetter(*new_edges[1])(node_map),
             )
         )
 
-        return node_map, torch.tensor(new_edges)
+        new_edges = torch.tensor(new_edges, device=edges.device)
+
+        return node_map, new_edges
 
     def obtain_a(self, num_layers):
-        eye = torch.Tensor.repeat(torch.arange(self.num_nodes), [2, 1])
-
-        edge_index_ = add_self_loops(self.edge_index)[0]
-
-        adj = SparseTensor(
-            row=edge_index_[0],
-            col=edge_index_[1],
-            sparse_sizes=(self.num_nodes, self.num_nodes),
-        )
-
-        node_degree = 1 / degree(edge_index_[0], self.num_nodes).long()
-        D = SparseTensor(
-            row=eye[0],
-            col=eye[1],
-            value=node_degree,
-            sparse_sizes=(self.num_nodes, self.num_nodes),
-        )
-
-        adj_hat = D.matmul(adj)
-
-        self.abar = SparseTensor(
-            row=eye[0],
-            col=eye[1],
-            sparse_sizes=(self.num_nodes, self.num_nodes),
-        )
-        for _ in range(num_layers):
-            self.abar = adj_hat.matmul(self.abar)  # Sparse-dense matrix multiplication
+        self.abar = obtain_a(self.edge_index, self.num_nodes, num_layers)
 
     def add_structural_features(
         self,
@@ -174,9 +154,9 @@ class Graph(Data):
         if structural_features is None:
             (
                 node_degree,
-                node_neighbors,
+                # node_neighbors,
                 structural_features,
-                node_negative_samples,
+                # node_negative_samples,
             ) = Graph.add_structural_features_(
                 self.get_edges(),
                 self.num_nodes,
@@ -192,9 +172,9 @@ class Graph(Data):
         else:
             (
                 node_degree,
-                node_neighbors,
+                # node_neighbors,
                 _,
-                node_negative_samples,
+                # node_negative_samples,
             ) = Graph.add_structural_features_(
                 self.get_edges(),
                 self.num_nodes,
@@ -208,8 +188,8 @@ class Graph(Data):
 
         self.structural_features = structural_features
         self.degree = node_degree
-        self.node_neighbors = node_neighbors
-        self.negative_samples = node_negative_samples
+        # self.node_neighbors = node_neighbors
+        # self.negative_samples = node_negative_samples
         self.num_structural_features = num_structural_features
 
     def add_structural_features_(
@@ -225,14 +205,12 @@ class Graph(Data):
             num_nodes = max(torch.flatten(edge_index)) + 1
         if node_ids is None:
             node_ids = np.arange(num_nodes)
-        node_neighbors = []
-        node_negative_samples = []
-        for node_id in node_ids:
-            neighbors = find_neighbors_(node_id, edge_index)
-            negative_samples = Graph.find_negative_samples(node_ids, neighbors)
+        # node_neighbors = []
+        # # node_negative_samples = []
+        # for node_id in node_ids:
+        #     neighbors = find_neighbors_(node_id, edge_index)
 
-            node_neighbors.append(neighbors)
-            node_negative_samples.append(negative_samples)
+        #     node_neighbors.append(neighbors)
 
         node_degree = degree(edge_index[0]).long()
 
@@ -292,7 +270,7 @@ class Graph(Data):
         else:
             structural_features = None
 
-        return node_degree, node_neighbors, structural_features, node_negative_samples
+        return node_degree, structural_features
 
     def calc_degree_features(edge_index, num_nodes, num_structural_features=100):
         node_degree1 = degree(edge_index[0], num_nodes).float()
@@ -364,14 +342,8 @@ class Graph(Data):
 
         return class_groups, negative_class_groups
 
-    def find_negative_samples(node_ids, neighbors):
-        neighbor_nodes_mask = np.isin(node_ids, neighbors)
-        other_nodes = node_ids[~neighbor_nodes_mask]
-
-        return np.array(other_nodes)
-
-    def find_neigbors(self, node_id, include_node=False, include_external=False):
-        if include_external and "inter_edges" in self.keys:
+    def find_neighbors(self, node_id, include_node=False, include_external=False):
+        if include_external:
             edges = torch.concat((self.get_edges(), self.inter_edges), dim=1)
         else:
             edges = self.get_edges()

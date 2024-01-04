@@ -43,8 +43,8 @@ def log_config(_LOGGER):
     _LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
     _LOGGER.info(f"desicion_layer_sizes: {config.feature_model.desicion_layer_sizes}")
     _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
-    _LOGGER.info(f"structure DGCN layers: {config.structure_model.mp_layers}")
-    _LOGGER.info(f"feature DGCN layers: {config.feature_model.mp_layers}")
+    _LOGGER.info(f"structure DGCN layers: {config.structure_model.DGCN_layers}")
+    _LOGGER.info(f"feature DGCN layers: {config.feature_model.DGCN_layers}")
     if config.model.propagate_type == "GNN":
         _LOGGER.info(
             f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
@@ -74,7 +74,7 @@ def set_up_system(save_path="./"):
     graph, num_classes = define_graph(config.dataset.dataset_name)
 
     if config.model.propagate_type == "DGCN":
-        graph.obtain_a(config.structure_model.mp_layers)
+        graph.obtain_a(config.structure_model.DGCN_layers)
 
     graph.add_masks(
         train_size=config.subgraph.train_ratio,

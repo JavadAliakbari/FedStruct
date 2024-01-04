@@ -28,6 +28,8 @@ class Server(Client):
         self.clients = None
         self.num_clients = 0
 
+        self.LOGGER.info(f"Number of features: {self.graph.num_features}")
+
     def remove_clients(self):
         self.clients.clear()
         self.num_clients = 0

@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 from statistics import mean
+import time
 import numpy as np
 from scipy.sparse import coo_matrix
 
@@ -10,13 +11,22 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
 from torch_sparse import SparseTensor
 from torch_geometric.utils import add_self_loops
-from torch_geometric.utils import degree
+from torch_geometric.utils import degree, k_hop_subgraph
 from tqdm import tqdm
+
 
 plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
 plt.rcParams.update({"figure.max_open_warning": 0})
 plt.rcParams["font.size"] = 20
+
+if torch.cuda.is_available():
+    dev = "cuda:0"
+elif torch.backends.mps.is_available():
+    dev = "mps"
+else:
+    dev = "cpu"
+os.environ["device"] = dev
 
 
 def calc_accuracy(pred_y, y):
@@ -33,7 +43,7 @@ def calc_f1_score(pred_y, y):
         pred_y.data,
         y.data,
         average="micro",
-        labels=np.unique(pred_y)
+        labels=torch.unique(pred_y)
         # pred_y.data, y.data, average="weighted", labels=np.unique(pred_y)
     )
     return f1score
@@ -57,8 +67,8 @@ def find_neighbors_(
     flow="undirected",  # could be "undirected", "source_to_target" or "target_to_source"
 ):
     if flow == "undirected":
-        all_neighbors = np.unique(
-            np.hstack(
+        all_neighbors = torch.unique(
+            torch.hstack(
                 (
                     edge_index[1, edge_index[0] == node_id],
                     edge_index[0, edge_index[1] == node_id],
@@ -66,16 +76,18 @@ def find_neighbors_(
             )
         )
     elif flow == "source_to_target":
-        all_neighbors = np.unique(
+        all_neighbors = torch.unique(
             edge_index[0, edge_index[1] == node_id],
         )
+        all_neighbors = k_hop_subgraph(node_id, 1, edge_index, flow=flow)
     elif flow == "target_to_source":
-        all_neighbors = np.unique(
+        all_neighbors = torch.unique(
             edge_index[1, edge_index[0] == node_id],
         )
 
     if not include_node:
-        all_neighbors = np.setdiff1d(all_neighbors, node_id)
+        mask = all_neighbors != node_id
+        all_neighbors = all_neighbors[mask]
 
     return all_neighbors
 
@@ -106,35 +118,48 @@ def plot_metrics(
 
 
 def obtain_a(edge_index, num_nodes, num_layers):
-    eye = torch.Tensor.repeat(torch.arange(num_nodes), [2, 1])
-    abar = SparseTensor(
-        row=eye[0],
-        col=eye[1],
-        sparse_sizes=(num_nodes, num_nodes),
+    if dev == "mps":
+        local_dev = "cpu"
+    else:
+        local_dev = dev
+
+    vals = torch.ones(num_nodes, dtype=torch.float32, device=local_dev)
+    eye = torch.Tensor.repeat(torch.arange(num_nodes, device=local_dev), [2, 1])
+    abar = torch.sparse_coo_tensor(
+        eye,
+        vals,
+        (num_nodes, num_nodes),
+        device=local_dev,
     )
 
-    # edge_index = self.subgraph.edge_index
-    edge_index_ = add_self_loops(edge_index)[0]
+    edge_index_ = add_self_loops(edge_index)[0].to(local_dev)
 
-    adj = SparseTensor(
-        row=edge_index_[0],
-        col=edge_index_[1],
-        sparse_sizes=(num_nodes, num_nodes),
+    vals = torch.ones(edge_index_.shape[1], dtype=torch.float32, device=local_dev)
+    adj = torch.sparse_coo_tensor(
+        edge_index_,
+        vals,
+        (num_nodes, num_nodes),
+        device=local_dev,
     )
 
     node_degree = 1 / degree(edge_index_[0], num_nodes).long()
-    D = SparseTensor(
-        row=eye[0],
-        col=eye[1],
-        value=node_degree,
-        sparse_sizes=(num_nodes, num_nodes),
+    D = torch.sparse_coo_tensor(
+        eye,
+        node_degree,
+        (num_nodes, num_nodes),
+        device=local_dev,
     )
-
-    adj_hat = D.matmul(adj)
+    # print("Start...........................")
+    # t1 = time.time()
+    adj_hat = torch.matmul(D, adj)
 
     for _ in range(num_layers):
-        abar = adj_hat.matmul(abar)  # Sparse-dense matrix multiplication
+        abar = torch.matmul(adj_hat, abar)  # Sparse-dense matrix multiplication
 
+    # abar = abar.coalesce()
+    # t2 = time.time()
+    # print("Finished...........................")
+    # print(f"total time: {t2-t1}")
     return abar
 
 
@@ -203,13 +228,16 @@ def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
 
 def calc_metrics(y, y_pred, mask):
     criterion = torch.nn.CrossEntropyLoss()
-    loss = criterion(y_pred[mask], y[mask])
+    y_masked = y[mask]
+    y_pred_masked = y_pred[mask]
+
+    loss = criterion(y_pred_masked, y_masked)
 
     with torch.no_grad():
         acc = calc_accuracy(y_pred[mask].argmax(dim=1), y[mask])
-        f1_score = calc_f1_score(y_pred[mask].argmax(dim=1), y[mask])
+        # f1_score = calc_f1_score(y_pred[mask].argmax(dim=1), y[mask])
 
-    return loss, acc, f1_score
+    return loss, acc
 
 
 def lod2dol(list_of_dicts):

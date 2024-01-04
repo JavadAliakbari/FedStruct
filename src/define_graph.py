@@ -13,6 +13,9 @@ from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.utils.create_graph import create_homophilic_graph2, create_heterophilic_graph2
 
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
@@ -72,10 +75,10 @@ def define_graph(dataset_name=config.dataset.dataset_name) -> [Graph, int]:
         edge_index = to_undirected(edge_index)
         edge_index = remove_self_loops(edge_index)[0]
         graph = Graph(
-            x=dataset[0].x,
-            y=dataset[0].y,
-            edge_index=edge_index,
-            node_ids=node_ids,
+            x=dataset[0].x.to(device),
+            y=dataset[0].y.to(device),
+            edge_index=edge_index.to(device),
+            node_ids=node_ids.to(device),
             keep_sfvs=True,
             dataset_name=config.dataset.dataset_name,
         )

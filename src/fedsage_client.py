@@ -68,9 +68,11 @@ class FedSAGEClient(GNNClient):
 
     def create_inter_features(self, mask):
         num_train_nodes = sum(mask.numpy())
-        all_nodes = np.random.permutation(self.graph.num_nodes)
+        all_nodes = torch.randperm(self.graph.num_nodes)
 
         node_degrees = degree(self.graph.edge_index[0], self.graph.num_nodes).long()
+
+        edges = self.graph.edge_index.to("cpu")
 
         inter_features = []
 
@@ -85,12 +87,16 @@ class FedSAGEClient(GNNClient):
                 node_idx += 1
                 continue
 
-            neighbors_ids = find_neighbors_(node_id, self.graph.edge_index)
+            neighbors_ids = find_neighbors_(node_id, edges)
 
-            selected_neighbors_ids = np.random.choice(
-                neighbors_ids,
-                config.fedsage.num_pred,
-            )
+            if neighbors_ids.shape[0] < config.fedsage.num_pred:
+                selected_neighbors_ids = neighbors_ids
+            else:
+                rand_idx = torch.randperm(neighbors_ids.shape[0])[
+                    : config.fedsage.num_pred
+                ]
+                selected_neighbors_ids = neighbors_ids[rand_idx]
+
             inter_features.append(self.graph.x[selected_neighbors_ids])
             node_idx += 1
 

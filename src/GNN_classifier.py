@@ -13,6 +13,9 @@ from src.models.GNN_models import (
     ModelSpecs,
 )
 
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
@@ -79,8 +82,8 @@ class GNNClassifier(Classifier):
         ]
 
         self.feature_model: ModelBinder = ModelBinder(model_specs)
+        self.feature_model.to(device)
 
-        self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
             self.feature_model.parameters(),
             lr=config.model.lr,
@@ -89,7 +92,7 @@ class GNNClassifier(Classifier):
 
         self.abar_i = None
 
-    def set_DGCN_FPM(self, dim_in=None):
+    def set_DGCN_FPM(self, dim_in=None, use_abar=True):
         if dim_in is None:
             dim_in = self.graph.num_features
 
@@ -107,14 +110,26 @@ class GNNClassifier(Classifier):
         ]
 
         self.feature_model: ModelBinder = ModelBinder(model_specs)
+        self.feature_model.to(device)
 
-        self.abar_i = obtain_a(
-            self.graph.edge_index,
-            self.graph.num_nodes,
-            config.feature_model.mp_layers,
-        )
+        self.abar_i = None
+        if (
+            use_abar
+        ):  # both of them have equivalent performance. maybe speed is a little bit different
+            self.abar_i = obtain_a(
+                self.graph.edge_index,
+                self.graph.num_nodes,
+                config.feature_model.DGCN_layers,
+            )
+        else:
+            model_specs.append(
+                ModelSpecs(
+                    type="DGCN",
+                    num_layers=config.feature_model.DGCN_layers,
+                    final_activation_function="linear",
+                )
+            )
 
-        self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(
             self.feature_model.parameters(),
             lr=config.model.lr,
@@ -156,6 +171,7 @@ class GNNClassifier(Classifier):
             ]
 
             self.structure_model: ModelBinder = ModelBinder(model_specs)
+            self.structure_model.to(device)
             self.optimizer.add_param_group(
                 {"params": self.structure_model.parameters()}
             )
@@ -183,6 +199,7 @@ class GNNClassifier(Classifier):
         ]
 
         self.structure_model: ModelBinder = ModelBinder(model_specs)
+        self.structure_model.to(device)
         self.optimizer.add_param_group({"params": self.structure_model.parameters()})
 
     def get_structure_embeddings2(self, node_ids):
@@ -212,14 +229,25 @@ class GNNClassifier(Classifier):
         # )
 
     def set_SFV(self, SFV):
-        self.SFV = deepcopy(SFV)
+        # self.SFV = deepcopy(SFV)
+        self.SFV = torch.tensor(
+            SFV.to("cpu").detach().numpy(),
+            requires_grad=SFV.requires_grad,
+            device=device,
+        )
         if self.SFV.requires_grad:
             self.optimizer.add_param_group({"params": self.SFV})
 
     def get_embeddings(model, x, edge_index=None, a=None):
         H = model(x, edge_index)
         if a is not None:
-            H = a.matmul(H)
+            if not a.is_sparse:
+                H = torch.matmul(a, H)
+            else:
+                if dev != "mps":
+                    H = torch.matmul(a, H)
+                else:
+                    H = a.matmul(H.to("cpu")).to(device)
         return H
 
     @torch.no_grad()
@@ -232,12 +260,12 @@ class GNNClassifier(Classifier):
         y = self.graph.y
         test_mask = self.graph.test_mask
 
-        test_loss, test_acc, test_f1_score = calc_metrics(y, y_pred, test_mask)
+        test_loss, test_acc = calc_metrics(y, y_pred, test_mask)
 
         if metric == "acc":
             return test_acc
-        elif metric == "f1":
-            return test_f1_score
+        # elif metric == "f1":
+        #     return test_f1_score
         else:
             return test_loss
 
@@ -276,11 +304,11 @@ class GNNClassifier(Classifier):
 
         train_mask, val_mask, _ = self.graph.get_masks()
 
-        train_loss, train_acc, train_f1_score = calc_metrics(y, y_pred, train_mask)
-        val_loss, val_acc, val_f1_score = calc_metrics(y, y_pred, val_mask)
+        train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
+        val_loss, val_acc = calc_metrics(y, y_pred, val_mask)
 
         if scale:
             train_loss *= self.graph.num_nodes
         train_loss.backward(retain_graph=True)
 
-        return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
+        return train_loss, train_acc, val_loss, val_acc

@@ -51,7 +51,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
             client.initialize(propagate_type)
 
     def initialize_neighgens(self) -> None:
-        self.initialize_neighgen()
+        # self.initialize_neighgen()
         client: FedSAGEClient
         for client in self.clients:
             client.initialize_neighgen()
@@ -62,7 +62,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
             client.create_mend_graph()
 
     def reset_neighgen_trainings(self):
-        self.reset_neighgen_model()
+        # self.reset_neighgen_model()
         client: FedSAGEClient
         for client in self.clients:
             client.reset_neighgen_model()
@@ -72,10 +72,10 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         for client in self.clients:
             client.update_neighgen_model()
 
-        self.update_neighgen_model()
+        # self.update_neighgen_model()
 
     def set_neighgen_train_mode(self, mode: bool = True):
-        self.neighgen_train_mode(mode)
+        # self.neighgen_train_mode(mode)
 
         client: FedSAGEClient
         for client in self.clients:

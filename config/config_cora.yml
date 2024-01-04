@@ -1,11 +1,11 @@
 dataset:
-  dataset_name: "Cora"
+  dataset_name: Cora
 subgraph:
   num_subgraphs: 10
   delta: 20
   train_ratio: 0.1
   test_ratio: 0.5
-  partitioning: "random"
+  partitioning: random
 model:
   num_samples: [5, 10]
   batch: False
@@ -14,24 +14,23 @@ model:
   lr: 0.002
   weight_decay: 0.0005
   dropout: 0.7
-  gnn_layer_type: "sage"
-  propagate_type: "MP"
+  gnn_layer_type: sage
+  propagate_type: DGCN
   epoch_classifier: 40
-  metric: "acc"
+  metric: acc
 feature_model:
   gnn_layer_sizes: [128,64]
   desicion_layer_sizes: [64]
   mlp_layer_sizes: [64]
-  mp_layers: 2
+  DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64, 32]
   MP_structure_layers_size: [256]
-  mp_layers: 10
-  # structure_type: "mp"
-  # structure_type: "degree"
-  # structure_type: "GDV"
-  structure_type: "random"
-  # structure_type: "node2vec"
+  DGCN_layers: 10
+  # structure_type: degree
+  # structure_type: GDV
+  structure_type: random
+  # structure_type: node2vec
   num_structural_features: 256
   estimate: False
   num_mp_vectors: 10

@@ -125,7 +125,7 @@ class DGCN(MessagePassing):
         self,
         aggr="mean",
         num_layers=1,
-        a=0.1,
+        a=0,
         last_layer="linear",
         normalization=None,
         **kwargs,

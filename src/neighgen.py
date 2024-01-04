@@ -1,16 +1,11 @@
 import os
-from itertools import compress
 import logging
-import time
 
 
 import torch
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
 from torch import optim
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from torch_geometric.utils import subgraph
 
 from src.utils.utils import *
@@ -20,6 +15,9 @@ from src.models.models import MendGraph
 from src.models.models import LocalSage_Plus
 from src.models.feature_loss import greedy_loss
 from src.utils.utils import *
+
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -71,13 +69,13 @@ class NeighGen:
 
         hide_nodes = torch.tensor(
             np.random.choice(
-                node_ids,
+                node_ids.to("cpu"),
                 hide_length,
                 replace=False,
             )
         )
 
-        node_mask = ~torch.isin(node_ids, hide_nodes)
+        node_mask = ~torch.isin(node_ids.to("cpu"), hide_nodes)
         impaired_nodes = node_ids[node_mask]
         impaired_edges = subgraph(impaired_nodes, edges, num_nodes=max(node_ids) + 1)[0]
         impaired_x = x[node_mask]
@@ -102,34 +100,44 @@ class NeighGen:
         true_missing = []
         true_features = []
 
-        node_ids = original_graph.node_ids
+        # node_ids = original_graph.node_ids
+        edges = original_graph.edge_index.to("cpu")
+        impaired_edges = impaired_graph.edge_index.to("cpu")
 
-        for node_id in impaired_graph.node_ids.numpy():
-            subgraph_neighbors = original_graph.find_neigbors(
+        for node_id in range(impaired_graph.num_nodes):
+            subgraph_neighbors = find_neighbors_(
                 node_id,
-                include_external=config.fedsage.use_inter_connections,
+                edges
+                # include_external=config.fedsage.use_inter_connections,
             )
-            impaired_graph_neighbors = impaired_graph.find_neigbors(node_id)
-            missing_nodes = torch.tensor(
-                np.setdiff1d(
-                    subgraph_neighbors, impaired_graph_neighbors, assume_unique=True
-                )
+            impaired_graph_neighbors = find_neighbors_(node_id, impaired_edges)
+            # missing_nodes = torch.tensor(
+            #     np.setdiff1d(
+            #         subgraph_neighbors, impaired_graph_neighbors, assume_unique=True
+            #     )
+            # )
+            mask = torch.isin(
+                subgraph_neighbors,
+                impaired_graph_neighbors,
             )
+            missing_nodes = subgraph_neighbors[~mask]
 
             num_missing_neighbors = missing_nodes.shape[0]
 
             if num_missing_neighbors > 0:
                 if num_missing_neighbors <= config.fedsage.num_pred:
-                    missing_x = original_graph.x[torch.isin(node_ids, missing_nodes)]
+                    missing_x = original_graph.x[missing_nodes]
                 else:
                     missing_x = original_graph.x[
-                        torch.isin(node_ids, missing_nodes[: config.fedsage.num_pred])
+                        missing_nodes[: config.fedsage.num_pred]
                     ]
             else:
                 missing_x = []
             true_missing.append(num_missing_neighbors)
             true_features.append(missing_x)
-        true_missing = torch.tensor(np.array(true_missing), dtype=torch.float32)
+        true_missing = torch.tensor(
+            np.array(true_missing), dtype=torch.float32, device=device
+        )
         # self.true_features = torch.tensor(np.array(self.true_features))
 
         return true_missing, true_features
@@ -141,6 +149,7 @@ class NeighGen:
             n_classes=self.num_classes,
             node_ids=self.impaired_graph.node_ids,
         )
+        self.predictor.to(device)
 
         self.optimizer = optim.Adam(
             self.predictor.parameters(),
@@ -357,8 +366,8 @@ class NeighGen:
 
         train_loss = (
             config.fedsage.a * train_loss_missing
-            + config.fedsage.b * train_loss_feat
-            + config.fedsage.b * train_inter_loss
+            + config.fedsage.b * train_loss_feat.to(device)
+            + config.fedsage.b * train_inter_loss.to(device)
             + config.fedsage.c * train_loss_label
         )
 

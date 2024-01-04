@@ -3,11 +3,13 @@ import os
 import torch
 import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
 
 from src.models.GNN_models import GNN, MLP
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
+
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -28,7 +30,7 @@ class Sampling(nn.Module):
         pass
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        rand = torch.normal(0, 1, size=inputs.shape)
+        rand = torch.normal(0, 1, size=inputs.shape, device=device)
         # if config.cuda:
         #     return inputs + rand.cuda()
         # else:
@@ -129,41 +131,50 @@ class MendGraph(nn.Module):
         node_ids=None,
     ):
         # x = x.tolist()
-        edges = edges.tolist()
+        # edges = edges.tolist()
         if node_ids is None:
-            node_ids = list(range(len(x)))
+            node_ids = torch.arange(len(x))
         else:
-            node_ids = node_ids.tolist()
+            node_ids = node_ids
 
         max_node_id = max(node_ids) + 1
-        num_node = x.shape[0]
+        num_nodes = x.shape[0]
+        num_pred = config.fedsage.num_pred
         predict_missing_nodes = torch.round(predict_missing_nodes).int()
         predict_missing_nodes = torch.clip(
             predict_missing_nodes, 0, config.fedsage.num_pred
-        ).tolist()
+        )
         predicted_features = predicted_features.view(
-            num_node,
+            num_nodes,
             config.fedsage.num_pred,
             -1,
         )
-        # predicted_features = predicted_features.tolist()
         new_added_nodes = 0
 
         new_x = []
-        for i in range(x.shape[0]):
-            for j in range(predict_missing_nodes[i]):
+        new_edges = []
+        new_node_ids = []
+
+        for i in range(num_nodes):
+            num_neighbors = predict_missing_nodes[i].item()
+            for j in range(num_neighbors):
                 new_node_id = max_node_id + new_added_nodes
-                node_ids.append(new_node_id)
-                edges[0] += [node_ids[i], new_node_id]
-                edges[1] += [new_node_id, node_ids[i]]
+                new_node_ids.append(new_node_id)
+                new_edges.append([node_ids[i], new_node_id])
+                new_edges.append([new_node_id, node_ids[i]])
                 new_x.append(predicted_features[i, j].unsqueeze(0))
                 new_added_nodes += 1
 
-        # all_x = torch.cat((x, new_x))
-        concatenated_x = torch.cat([x, *new_x], dim=0)
-        edges = torch.tensor(np.array(edges))
-        node_ids = torch.tensor(np.array(node_ids))
-        return concatenated_x, edges, node_ids, new_added_nodes
+        if new_added_nodes > 0:
+            concatenated_x = torch.cat([x, *new_x], dim=0)
+            new_edges = torch.tensor(
+                new_edges, dtype=torch.long, device=device
+            ).transpose(-1, 0)
+            edges = torch.hstack((edges, new_edges))
+            node_ids = torch.hstack((node_ids, *new_node_ids))
+            return concatenated_x, edges, node_ids, new_added_nodes
+        else:
+            return x, edges, node_ids, 0
 
     @torch.no_grad()
     def fill_graph(
@@ -196,7 +207,7 @@ class MendGraph(nn.Module):
 
         y_shape = list(y.shape)
         y_shape[0] = new_added_nodes
-        y = torch.hstack((y, torch.zeros(y_shape, dtype=y.dtype)))
+        y = torch.hstack((y, torch.zeros(y_shape, dtype=y.dtype, device=y.device)))
 
         mend_graph = Graph(
             x=x,
@@ -323,5 +334,7 @@ class LocalSage_Plus(nn.Module):
         mend_feats, mend_edges, _, _ = MendGraph.mend_graph(
             feat, edges, degree, gen_feat
         )
+        # nc_pred = self.classifier(feat, edges)
+        # return degree, feat, nc_pred[: feat.shape[0]]
         nc_pred = self.classifier(mend_feats, mend_edges)
         return degree, gen_feat, nc_pred[: feat.shape[0]]

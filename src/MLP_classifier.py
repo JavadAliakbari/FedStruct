@@ -7,7 +7,12 @@ from src.utils.utils import *
 from src.utils.graph import Data
 from src.classifier import Classifier
 from src.utils.config_parser import Config
-from src.models.GNN_models import MLP, calc_accuracy, calc_f1_score
+from src.utils.utils import calc_accuracy, calc_f1_score
+from src.models.GNN_models import MLP
+
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+cpu_device = torch.device("cpu")
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -42,6 +47,7 @@ class MLPClassifier(Classifier):
             normalization="layer",
             # normalization="batch",
         )
+        self.feature_model.to(device)
 
         self.optimizer = torch.optim.Adam(
             self.feature_model.parameters(),
@@ -97,26 +103,11 @@ class MLPClassifier(Classifier):
 
         train_mask, val_mask, _ = self.data.get_masks()
 
-        train_loss, train_acc, train_f1_score = calc_metrics(y, y_pred, train_mask)
-        val_loss, val_acc, val_f1_score = calc_metrics(y, y_pred, val_mask)
-
-        if scale:
-            train_loss *= self.data.num_nodes
-        train_loss.backward(retain_graph=True)
-
-        return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
-
-    def train_step(self, scale=False):
-        y_pred = self.get_prediction()
-        y = self.data.y
-
-        train_mask, val_mask, _ = self.data.get_masks()
-
-        train_loss, train_acc, train_f1_score = calc_metrics(y, y_pred, train_mask)
-        val_loss, val_acc, val_f1_score = calc_metrics(y, y_pred, val_mask)
+        train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
+        val_loss, val_acc = calc_metrics(y, y_pred, val_mask)
 
         if scale:
             train_loss *= self.data.num_nodes
         train_loss.backward(retain_graph=False)
 
-        return train_loss, train_acc, train_f1_score, val_loss, val_acc, val_f1_score
+        return train_loss, train_acc, val_loss, val_acc

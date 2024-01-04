@@ -5,6 +5,9 @@ import numpy as np
 
 from src.utils.config_parser import Config
 
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 

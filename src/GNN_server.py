@@ -3,14 +3,15 @@ import os
 from ast import List
 
 import torch
-from tqdm import tqdm
 from src.GNN_client import GNNClient
 
 from src.utils.utils import *
 from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.server import Server
-from src.GNN_classifier import GNNClassifier
+
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -71,8 +72,6 @@ class GNNServer(Server, GNNClient):
                 num_structural_features=config.structure_model.num_structural_features,
             )
 
-            self.set_SFV(self.graph.structural_features)
-
             if propagate_type == "DGCN":
                 if self.graph.abar is None:
                     abar = self.obtain_a()
@@ -80,7 +79,6 @@ class GNNServer(Server, GNNClient):
                     abar = self.graph.abar
 
                 self.share_abar(abar)
-                self.set_abar(abar)
 
             self.share_SFV()
 
@@ -91,13 +89,13 @@ class GNNServer(Server, GNNClient):
             abar = estimate_a(
                 self.graph.edge_index,
                 self.graph.num_nodes,
-                config.structure_model.mp_layers,
+                config.structure_model.DGCN_layers,
             )
         else:
             abar = obtain_a(
                 self.graph.edge_index,
                 self.graph.num_nodes,
-                config.structure_model.mp_layers,
+                config.structure_model.DGCN_layers,
             )
 
         # abar_ = abar.to_dense().numpy()
@@ -114,33 +112,37 @@ class GNNServer(Server, GNNClient):
 
             return
 
+        if dev == "mps":
+            local_dev = "cpu"
+        else:
+            local_dev = dev
+
         num_nodes = self.graph.num_nodes
-        row, col, val = abar.coo()
 
         client: GNNClient
         for client in self.clients:
-            nodes = client.get_nodes()
-            node_map = client.graph.node_map
-
-            cond = torch.isin(row, nodes)
-            row_i = row[cond]
-            row_i = torch.tensor(itemgetter(*np.array(row_i))(node_map))
-            col_i = col[cond]
-            val_i = val[cond]
-            abar_i = SparseTensor(
-                row=row_i,
-                col=col_i,
-                value=val_i,
-                sparse_sizes=(len(nodes), num_nodes),
+            nodes = client.get_nodes().to(local_dev)
+            num_nodes_i = client.num_nodes()
+            indices = torch.arange(num_nodes_i, dtype=torch.long, device=local_dev)
+            vals = torch.ones(num_nodes_i, dtype=torch.float32, device=local_dev)
+            P = torch.sparse_coo_tensor(
+                torch.vstack([indices, nodes]),
+                vals,
+                (num_nodes_i, num_nodes),
+                device=local_dev,
             )
+            abar_i = torch.matmul(P, abar)
+            if dev != "cuda:0":
+                abar_i = abar_i.to_dense().to(device)
 
             client.set_abar(abar_i)
 
-    def create_SFV(self):
-        pass
+        self.set_abar(abar)
 
     def share_SFV(self):
         SFV = self.graph.structural_features
+
+        self.set_SFV(SFV)
 
         client: GNNClient
         for client in self.clients:

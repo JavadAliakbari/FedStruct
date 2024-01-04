@@ -17,6 +17,9 @@ from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.utils.plot_graph import plot_graph
 
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
@@ -120,11 +123,13 @@ def create_subgraps(graph: Graph, subgraph_node_ids: dict):
     subgraphs = []
     for community, subgraph_nodes in subgraph_node_ids.items():
         if not isinstance(subgraph_nodes, torch.Tensor):
-            node_ids = torch.tensor(subgraph_nodes)
+            node_ids = torch.tensor(subgraph_nodes, device=device)
         else:
             node_ids = subgraph_nodes
         edges = graph.edge_index
-        edge_mask = torch.isin(edges[0], node_ids) | torch.isin(edges[1], node_ids)
+        edge_mask = torch.isin(edges[0].to("cpu"), node_ids.to("cpu")) | torch.isin(
+            edges[1].to("cpu"), node_ids.to("cpu")
+        )
         edge_index = edges[:, edge_mask]
 
         all_nodes = torch.unique(edge_index.flatten())
@@ -146,7 +151,7 @@ def create_subgraps(graph: Graph, subgraph_node_ids: dict):
 
         # all_edges = torch.cat((intra_edges, inter_edges), dim=0)
 
-        node_mask = torch.isin(graph.node_ids, node_ids)
+        node_mask = torch.isin(graph.node_ids.to("cpu"), node_ids.to("cpu"))
         subgraph_node_ids = graph.node_ids[node_mask]
         if graph.x is not None:
             x = graph.x[node_mask]
