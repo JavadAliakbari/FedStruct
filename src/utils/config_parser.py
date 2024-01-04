@@ -11,6 +11,7 @@ class Config:
         self.feature_model = FeatureModelConfig(self.config["feature_model"])
         self.structure_model = StructureModelConfig(self.config["structure_model"])
         self.node2vec = Node2VecConfig(self.config["node2vec"])
+        self.fedsage = FedSAGEConfig(self.config["fedsage"])
 
     def load_config(path):
         with open(path) as f:
@@ -36,6 +37,7 @@ class SubgraphConfig:
         self.delta = subgraph["delta"]
         self.train_ratio = subgraph["train_ratio"]
         self.test_ratio = subgraph["test_ratio"]
+        self.partitioning = subgraph["partitioning"]
 
 
 class ModelConfig:
@@ -63,7 +65,8 @@ class FeatureModelConfig:
     def load_config(self, feature_model):
         self.gnn_layer_sizes = feature_model["gnn_layer_sizes"]
         self.mlp_layer_sizes = feature_model["mlp_layer_sizes"]
-        self.mp_layers = feature_model["mp_layers"]
+        self.desicion_layer_sizes = feature_model["desicion_layer_sizes"]
+        self.DGCN_layers = feature_model["DGCN_layers"]
 
 
 class StructureModelConfig:
@@ -71,17 +74,13 @@ class StructureModelConfig:
         self.load_config(structure_model)
 
     def load_config(self, structure_model):
-        self.sd_ratio = structure_model["sd_ratio"]
         self.GNN_structure_layers_sizes = structure_model["GNN_structure_layers_sizes"]
         self.MP_structure_layers_sizes = structure_model["MP_structure_layers_size"]
-        self.mp_layers = structure_model["mp_layers"]
+        self.DGCN_layers = structure_model["DGCN_layers"]
         self.structure_type = structure_model["structure_type"]
         self.num_structural_features = structure_model["num_structural_features"]
-        self.loss = structure_model["loss"]
+        self.estimate = structure_model["estimate"]
         self.num_mp_vectors = structure_model["num_mp_vectors"]
-        self.cosine_similarity_predictor_epochs = structure_model[
-            "cosine_similarity_predictor_epochs"
-        ]
         self.gnn_epochs = structure_model["gnn_epochs"]
         self.mlp_epochs = structure_model["mlp_epochs"]
 
@@ -99,3 +98,23 @@ class Node2VecConfig:
         self.p = node2vec["p"]
         self.q = node2vec["q"]
         self.show_bar = node2vec["show_bar"]
+
+
+class FedSAGEConfig:
+    def __init__(self, fedsage):
+        self.load_config(fedsage)
+
+    def load_config(self, fedsage):
+        self.neighgen_epochs = fedsage["neighgen_epochs"]
+        self.neighgen_lr = fedsage["neighgen_lr"]
+        self.neighen_feature_gen = fedsage["neighen_feature_gen"]
+        self.num_pred = fedsage["num_pred"]
+        self.latent_dim = fedsage["latent_dim"]
+        self.hidden_layer_sizes = fedsage["hidden_layer_sizes"]
+        self.impaired_train_nodes_ratio = fedsage["impaired_train_nodes_ratio"]
+        self.impaired_test_nodes_ratio = fedsage["impaired_test_nodes_ratio"]
+        self.hidden_portion = fedsage["hidden_portion"]
+        self.use_inter_connections = fedsage["use_inter_connections"]
+        self.a = fedsage["a"]
+        self.b = fedsage["b"]
+        self.c = fedsage["c"]

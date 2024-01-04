@@ -1,5 +1,5 @@
 dataset:
-  dataset_name: Cora
+  dataset_name: PubMed
 subgraph:
   num_subgraphs: 10
   delta: 20
@@ -11,22 +11,22 @@ model:
   batch: False
   batch_size: 64
   epochs_local: 1
-  lr: 0.002
-  weight_decay: 0.0005
+  lr: 0.005
+  weight_decay: 0.001
   dropout: 0.7
   gnn_layer_type: sage
   propagate_type: DGCN
-  epoch_classifier: 40
+  epoch_classifier: 50
   metric: acc
 feature_model:
-  gnn_layer_sizes: [128,64]
-  desicion_layer_sizes: [64]
+  gnn_layer_sizes: [64,32]
+  desicion_layer_sizes: [32]
   mlp_layer_sizes: [64]
   DGCN_layers: 2
 structure_model:
-  GNN_structure_layers_sizes: [128, 64, 32]
-  MP_structure_layers_size: [256]
-  DGCN_layers: 10
+  GNN_structure_layers_sizes: [64,32,16]
+  MP_structure_layers_size: [128]
+  DGCN_layers: 20
   # structure_type: degree
   # structure_type: GDV
   structure_type: random
@@ -59,4 +59,3 @@ fedsage:
   a: 1
   b: 1
   c: 1
-

@@ -1,51 +1,48 @@
+import os
+
 import torch
 import numpy as np
-import torch.nn.functional as F
 
 from src.utils.config_parser import Config
 
-config = Config()
-config.num_pred = 5
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 def greedy_loss(pred_feats, true_feats, pred_missing):
-    # if config.cuda:
-    # pred_missing = pred_missing.cpu()
-    # total_loss = torch.tensor([0.0], requires_grad=True)
-    # if config.cuda:
-    #     loss = loss.cuda()
     with torch.no_grad():
         pred_len = len(pred_feats)
         pred_missing_np = torch.round(pred_missing.detach()).type(torch.int32)
-        pred_missing_np = torch.clip(pred_missing_np, 0, config.num_pred)
+        pred_missing_np = torch.clip(pred_missing_np, 0, config.fedsage.num_pred)
 
         true_missing = np.array([len(true_feature) for true_feature in true_feats])
-        array_size = sum(pred_missing_np[true_missing > 0])
-        ind = 0
 
-    loss_list = torch.zeros(array_size, dtype=torch.float32)
-    # counter = torch.tensor([0], dtype=torch.float32, requires_grad=True)
+    loss_list = []
     for i in range(pred_len):
-        for pred_j in range(pred_missing_np[i]):
-            with torch.no_grad():
-                num_missing = true_missing[i]
-            loss = torch.tensor([10000.0])
-            for true_k in range(num_missing):
-                temp = F.mse_loss(
-                    pred_feats[i][pred_j],
-                    true_feats[i][true_k],
-                )
-                if temp < loss:
-                    loss = temp
+        num_missing = true_missing[i]
+        if num_missing == 0 or pred_missing_np[i] == 0:
+            continue
 
-            if num_missing > 0:
-                loss_list[ind] = loss
-                ind += 1
-                # total_loss = total_loss + loss
-                # counter = counter + 1
+        pred = pred_feats[i][: pred_missing_np[i]]
+        true_features = true_feats[i][:num_missing]
 
-    if loss_list.shape[0] > 0:
-        average_loss = loss_list.mean()
+        # abs_pred = torch.einsum("ij,ij->i", pred, pred)
+        # abs_true = torch.einsum("kj,kj->k", true_features, true_features)
+        # dot_pred_true = torch.einsum("ij,kj->ik", pred, true_features)
+
+        diff = true_features - pred.unsqueeze(1)
+        mse_loss = torch.einsum("ikj,ikj->ik", diff, diff) / diff.shape[2]
+
+        # mse_loss2 = torch.mean(diff**2, dim=2)
+
+        min_mse_values = torch.min(mse_loss, dim=1)[0]
+        loss_list += [*min_mse_values]
+
+    if len(loss_list) > 0:
+        average_loss = torch.mean(torch.stack(loss_list), dim=0)
     else:
         average_loss = torch.tensor([0], dtype=torch.float32)
     return average_loss

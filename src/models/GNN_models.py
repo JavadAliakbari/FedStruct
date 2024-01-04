@@ -1,47 +1,18 @@
-from copy import deepcopy
+import os
+
+from src.utils.utils import *
+
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import f1_score
 from torch_geometric.nn import GATConv, GCNConv, SAGEConv, MessagePassing
 from torch_geometric.utils import add_self_loops
 
 from src.utils.config_parser import Config
 
-config = Config()
-
-
-def calc_accuracy(pred_y, y):
-    """Calculate accuracy."""
-    return ((pred_y == y).sum() / len(y)).item()
-
-
-@torch.no_grad()
-def calc_f1_score(pred_y, y):
-    # P = pred_y[y == 1]
-    # Tp = ((P == 1).sum() / len(P)).item()
-
-    f1score = f1_score(
-        pred_y.data,
-        y.data,
-        average="micro",
-        labels=np.unique(pred_y)
-        # pred_y.data, y.data, average="weighted", labels=np.unique(pred_y)
-    )
-    return f1score
-
-
-@torch.no_grad()
-def test(model, data):
-    """Evaluate the model on test set and print the accuracy score."""
-    model.eval()
-    out = model(data.x, data.edge_index)
-    # out = out[: len(data.test_mask)]
-    label = data.y[: len(data.test_mask)]
-    acc = calc_accuracy(out.argmax(dim=1)[data.test_mask], label[data.test_mask])
-    return acc
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class ModelSpecs:
@@ -99,8 +70,8 @@ class ModelBinder(torch.nn.Module):
                     dropout=config.model.dropout,
                     normalization=model_propertises.normalization,
                 )
-            elif model_propertises.type == "MP":
-                model = MP(
+            elif model_propertises.type == "DGCN":
+                model = DGCN(
                     num_layers=model_propertises.num_layers,
                     last_layer=model_propertises.final_activation_function,
                     aggr="mean",
@@ -125,31 +96,42 @@ class ModelBinder(torch.nn.Module):
         for id, model in enumerate(self.models):
             model.load_state_dict(weights[f"model{id}"])
 
+    def get_grads(self):
+        model_parameters = list(self.parameters())
+        grads = [parameter.grad for parameter in model_parameters]
+
+        return grads
+
+    def set_grads(self, grads):
+        model_parameters = list(self.parameters())
+        for grad, parameter in zip(grads, model_parameters):
+            parameter.grad = grad
+
     def step(self, model, h, edge_index=None) -> None:
         if model.type_ == "MLP":
             return model(h)
         else:
             return model(h, edge_index)
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index=None):
         h = x
         for model in self.models:
             h = self.step(model, h, edge_index)
         return h
 
 
-class MP(MessagePassing):
+class DGCN(MessagePassing):
     def __init__(
         self,
         aggr="mean",
         num_layers=1,
-        a=0.1,
+        a=0,
         last_layer="linear",
         normalization=None,
         **kwargs,
     ):
         super().__init__(aggr=aggr, **kwargs)
-        self.type_ = "MP"
+        self.type_ = DGCN
         self.num_layers = num_layers
         self.last_layer = last_layer
         self.a = a
@@ -169,6 +151,9 @@ class MP(MessagePassing):
 
     def load_state_dict(self, weights: dict) -> None:
         pass
+
+    def get_grads(self):
+        return []
 
     def forward(self, h, edge_index) -> None:
         x = h
@@ -277,6 +262,17 @@ class GNN(torch.nn.Module):
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
 
+    def get_grads(self):
+        model_parameters = list(self.parameters())
+        grads = [parameter.grad for parameter in model_parameters]
+
+        return grads
+
+    def set_grads(self, grads):
+        model_parameters = list(self.parameters())
+        for grad, parameter in zip(grads, model_parameters):
+            parameter.grad = grad
+
     def forward(self, x, edge_index):
         h = x
         for layer in self.layers:
@@ -304,7 +300,6 @@ class MLP(nn.Module):
         self.normalization = normalization
 
         self.layers = self.create_models(layer_sizes)
-        a = 2
         # self.net = nn.Sequential(*self.layers)
 
         # self.default_weights = self.state_dict()
@@ -339,6 +334,8 @@ class MLP(nn.Module):
             layers.append(nn.Softmax(dim=1))
         elif self.last_layer == "relu":
             layers.append(nn.ReLU())
+        elif self.last_layer == "tanh":
+            layers.append(nn.Tanh())
 
         return layers
 
@@ -359,6 +356,17 @@ class MLP(nn.Module):
     def load_state_dict(self, weights: dict) -> None:
         for id, layer in enumerate(self.layers):
             layer.load_state_dict(weights[f"layer{id}"])
+
+    def get_grads(self):
+        model_parameters = list(self.parameters())
+        grads = [parameter.grad for parameter in model_parameters]
+
+        return grads
+
+    def set_grads(self, grads):
+        model_parameters = list(self.parameters())
+        for grad, parameter in zip(grads, model_parameters):
+            parameter.grad = grad
 
     def train(self, mode: bool = True):
         super().train(mode)

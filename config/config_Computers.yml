@@ -1,32 +1,32 @@
 dataset:
-  dataset_name: Cora
+  dataset_name: Computers
 subgraph:
   num_subgraphs: 10
   delta: 20
-  train_ratio: 0.1
-  test_ratio: 0.5
+  train_ratio: 0.6
+  test_ratio: 0.2
   partitioning: random
 model:
   num_samples: [5, 10]
   batch: False
   batch_size: 64
   epochs_local: 1
-  lr: 0.002
+  lr: 0.02
   weight_decay: 0.0005
   dropout: 0.7
   gnn_layer_type: sage
   propagate_type: DGCN
-  epoch_classifier: 40
+  epoch_classifier: 100
   metric: acc
 feature_model:
-  gnn_layer_sizes: [128,64]
-  desicion_layer_sizes: [64]
+  gnn_layer_sizes: [256]
+  desicion_layer_sizes: [256]
   mlp_layer_sizes: [64]
   DGCN_layers: 2
 structure_model:
-  GNN_structure_layers_sizes: [128, 64, 32]
+  GNN_structure_layers_sizes: [128,64,32]
   MP_structure_layers_size: [256]
-  DGCN_layers: 10
+  DGCN_layers: 2
   # structure_type: degree
   # structure_type: GDV
   structure_type: random
@@ -59,4 +59,3 @@ fedsage:
   a: 1
   b: 1
   c: 1
-

@@ -1,3 +1,4 @@
+import os
 from itertools import cycle
 from collections import defaultdict
 
@@ -7,12 +8,20 @@ import matplotlib.pyplot as plt
 from sknetwork.clustering import Louvain
 from torch_geometric.utils import subgraph
 from torch_geometric.utils.convert import to_scipy_sparse_matrix
+from sklearn.cluster import k_means
+
+# import metis
+import networkx
 
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.utils.plot_graph import plot_graph
 
-config = Config()
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 def plot_communities(graph, community):
@@ -85,10 +94,9 @@ def make_groups_smaller_than_max(community_groups, group_len_max) -> dict:
     return community_groups
 
 
-def assign_nodes_to_subgraphs(community_groups, max_subgraph_nodes):
-    subgraph_node_ids = {
-        subgraph_id: [] for subgraph_id in range(config.subgraph.num_subgraphs)
-    }
+def assign_nodes_to_subgraphs(community_groups, num_nodes, num_subgraphs):
+    max_subgraph_nodes = num_nodes // num_subgraphs
+    subgraph_node_ids = {subgraph_id: [] for subgraph_id in range(num_subgraphs)}
     subgraphs = cycle(subgraph_node_ids.keys())
     current_subgraph = next(subgraphs)
 
@@ -97,13 +105,13 @@ def assign_nodes_to_subgraphs(community_groups, max_subgraph_nodes):
     for community in community_groups.keys():
         while (
             len(subgraph_node_ids[current_subgraph]) + len(community_groups[community])
-            >= max_subgraph_nodes + config.subgraph.delta
+            > max_subgraph_nodes + config.subgraph.delta
             or len(subgraph_node_ids[current_subgraph]) >= max_subgraph_nodes
         ):
             current_subgraph = next(subgraphs)
             # define counter to avoid stuck in the loop forever
             counter += 1
-            if counter == config.subgraph.num_subgraphs:
+            if counter == num_subgraphs:
                 return subgraph_node_ids
         subgraph_node_ids[current_subgraph] += community_groups[community]
         counter = 0
@@ -111,15 +119,17 @@ def assign_nodes_to_subgraphs(community_groups, max_subgraph_nodes):
     return subgraph_node_ids
 
 
-def create_subgraps(graph, subgraph_node_ids: dict):
+def create_subgraps(graph: Graph, subgraph_node_ids: dict):
     subgraphs = []
     for community, subgraph_nodes in subgraph_node_ids.items():
         if not isinstance(subgraph_nodes, torch.Tensor):
-            node_ids = torch.tensor(subgraph_nodes)
+            node_ids = torch.tensor(subgraph_nodes, device=device)
         else:
             node_ids = subgraph_nodes
         edges = graph.edge_index
-        edge_mask = torch.isin(edges[0], node_ids) | torch.isin(edges[1], node_ids)
+        edge_mask = torch.isin(edges[0].to("cpu"), node_ids.to("cpu")) | torch.isin(
+            edges[1].to("cpu"), node_ids.to("cpu")
+        )
         edge_index = edges[:, edge_mask]
 
         all_nodes = torch.unique(edge_index.flatten())
@@ -141,29 +151,29 @@ def create_subgraps(graph, subgraph_node_ids: dict):
 
         # all_edges = torch.cat((intra_edges, inter_edges), dim=0)
 
-        node_mask = torch.isin(graph.node_ids, node_ids)
+        node_mask = torch.isin(graph.node_ids.to("cpu"), node_ids.to("cpu"))
         subgraph_node_ids = graph.node_ids[node_mask]
-        if "x" in graph.keys:
+        if graph.x is not None:
             x = graph.x[node_mask]
         else:
             x = None
 
-        if "y" in graph.keys:
+        if graph.y is not None:
             y = graph.y[node_mask]
         else:
             y = None
 
-        if "train_mask" in graph.keys:
+        if graph.train_mask is not None:
             train_mask = graph.train_mask[node_mask]
         else:
             train_mask = None
 
-        if "test_mask" in graph.keys:
+        if graph.test_mask is not None:
             test_mask = graph.test_mask[node_mask]
         else:
             test_mask = None
 
-        if "val_mask" in graph.keys:
+        if graph.val_mask is not None:
             val_mask = graph.val_mask[node_mask]
         else:
             val_mask = None
@@ -184,45 +194,71 @@ def create_subgraps(graph, subgraph_node_ids: dict):
     return subgraphs
 
 
-def random_assign(graph, max_subgraph_nodes):
-    node_ids = graph.node_ids
-    idx = torch.randperm(node_ids.shape[0])
-    subgraph_node_ids = {}
-    for i in range(config.subgraph.num_subgraphs):
-        if i < config.subgraph.num_subgraphs - 1:
-            subgraph_node_ids[i] = node_ids[
-                idx[i * max_subgraph_nodes : (i + 1) * max_subgraph_nodes]
-            ]
-        else:
-            subgraph_node_ids[i] = node_ids[idx[i * max_subgraph_nodes :]]
+def louvain_graph_cut(graph: Graph, num_subgraphs):
+    community_map = find_community(graph)
+
+    community_groups = create_community_groups(community_map=community_map)
+
+    group_len_max = graph.num_nodes // num_subgraphs + config.subgraph.delta
+
+    community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
+
+    sorted_community_groups = {
+        k: v
+        for k, v in sorted(
+            community_groups.items(), key=lambda item: len(item[1]), reverse=True
+        )
+    }
+
+    subgraph_node_ids = assign_nodes_to_subgraphs(
+        sorted_community_groups, graph.num_nodes, num_subgraphs
+    )
 
     return subgraph_node_ids
 
 
-def louvain_graph_cut(graph: Graph):
-    # community_map = find_community(graph)
+def random_assign(graph: Graph, num_subgraphs):
+    subgraph_id = np.random.choice(num_subgraphs, graph.num_nodes, replace=True)
+    subgraph_node_ids = {
+        value: np.where(subgraph_id == value)[0] for value in range(num_subgraphs)
+    }
 
-    # community_groups = create_community_groups(community_map=community_map)
+    return subgraph_node_ids
 
-    # group_len_max = (
-    #     graph.num_nodes // config.subgraph.num_subgraphs + config.subgraph.delta
-    # )
 
-    # community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
+def Kmeans_cut(graph: Graph, num_subgraphs):
+    X = graph.x
+    _, subgraph_id, _ = k_means(X, num_subgraphs, n_init="auto")
+    community_groups = {
+        value: np.where(subgraph_id == value)[0].tolist()
+        for value in range(num_subgraphs)
+    }
 
-    # sorted_community_groups = {
-    #     k: v
-    #     for k, v in sorted(
-    #         community_groups.items(), key=lambda item: len(item[1]), reverse=True
-    #     )
-    # }
+    group_len_max = graph.num_nodes // num_subgraphs + config.subgraph.delta
 
-    max_subgraph_nodes = graph.num_nodes // config.subgraph.num_subgraphs
-    # subgraph_node_ids = assign_nodes_to_subgraphs(
-    #     sorted_community_groups, max_subgraph_nodes
-    # )
+    community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
 
-    subgraph_node_ids = random_assign(graph, max_subgraph_nodes)
+    sorted_community_groups = {
+        k: v
+        for k, v in sorted(
+            community_groups.items(), key=lambda item: len(item[1]), reverse=True
+        )
+    }
+
+    subgraph_node_ids = assign_nodes_to_subgraphs(
+        sorted_community_groups, graph.num_nodes, num_subgraphs
+    )
+
+    return subgraph_node_ids
+
+
+def partition_graph(graph: Graph, num_subgraphs, method="random"):
+    if method == "louvain":
+        subgraph_node_ids = louvain_graph_cut(graph, num_subgraphs)
+    elif method == "random":
+        subgraph_node_ids = random_assign(graph, num_subgraphs)
+    elif method == "kmeans":
+        subgraph_node_ids = Kmeans_cut(graph, num_subgraphs)
 
     subgraphs = create_subgraps(graph, subgraph_node_ids)
 

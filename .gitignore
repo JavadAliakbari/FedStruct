@@ -10,5 +10,5 @@
 *.log
 *.edgelist
 *.emb
+*results
 *.pkl
-results

@@ -1,5 +1,5 @@
 dataset:
-  dataset_name: Cora
+  dataset_name: CiteSeer
 subgraph:
   num_subgraphs: 10
   delta: 20
@@ -16,7 +16,7 @@ model:
   dropout: 0.7
   gnn_layer_type: sage
   propagate_type: DGCN
-  epoch_classifier: 40
+  epoch_classifier: 60
   metric: acc
 feature_model:
   gnn_layer_sizes: [128,64]
@@ -25,8 +25,8 @@ feature_model:
   DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64, 32]
-  MP_structure_layers_size: [256]
-  DGCN_layers: 10
+  MP_structure_layers_size: [128,64]
+  DGCN_layers: 20
   # structure_type: degree
   # structure_type: GDV
   structure_type: random
@@ -59,4 +59,3 @@ fedsage:
   a: 1
   b: 1
   c: 1
-
