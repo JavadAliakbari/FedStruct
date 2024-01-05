@@ -1,4 +1,4 @@
-name: SDSFL
+name: SDSFL2
 channels:
   - pytorch-nightly
   - conda-forge
@@ -6,7 +6,6 @@ channels:
 dependencies:
   - python=3.8
   - pip>=19.0
-  - tensorflow-deps
   - pytorch
   - torchvision
   - scikit-learn
@@ -29,9 +28,8 @@ dependencies:
       - kaggle
       - torch-scatter -f https://data.pyg.org/whl/torch-1.11.0+${cpu}.html
       - torch-sparse -f https://data.pyg.org/whl/torch-1.11.0+${cpu}.html
+      - torch-cluster
       - torch_geometric
-      - tensorflow-macos
-      - tensorflow-metal
       - dill
       - louvain
       - scikit-network

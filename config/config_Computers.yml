@@ -28,8 +28,8 @@ structure_model:
   MP_structure_layers_size: [256]
   DGCN_layers: 2
   # structure_type: degree
-  # structure_type: GDV
-  structure_type: random
+  structure_type: GDV
+  # structure_type: random
   # structure_type: node2vec
   num_structural_features: 256
   estimate: False
@@ -41,6 +41,8 @@ node2vec:
   walk_length: 20
   context_size: 10
   walks_per_node: 10
+  lr: 0.01
+  batch_size: 128
   num_negative_samples: 1
   p: 1
   q: 1

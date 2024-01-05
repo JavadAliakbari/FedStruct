@@ -162,7 +162,8 @@ def obtain_a(edge_index, num_nodes, num_layers):
     # print("Finished...........................")
     # print(f"total time: {t2-t1}")
 
-    abar = abar.to(dev)
+    if dev != "mps":
+        abar = abar.to(dev)
     return abar
 
 
@@ -208,23 +209,17 @@ def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
         find_neighbors_(node, edge_index, include_node=True)
         for node in range(num_nodes)
     ]
-    abar = np.zeros((num_nodes, num_nodes), dtype=float)
+    abar = torch.zeros((num_nodes, num_nodes), dtype=torch.float32)
     for _ in tqdm(range(num_expriments)):
         for node in range(num_nodes):
             chosen_node = node
             for _ in range(num_layers):
-                chosen_node = np.random.choice(neighbors[chosen_node], 1)[0]
+                idx = np.random.randint(neighbors[chosen_node].shape[0])
+                chosen_node = neighbors[chosen_node][idx]
             abar[node, chosen_node] += 1
 
     abar /= num_expriments
-    sparse_matrix = coo_matrix(abar)
-    abar = SparseTensor(
-        row=torch.tensor(sparse_matrix.row, dtype=torch.long),
-        col=torch.tensor(sparse_matrix.col, dtype=torch.long),
-        value=torch.tensor(sparse_matrix.data, dtype=torch.float32),
-        sparse_sizes=(num_nodes, num_nodes),
-    )
-    # abar = torch.from_numpy(abar).to_sparse()
+    abar = abar.to_sparse()
 
     return abar
 

@@ -14,8 +14,8 @@ from torch_sparse import SparseTensor
 
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
-from src.utils.GDV2 import GDV
-from utils.utils import find_neighbors_, obtain_a
+from src.utils.GDV import GDV
+from utils.utils import find_neighbors_, obtain_a, estimate_a
 
 dev = os.environ.get("device", "cpu")
 device = torch.device(dev)
@@ -131,8 +131,11 @@ class Graph(Data):
 
         return node_map, new_edges
 
-    def obtain_a(self, num_layers):
-        self.abar = obtain_a(self.edge_index, self.num_nodes, num_layers)
+    def obtain_a(self, num_layers, estimate=False):
+        if estimate:
+            self.abar = estimate_a(self.edge_index, self.num_nodes, num_layers)
+        else:
+            self.abar = obtain_a(self.edge_index, self.num_nodes, num_layers)
 
     def add_structural_features(
         self,

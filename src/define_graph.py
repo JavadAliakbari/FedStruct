@@ -6,6 +6,7 @@ from torch_geometric.datasets import (
     HeterophilousGraphDataset,
     WikipediaNetwork,
     Amazon,
+    Actor,
 )
 from torch_geometric.utils import to_undirected, remove_self_loops
 
@@ -51,6 +52,8 @@ def define_graph(dataset_name=config.dataset.dataset_name) -> [Graph, int]:
                 root=f"/tmp/{dataset_name}",
                 name=dataset_name,
             )
+        elif dataset_name in ["Actor"]:
+            dataset = Actor(root=f"/tmp/{dataset_name}")
         elif config.dataset.dataset_name in ["Computers", "Photo"]:
             dataset = Amazon(
                 root=f"/tmp/{config.dataset.dataset_name}",

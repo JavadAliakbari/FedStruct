@@ -74,7 +74,10 @@ def set_up_system(save_path="./"):
     graph, num_classes = define_graph(config.dataset.dataset_name)
 
     if config.model.propagate_type == "DGCN":
-        graph.obtain_a(config.structure_model.DGCN_layers)
+        # graph.obtain_a(config.structure_model.DGCN_layers)
+        graph.obtain_a(
+            config.structure_model.DGCN_layers, estimate=config.structure_model.estimate
+        )
 
     graph.add_masks(
         train_size=config.subgraph.train_ratio,

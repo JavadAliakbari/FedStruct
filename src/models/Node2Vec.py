@@ -7,6 +7,8 @@ from torch_geometric.nn.models import Node2Vec
 
 from src.utils.config_parser import Config
 
+dev = os.environ.get("device", "cpu")
+
 path = os.environ.get("CONFIG_PATH")
 config = Config(path).node2vec
 
@@ -57,9 +59,10 @@ def find_node2vect_embedings(
         q=config.q,
         sparse=True,
     )
+    # model.to(device=dev)
 
-    loader = model.loader(batch_size=128, shuffle=True, num_workers=1)
-    optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=0.01)
+    loader = model.loader(batch_size=config.batch_size, shuffle=True)
+    optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=config.lr)
 
     if show_bar:
         bar = tqdm(total=epochs)

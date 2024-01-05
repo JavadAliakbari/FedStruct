@@ -94,6 +94,8 @@ class Node2VecConfig:
         self.walk_length = node2vec["walk_length"]
         self.context_size = node2vec["context_size"]
         self.walks_per_node = node2vec["walks_per_node"]
+        self.lr = node2vec["lr"]
+        self.batch_size = node2vec["batch_size"]
         self.num_negative_samples = node2vec["num_negative_samples"]
         self.p = node2vec["p"]
         self.q = node2vec["q"]
