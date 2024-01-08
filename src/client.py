@@ -65,13 +65,13 @@ class Client:
     def test_classifier(self, metric=config.model.metric):
         return self.classifier.calc_test_accuracy(metric)
 
-    def get_train_results(self, scale=False):
+    def get_train_results(self):
         (
             train_loss,
             train_acc,
             val_loss,
             val_acc,
-        ) = self.train_step(scale)
+        ) = self.train_step()
 
         result = {
             "Train Loss": round(train_loss.item(), 4),
@@ -147,5 +147,5 @@ class Client:
     def reset_model(self):
         self.classifier.reset()
 
-    def train_step(self, scale=False):
-        return self.classifier.train_step(scale)
+    def train_step(self):
+        return self.classifier.train_step()

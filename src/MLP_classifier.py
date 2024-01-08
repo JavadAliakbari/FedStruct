@@ -97,7 +97,7 @@ class MLPClassifier(Classifier):
         y_pred = torch.nn.functional.softmax(h, dim=1)
         return y_pred
 
-    def train_step(self, scale=False):
+    def train_step(self):
         y_pred = self.get_prediction()
         y = self.data.y
 
@@ -106,8 +106,6 @@ class MLPClassifier(Classifier):
         train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
         val_loss, val_acc = calc_metrics(y, y_pred, val_mask)
 
-        if scale:
-            train_loss *= self.data.num_nodes
         train_loss.backward(retain_graph=False)
 
         return train_loss, train_acc, val_loss, val_acc

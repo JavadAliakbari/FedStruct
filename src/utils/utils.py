@@ -304,14 +304,18 @@ def get_grads(clients, just_SFV=False):
     return clients_grads
 
 
-def sum_grads(clients_grads, num_nodes=1):
+def sum_grads(clients_grads, coef):
     new_grads = lod2dol(clients_grads)
     grads = {}
     for key, val in new_grads.items():
         model_grads = []
         for client_grads in zip(*val):
             try:
-                model_grads.append(sum(client_grads) / num_nodes)
+                weighted_client_grads = [
+                    weight * tensor for weight, tensor in zip(coef, client_grads)
+                ]
+                model_grads.append(sum(weighted_client_grads))
+
             except:
                 model_grads.append(None)
 

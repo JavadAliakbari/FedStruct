@@ -298,7 +298,7 @@ class GNNClassifier(Classifier):
 
         return y_pred
 
-    def train_step(self, scale=False):
+    def train_step(self):
         y_pred = self.get_prediction()
         y = self.graph.y
 
@@ -307,8 +307,6 @@ class GNNClassifier(Classifier):
         train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
         val_loss, val_acc = calc_metrics(y, y_pred, val_mask)
 
-        if scale:
-            train_loss *= self.graph.num_nodes
         train_loss.backward(retain_graph=True)
 
         return train_loss, train_acc, val_loss, val_acc

@@ -60,12 +60,12 @@ class Server(Client):
         for client in self.clients:
             client.train(mode)
 
-    def train_clients(self, scale=False):
+    def train_clients(self):
         results = []
 
         client: Client
         for client in self.clients:
-            result = client.get_train_results(scale)
+            result = client.get_train_results()
             results.append(result)
 
         return results
@@ -128,14 +128,17 @@ class Server(Client):
             self.reset_trainings()
 
             self.set_train_mode()
-            results = self.train_clients(True & FL)
+            results = self.train_clients()
             average_result = calc_average_result(results)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
             if FL:
                 clients_grads = get_grads(self.clients)
-                grads = sum_grads(clients_grads, self.num_nodes())
+                coef = [
+                    client.num_nodes() / self.num_nodes() for client in self.clients
+                ]
+                grads = sum_grads(clients_grads, coef)
                 self.share_grads(grads)
 
             self.update_models()
@@ -188,7 +191,10 @@ class Server(Client):
 
             if FL:
                 clients_grads = get_grads(self.clients, True)
-                grads = sum_grads(clients_grads)
+                coef = [
+                    client.num_nodes() / self.num_nodes() for client in self.clients
+                ]
+                grads = sum_grads(clients_grads, coef)
                 self.share_grads(grads)
 
             self.update_models()
