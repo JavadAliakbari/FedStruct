@@ -126,60 +126,45 @@ class MendGraph(nn.Module):
     def mend_graph(
         x,
         edges,
-        predict_missing_nodes,
         predicted_features,
         node_ids=None,
     ):
-        # x = x.tolist()
-        # edges = edges.tolist()
         if node_ids is None:
-            node_ids = torch.arange(len(x))
+            node_ids_ = torch.arange(len(x))
         else:
-            node_ids = node_ids
+            node_ids_ = node_ids.cpu()
 
-        max_node_id = max(node_ids) + 1
+        max_node_id = max(node_ids_).cpu().item() + 1
         num_nodes = x.shape[0]
-        num_pred = config.fedsage.num_pred
-        predict_missing_nodes = torch.round(predict_missing_nodes).int()
-        predict_missing_nodes = torch.clip(
-            predict_missing_nodes, 0, config.fedsage.num_pred
-        )
-        predicted_features = predicted_features.view(
-            num_nodes,
-            config.fedsage.num_pred,
-            -1,
-        )
-        new_added_nodes = 0
+        new_edges0 = []
+        new_edges1 = []
 
+        new_node_id = max_node_id
         new_x = []
-        new_edges = []
-        new_node_ids = []
-
         for i in range(num_nodes):
-            num_neighbors = predict_missing_nodes[i].item()
-            for j in range(num_neighbors):
-                new_node_id = max_node_id + new_added_nodes
-                new_node_ids.append(new_node_id)
-                new_edges.append([node_ids[i], new_node_id])
-                new_edges.append([new_node_id, node_ids[i]])
-                new_x.append(predicted_features[i, j].unsqueeze(0))
-                new_added_nodes += 1
+            num_neighbors = len(predicted_features[i])
+            if num_neighbors > 0:
+                new_x.append(predicted_features[i])
+                l0 = num_neighbors * [node_ids_[i].item()]
+                l1 = list(range(new_node_id, new_node_id + num_neighbors))
+                new_edges0 += l0 + l1
+                new_edges1 += l1 + l0
+                new_node_id += num_neighbors
 
-        if new_added_nodes > 0:
+        if new_node_id > max_node_id:
+            # print(new_node_id - max_node_id)
             concatenated_x = torch.cat([x, *new_x], dim=0)
-            new_edges = torch.tensor(
-                new_edges, dtype=torch.long, device=device
-            ).transpose(-1, 0)
+            new_edges = np.array([new_edges0, new_edges1], dtype=int)
+            new_edges = torch.tensor(new_edges, device=device)
             edges = torch.hstack((edges, new_edges))
-            node_ids = torch.hstack((node_ids, *new_node_ids))
-            return concatenated_x, edges, node_ids, new_added_nodes
+            return concatenated_x, edges
         else:
-            return x, edges, node_ids, 0
+            return x, edges
 
     @torch.no_grad()
     def fill_graph(
         graph: Graph,
-        predict_missing_nodes,
+        # predict_missing_nodes,
         predicted_features,
     ):
         y = graph.y
@@ -187,13 +172,19 @@ class MendGraph(nn.Module):
         test_mask = graph.test_mask
         val_mask = graph.val_mask
 
-        x, edges, node_ids, new_added_nodes = MendGraph.mend_graph(
+        x, edges = MendGraph.mend_graph(
             graph.x,
             graph.get_edges(),
-            predict_missing_nodes,
             predicted_features,
             graph.node_ids,
         )
+        max_node_id = max(graph.node_ids).cpu().item() + 1
+        new_added_nodes = x.shape[0] - graph.x.shape[0]
+        new_node_id = max_node_id + new_added_nodes
+        new_node_ids = torch.arange(
+            max_node_id, new_node_id, device=graph.node_ids.device
+        )
+        node_ids = torch.hstack((graph.node_ids, new_node_ids))
 
         train_mask = torch.hstack(
             (train_mask, torch.zeros(new_added_nodes, dtype=torch.bool))
@@ -220,12 +211,6 @@ class MendGraph(nn.Module):
         )
 
         return mend_graph
-
-    def forward(self, org_feats, org_edges, pred_missing, gen_feats):
-        fill_edges, fill_feats = self.mend_graph(
-            org_feats, org_edges, pred_missing, gen_feats
-        )
-        return fill_feats, fill_edges
 
 
 class Gen(MLP):
@@ -327,14 +312,42 @@ class LocalSage_Plus(nn.Module):
         self.classifier.load_state_dict(weights["classifier"])
 
     def forward(self, feat, edges):
+        degree, gen_feat = self.predict_features(feat, edges)
+        mend_feats, mend_edges = MendGraph.mend_graph(feat, edges, gen_feat)
+        # nc_pred = self.classifier(feat, edges)
+        nc_pred = self.classifier(mend_feats, mend_edges)
+        return degree, gen_feat, nc_pred[: feat.shape[0]]
+
+    def predict_features(self, feat, edges):
         x = self.encoder_model(feat, edges)
         # degree = config.fedsage.num_pred * self.reg_model(x).squeeze(1)
         degree = self.reg_model(x).squeeze(1)
+        # degree = torch.ones(
+        #     size=(1, feat.shape[0]), requires_grad=True, dtype=torch.float32
+        # ).squeeze(0)
         gen_feat = self.gen(x)
-        mend_feats, mend_edges, _, _ = MendGraph.mend_graph(
-            feat, edges, degree, gen_feat
-        )
-        # nc_pred = self.classifier(feat, edges)
-        # return degree, feat, nc_pred[: feat.shape[0]]
-        nc_pred = self.classifier(mend_feats, mend_edges)
-        return degree, gen_feat, nc_pred[: feat.shape[0]]
+        new_gen_feat = LocalSage_Plus.cut_feats(gen_feat, degree)
+
+        return degree, new_gen_feat
+
+    def cut_feats(pred_feat, pred_deg):
+        with torch.no_grad():
+            num_nodes = pred_deg.shape[0]
+            pr = pred_deg.cpu()
+            pr = torch.round(pr).int()
+            pr = torch.clip(pr, 0, config.fedsage.num_pred)
+        pf = pred_feat.view(num_nodes, config.fedsage.num_pred, -1)
+        # num_features = int(round(pred_feat.shape[1] / config.fedsage.num_pred))
+
+        new_x = []
+
+        for i in range(num_nodes):
+            num_neighbors = pr[i]
+            if num_neighbors > 0:
+                tensor = pf[i, :num_neighbors]
+                # tensor = tensor.view(num_neighbors, -1)
+            else:
+                tensor = []
+            new_x.append(tensor)
+
+        return new_x

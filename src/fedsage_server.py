@@ -221,6 +221,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         self,
         epochs=config.model.epoch_classifier,
         propagate_type=config.model.propagate_type,
+        model="both",
         log=True,
         plot=True,
     ):
@@ -229,25 +230,25 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         self.initialize_neighgens()
         self.train_fedgen(log=log, plot=plot)
         self.create_mend_graphs()
-        res1 = self.joint_train_w(
-            epochs=epochs,
-            propagate_type=propagate_type,
-            log=log,
-            plot=plot,
-            model_type="Neighgen",
-        )
+        results = {}
+        if model == "WA" or model == "both":
+            res1 = self.joint_train_w(
+                epochs=epochs,
+                propagate_type=propagate_type,
+                log=log,
+                plot=plot,
+                model_type="Neighgen",
+            )
+            results["WA"] = res1
 
-        res2 = self.joint_train_g(
-            epochs=epochs,
-            propagate_type=propagate_type,
-            log=log,
-            plot=plot,
-            model_type="Neighgen",
-        )
-
-        results = {
-            "WA": res1,
-            "GA": res2,
-        }
+        if model == "GA" or model == "both":
+            res2 = self.joint_train_g(
+                epochs=epochs,
+                propagate_type=propagate_type,
+                log=log,
+                plot=plot,
+                model_type="Neighgen",
+            )
+            results["GA"] = res2
 
         return results

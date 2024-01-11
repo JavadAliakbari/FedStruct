@@ -1,5 +1,6 @@
 import os
 import logging
+from itertools import compress
 
 
 import torch
@@ -14,7 +15,6 @@ from src.utils.graph import Graph
 from src.models.models import MendGraph
 from src.models.models import LocalSage_Plus
 from src.models.feature_loss import greedy_loss
-from src.utils.utils import *
 
 dev = os.environ.get("device", "cpu")
 device = torch.device(dev)
@@ -28,6 +28,7 @@ class NeighGen:
         self,
         id,
         num_classes,
+        x,
         save_path="./",
         logger=None,
     ):
@@ -37,23 +38,21 @@ class NeighGen:
         self.save_path = save_path
         self.LOGGER = logger or logging
 
+        self.x = x
+
         self.original_graph: Graph = None
         self.impaired_graph: Graph = None
         self.mend_graph: Graph = None
 
     def prepare_data(self, graph: Graph):
         self.original_graph = graph
-        self.impaired_graph = NeighGen.create_impaired_graph(self.original_graph)
-        # self.create_true_missing_features(graph.x, graph.get_edges(), graph.node_ids)
-
         (
+            self.impaired_graph,
             self.true_missing,
             self.true_features,
-        ) = NeighGen.create_true_missing_features(
-            self.original_graph, self.impaired_graph
-        )
+        ) = self.create_impaired_graph(self.original_graph)
 
-    def create_impaired_graph(graph: Graph):
+    def create_impaired_graph(self, graph: Graph):
         node_ids = graph.node_ids
         edges = graph.get_edges()
         x = graph.x
@@ -77,7 +76,9 @@ class NeighGen:
 
         node_mask = ~torch.isin(node_ids.to("cpu"), hide_nodes)
         impaired_nodes = node_ids[node_mask]
-        impaired_edges = subgraph(impaired_nodes, edges, num_nodes=max(node_ids) + 1)[0]
+        impaired_edges, _, edge_mask = subgraph(
+            impaired_nodes, edges, num_nodes=max(node_ids) + 1, return_edge_mask=True
+        )
         impaired_x = x[node_mask]
         impaired_y = y[node_mask]
         impaired_train_mask = train_mask[node_mask]
@@ -94,7 +95,26 @@ class NeighGen:
             test_mask=impaired_test_mask,
         )
 
-        return impaired_graph
+        other_edges = edges[:, ~edge_mask].cpu()
+        true_missing = []
+        missing_features = []
+        for node_id in impaired_nodes.cpu():
+            missing_neighbors = find_neighbors_(node_id, other_edges)
+            if missing_neighbors.shape[0] > 0:
+                if missing_neighbors.shape[0] > config.fedsage.num_pred:
+                    missing_neighbors = missing_neighbors[: config.fedsage.num_pred]
+                node_idx = list(compress(graph.node_map, missing_neighbors))
+                missing_features.append(self.x[node_idx])
+                true_missing.append(missing_neighbors.shape[0])
+            else:
+                missing_features.append([])
+                true_missing.append(0)
+
+        true_missing = torch.tensor(
+            np.array(true_missing), dtype=torch.float32, device=device
+        )
+
+        return impaired_graph, true_missing, missing_features
 
     def create_true_missing_features(original_graph: Graph, impaired_graph: Graph):
         true_missing = []
@@ -131,12 +151,15 @@ class NeighGen:
                     missing_x = original_graph.x[
                         missing_nodes[: config.fedsage.num_pred]
                     ]
+                    num_missing_neighbors = config.fedsage.num_pred
             else:
                 missing_x = []
             true_missing.append(num_missing_neighbors)
             true_features.append(missing_x)
         true_missing = torch.tensor(
-            np.array(true_missing), dtype=torch.float32, device=device
+            np.array(true_missing),
+            dtype=torch.float32,
+            device=device,
         )
         # self.true_features = torch.tensor(np.array(self.true_features))
 
@@ -159,43 +182,22 @@ class NeighGen:
 
     @torch.no_grad()
     def create_mend_graph(self):
-        pred_missing, pred_features, _ = NeighGen.predict_missing_neigh_(
+        _, pred_features = self.predictor.predict_features(
             self.original_graph.x,
             self.original_graph.edge_index,
-            self.predictor,
         )
         self.mend_graph = MendGraph.fill_graph(
             self.original_graph,
-            pred_missing,
             pred_features,
         )
 
     def get_mend_graph(self):
         return self.mend_graph
 
-    def predict_missing_neigh_(
-        x,
-        edge_index,
-        predictor: LocalSage_Plus,
-    ):
-        num_nodes = x.shape[0]
-        num_features = x.shape[1]
-        pred_missing, pred_feat, pred_label = predictor(x, edge_index)
-
-        pred_feat = pred_feat.view(
-            num_nodes,
-            -1,
-            num_features,
-        )
-        # pred_missing = pred_missing.squeeze(1)
-
-        return pred_missing, pred_feat, pred_label
-
     def predict_missing_neigh(self):
-        return NeighGen.predict_missing_neigh_(
+        return self.predictor(
             self.impaired_graph.x,
             self.impaired_graph.edge_index,
-            self.predictor,
         )
 
     def create_inter_features(
@@ -224,27 +226,29 @@ class NeighGen:
         loss_label = F.cross_entropy(y_pred[mask], y[mask])
         loss_missing = F.smooth_l1_loss(pred_missing[mask], true_missing[mask])
 
-        loss_feat = greedy_loss(
-            pred_feat[mask],
-            true_feat,
-            pred_missing[mask],
-        )
+        # loss_feat = greedy_loss(pred_feat, true_feat, mask)
+        masked_pred_feat = list(compress(pred_feat, mask))
+        loss_feat = greedy_loss(masked_pred_feat, compress(true_feat, mask))
 
         loss_list = []
         for inter_features in inter_features_list:
-            inter_loss_client = greedy_loss(
-                pred_feat[mask],
-                inter_features,
-                pred_missing[mask],
-            )
+            # inter_loss_client = greedy_loss(pred_feat, inter_features, mask)
+            inter_loss_client = greedy_loss(masked_pred_feat, inter_features)
             loss_list.append(inter_loss_client)
 
         if len(loss_list) > 0:
             inter_loss = torch.mean(torch.stack(loss_list), dim=0)
         else:
-            inter_loss = torch.tensor([0], dtype=torch.float32)
+            inter_loss = torch.tensor([0], dtype=torch.float32, device=dev)
 
-        return loss_label, loss_missing, loss_feat, inter_loss
+        loss = (
+            config.fedsage.a * loss_missing
+            + config.fedsage.b * loss_feat
+            + config.fedsage.b * inter_loss
+            + config.fedsage.c * loss_label
+        )
+
+        return loss
 
     @torch.no_grad()
     def calc_accuracies(
@@ -336,7 +340,7 @@ class NeighGen:
         self.optimizer.zero_grad()
 
     def train_step(self, inter_client_features_creators):
-        pred_missing, pred_feat, pred_label = self.predict_missing_neigh()
+        pred_missing, pred_feat, y_pred = self.predict_missing_neigh()
 
         y = self.impaired_graph.y
         train_mask, val_mask, _ = self.impaired_graph.get_masks()
@@ -346,51 +350,30 @@ class NeighGen:
             train_mask,
         )
 
-        (
-            train_loss_label,
-            train_loss_missing,
-            train_loss_feat,
-            train_inter_loss,
-            train_acc_label,
-            train_acc_missing,
-        ) = NeighGen.calc_metrics(
+        train_loss = NeighGen.calc_loss(
             y,
             self.true_missing,
             self.true_features,
-            pred_label,
+            y_pred,
             pred_missing,
             pred_feat,
             train_mask,
             inter_features,
         )
 
-        train_loss = (
-            config.fedsage.a * train_loss_missing
-            + config.fedsage.b * train_loss_feat.to(device)
-            + config.fedsage.b * train_inter_loss.to(device)
-            + config.fedsage.c * train_loss_label
-        )
-
         train_loss.backward()
 
         # self.predictor.eval()
         # pred_missing, pred_feat, pred_label = self.predict_missing_neigh()
-
         (
-            val_loss_label,
-            val_loss_missing,
-            val_loss_feat,
-            val_inter_loss,
             val_acc_label,
             val_acc_missing,
-        ) = NeighGen.calc_metrics(
+        ) = NeighGen.calc_accuracies(
             y,
             self.true_missing,
-            self.true_features,
-            pred_label,
+            y_pred,
             pred_missing,
-            pred_feat,
             val_mask,
         )
 
-        return train_loss, val_acc_label, val_acc_missing, val_loss_feat
+        return train_loss, val_acc_label, val_acc_missing

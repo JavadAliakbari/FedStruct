@@ -29,11 +29,15 @@ class FedSAGEClient(GNNClient):
             logger=logger,
         )
 
+        self.edges = self.graph.edge_index.to("cpu")
+        self.x = self.graph.x.to("cpu")
+
         self.neighgen = NeighGen(
             id=self.id,
             num_classes=self.num_classes,
             save_path=self.save_path,
             logger=self.LOGGER,
+            x=self.x,
         )
 
     def initialize(
@@ -70,14 +74,13 @@ class FedSAGEClient(GNNClient):
         num_train_nodes = sum(mask.numpy())
         all_nodes = torch.randperm(self.graph.num_nodes)
 
-        node_degrees = degree(self.graph.edge_index[0], self.graph.num_nodes).long()
-
-        edges = self.graph.edge_index.to("cpu")
+        node_degrees = degree(self.edges[0], self.graph.num_nodes).long()
 
         inter_features = []
 
         node_idx = 0
-        while len(inter_features) < num_train_nodes:
+        num_added_features = 0
+        while num_added_features < num_train_nodes:
             if node_idx >= all_nodes.shape[0]:
                 np.random.shuffle(all_nodes)
                 node_idx = 0
@@ -87,17 +90,20 @@ class FedSAGEClient(GNNClient):
                 node_idx += 1
                 continue
 
-            neighbors_ids = find_neighbors_(node_id, edges)
+            neighbors_ids = find_neighbors_(node_id, self.edges)
+            # self.edges[0, self.edges[1] == node_id]
 
             if neighbors_ids.shape[0] < config.fedsage.num_pred:
                 selected_neighbors_ids = neighbors_ids
             else:
+                # print("iiiiiii")
                 rand_idx = torch.randperm(neighbors_ids.shape[0])[
                     : config.fedsage.num_pred
                 ]
                 selected_neighbors_ids = neighbors_ids[rand_idx]
 
-            inter_features.append(self.graph.x[selected_neighbors_ids])
+            inter_features.append(self.x[selected_neighbors_ids])
+            num_added_features += 1
             node_idx += 1
 
         return inter_features
@@ -110,14 +116,14 @@ class FedSAGEClient(GNNClient):
             train_loss,
             val_acc_label,
             val_acc_missing,
-            val_loss_feat,
+            # val_loss_feat,
         ) = self.neighgen.train_step(inter_client_features_creators)
 
         result = {
             "Train Loss": round(train_loss.item(), 4),
             "Val Acc": round(val_acc_label, 4),
             "Val Missing Acc": round(val_acc_missing, 4),
-            "Val Features Loss": round(val_loss_feat.item(), 4),
+            # "Val Features Loss": round(val_loss_feat.item(), 4),
         }
 
         return result
