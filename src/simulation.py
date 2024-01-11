@@ -67,9 +67,9 @@ def run(
     res = MLP_server.joint_train_g(epochs=epochs, FL=False, log=False, plot=False)
     result["local_mlp"] = res
     bar.set_postfix_str(f"local_mlp: {res['Average']['Test Acc']}")
-    res = MLP_server.joint_train_w(epochs=epochs, FL=True, log=False, plot=False)
-    result["flwa_mlp"] = res
-    bar.set_postfix_str(f"flwa_mlp: {res['Average']['Test Acc']}")
+    # res = MLP_server.joint_train_w(epochs=epochs, FL=True, log=False, plot=False)
+    # result["flwa_mlp"] = res
+    # bar.set_postfix_str(f"flwa_mlp: {res['Average']['Test Acc']}")
     res = MLP_server.joint_train_g(epochs=epochs, FL=True, log=False, plot=False)
     result["flga_mlp"] = res
     bar.set_postfix_str(f"flga_mlp: {res['Average']['Test Acc']}")
@@ -95,16 +95,16 @@ def run(
         result[f"local_{propagate_type}"] = res
         bar.set_postfix_str(f"local_{propagate_type}: {res['Average']['Test Acc']}")
 
-        res = GNN_server.joint_train_w(
-            epochs=epochs,
-            propagate_type=propagate_type,
-            FL=True,
-            structure=False,
-            log=False,
-            plot=False,
-        )
-        result[f"flwa_{propagate_type}"] = res
-        bar.set_postfix_str(f"flwa_{propagate_type}: {res['Average']['Test Acc']}")
+        # res = GNN_server.joint_train_w(
+        #     epochs=epochs,
+        #     propagate_type=propagate_type,
+        #     FL=True,
+        #     structure=False,
+        #     log=False,
+        #     plot=False,
+        # )
+        # result[f"flwa_{propagate_type}"] = res
+        # bar.set_postfix_str(f"flwa_{propagate_type}: {res['Average']['Test Acc']}")
 
         res = GNN_server.joint_train_g(
             epochs=epochs,
@@ -124,10 +124,10 @@ def run(
         log=False,
         plot=False,
     )
-    result[f"fedsage+_WA_{propagate_type}"] = res["WA"]
-    bar.set_postfix_str(
-        f"fedsage+_WA_{propagate_type}: {res['WA']['Average']['Test Acc']}"
-    )
+    # result[f"fedsage+_WA_{propagate_type}"] = res["WA"]
+    # bar.set_postfix_str(
+    #     f"fedsage+_WA_{propagate_type}: {res['WA']['Average']['Test Acc']}"
+    # )
     result[f"fedsage+_GA_{propagate_type}"] = res["GA"]
     bar.set_postfix_str(
         f"fedsage+_GA_{propagate_type}: {res['GA']['Average']['Test Acc']}"
@@ -136,19 +136,19 @@ def run(
     # for structure_type in ["random"]:
     for structure_type in ["degree", "GDV", "node2vec", "random"]:
         for propagate_type in ["DGCN", "GNN"]:
-            res = GNN_server.joint_train_w(
-                epochs=epochs,
-                propagate_type=propagate_type,
-                FL=True,
-                structure=True,
-                structure_type=structure_type,
-                log=False,
-                plot=False,
-            )
-            result[f"{structure_type}_sdwa_{propagate_type}"] = res
-            bar.set_postfix_str(
-                f"{structure_type}_sdwa_{propagate_type}: {res['Average']['Test Acc']}"
-            )
+            # res = GNN_server.joint_train_w(
+            #     epochs=epochs,
+            #     propagate_type=propagate_type,
+            #     FL=True,
+            #     structure=True,
+            #     structure_type=structure_type,
+            #     log=False,
+            #     plot=False,
+            # )
+            # result[f"{structure_type}_sdwa_{propagate_type}"] = res
+            # bar.set_postfix_str(
+            #     f"{structure_type}_sdwa_{propagate_type}: {res['Average']['Test Acc']}"
+            # )
 
             res = GNN_server.joint_train_g(
                 epochs=epochs,
