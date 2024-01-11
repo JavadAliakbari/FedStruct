@@ -1,9 +1,7 @@
 import os
 from copy import deepcopy
 from statistics import mean
-import time
 import numpy as np
-from scipy.sparse import coo_matrix
 
 import torch
 import pandas as pd
@@ -11,7 +9,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
 from torch_sparse import SparseTensor
 from torch_geometric.utils import add_self_loops
-from torch_geometric.utils import degree, k_hop_subgraph
+from torch_geometric.utils import degree
 from tqdm import tqdm
 
 
@@ -22,8 +20,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-elif torch.backends.mps.is_available():
-    dev = "mps"
+# elif torch.backends.mps.is_available():
+#     dev = "mps"
 else:
     dev = "cpu"
 os.environ["device"] = dev
@@ -79,7 +77,7 @@ def find_neighbors_(
         all_neighbors = torch.unique(
             edge_index[0, edge_index[1] == node_id],
         )
-        all_neighbors = k_hop_subgraph(node_id, 1, edge_index, flow=flow)
+        # all_neighbors = k_hop_subgraph(node_id, 1, edge_index, flow=flow)
     elif flow == "target_to_source":
         all_neighbors = torch.unique(
             edge_index[1, edge_index[0] == node_id],

@@ -70,7 +70,7 @@ def log_config():
         )
     else:
         _LOGGER.info(
-            f"structure layers size: {config.structure_model.MP_structure_layers_sizes}"
+            f"structure layers size: {config.structure_model.DGCN_structure_layers_sizes}"
         )
     _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
     _LOGGER.info(

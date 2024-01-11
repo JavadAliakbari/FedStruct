@@ -5,10 +5,10 @@ import random
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
+
 from src.GNN_server import GNNServer
 from src.MLP_server import MLPServer
 from src.fedsage_server import FedSAGEServer
-
 from src.utils.logger import get_logger
 from src.utils.config_parser import Config
 from src.define_graph import define_graph
@@ -41,7 +41,7 @@ def log_config(_LOGGER):
     _LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
     _LOGGER.info(f"propagate type: {config.model.propagate_type}")
     _LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
-    _LOGGER.info(f"desicion_layer_sizes: {config.feature_model.desicion_layer_sizes}")
+    _LOGGER.info(f"DGCN_layer_sizes: {config.feature_model.DGCN_layer_sizes}")
     _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
     _LOGGER.info(f"structure DGCN layers: {config.structure_model.DGCN_layers}")
     _LOGGER.info(f"feature DGCN layers: {config.feature_model.DGCN_layers}")
@@ -51,7 +51,7 @@ def log_config(_LOGGER):
         )
     else:
         _LOGGER.info(
-            f"structure layers size: {config.structure_model.MP_structure_layers_sizes}"
+            f"structure layers size: {config.structure_model.DGCN_structure_layers_sizes}"
         )
     _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
     _LOGGER.info(

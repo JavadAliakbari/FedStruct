@@ -20,12 +20,12 @@ model:
   metric: acc
 feature_model:
   gnn_layer_sizes: [64,32]
-  desicion_layer_sizes: [32]
+  DGCN_layer_sizes: [32]
   mlp_layer_sizes: [64]
   DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [64,32,16]
-  MP_structure_layers_size: [128]
+  DGCN_structure_layers_size: [128]
   DGCN_layers: 20
   # structure_type: degree
   # structure_type: GDV

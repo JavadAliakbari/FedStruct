@@ -1,7 +1,7 @@
 dataset:
   dataset_name: Amazon-ratings
 subgraph:
-  num_subgraphs: 10
+  num_subgraphs: 5
   delta: 20
   train_ratio: 0.1
   test_ratio: 0.5
@@ -15,17 +15,17 @@ model:
   weight_decay: 0.0002
   dropout: 0.7
   gnn_layer_type: sage
-  propagate_type: GNN
-  epoch_classifier: 50
+  propagate_type: DGCN
+  epoch_classifier: 70
   metric: acc
 feature_model:
-  gnn_layer_sizes: [256,128]
-  desicion_layer_sizes: [64]
+  gnn_layer_sizes: [256,256,128]
+  DGCN_layer_sizes: [64]
   mlp_layer_sizes: [64]
   DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64]
-  MP_structure_layers_size: [256]
+  DGCN_structure_layers_size: [256]
   DGCN_layers: 5
   # structure_type: degree
   # structure_type: GDV

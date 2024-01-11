@@ -58,11 +58,9 @@ class GNNClassifier(Classifier):
             dim_in = self.graph.num_features
 
         gnn_layer_sizes = [dim_in] + config.feature_model.gnn_layer_sizes
-        mlp_layer_sizes = (
-            [config.feature_model.gnn_layer_sizes[-1]]
-            # + config.feature_model.mlp_layer_sizes
-            + [self.num_classes]
-        )
+        mlp_layer_sizes = [config.feature_model.gnn_layer_sizes[-1]] + [
+            self.num_classes
+        ]
 
         model_specs = [
             ModelSpecs(
@@ -97,7 +95,7 @@ class GNNClassifier(Classifier):
             dim_in = self.graph.num_features
 
         mlp_layer_sizes = (
-            [dim_in] + config.feature_model.desicion_layer_sizes + [self.num_classes]
+            [dim_in] + config.feature_model.DGCN_layer_sizes + [self.num_classes]
         )
 
         model_specs = [
@@ -147,11 +145,9 @@ class GNNClassifier(Classifier):
             gnn_layer_sizes = [
                 dim_in
             ] + config.structure_model.GNN_structure_layers_sizes
-            mlp_layer_sizes = (
-                [config.structure_model.GNN_structure_layers_sizes[-1]]
-                # + config.feature_model.mlp_layer_sizes
-                + [self.num_classes]
-            )
+            mlp_layer_sizes = [
+                config.structure_model.GNN_structure_layers_sizes[-1]
+            ] + [self.num_classes]
 
             model_specs = [
                 ModelSpecs(
@@ -186,7 +182,7 @@ class GNNClassifier(Classifier):
             dim_in = config.structure_model.num_structural_features
         SPM_layer_sizes = (
             [dim_in]
-            + config.structure_model.MP_structure_layers_sizes
+            + config.structure_model.DGCN_structure_layers_sizes
             + [self.num_classes]
         )
         model_specs = [

@@ -255,11 +255,23 @@ class GNN(torch.nn.Module):
     def state_dict(self):
         weights = {}
         for id, layer in enumerate(self.layers):
+            if (
+                isinstance(layer, nn.LayerNorm)
+                or isinstance(layer, nn.BatchNorm1d)
+                or isinstance(layer, nn.InstanceNorm1d)
+            ):
+                continue
             weights[f"layer{id}"] = layer.state_dict()
         return weights
 
     def load_state_dict(self, weights: dict) -> None:
         for id, layer in enumerate(self.layers):
+            if (
+                isinstance(layer, nn.LayerNorm)
+                or isinstance(layer, nn.BatchNorm1d)
+                or isinstance(layer, nn.InstanceNorm1d)
+            ):
+                continue
             layer.load_state_dict(weights[f"layer{id}"])
 
     def get_grads(self):
@@ -350,11 +362,23 @@ class MLP(nn.Module):
     def state_dict(self):
         weights = {}
         for id, layer in enumerate(self.layers):
+            if (
+                isinstance(layer, nn.LayerNorm)
+                or isinstance(layer, nn.BatchNorm1d)
+                or isinstance(layer, nn.InstanceNorm1d)
+            ):
+                continue
             weights[f"layer{id}"] = layer.state_dict()
         return weights
 
     def load_state_dict(self, weights: dict) -> None:
         for id, layer in enumerate(self.layers):
+            if (
+                isinstance(layer, nn.LayerNorm)
+                or isinstance(layer, nn.BatchNorm1d)
+                or isinstance(layer, nn.InstanceNorm1d)
+            ):
+                continue
             layer.load_state_dict(weights[f"layer{id}"])
 
     def get_grads(self):
