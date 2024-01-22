@@ -6,7 +6,8 @@ subgraph:
   train_ratio: 0.1
   test_ratio: 0.5
   partitioning: random
-model:
+  prune: False
+  model:
   num_samples: [5, 10]
   batch: False
   batch_size: 64

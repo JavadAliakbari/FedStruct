@@ -76,7 +76,9 @@ def set_up_system(save_path="./"):
     if config.model.propagate_type == "DGCN":
         # graph.obtain_a(config.structure_model.DGCN_layers)
         graph.obtain_a(
-            config.structure_model.DGCN_layers, estimate=config.structure_model.estimate
+            config.structure_model.DGCN_layers,
+            estimate=config.structure_model.estimate,
+            pruning=config.subgraph.prune,
         )
 
     graph.add_masks(

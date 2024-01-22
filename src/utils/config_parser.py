@@ -38,6 +38,7 @@ class SubgraphConfig:
         self.train_ratio = subgraph["train_ratio"]
         self.test_ratio = subgraph["test_ratio"]
         self.partitioning = subgraph["partitioning"]
+        self.prune = subgraph["prune"]
 
 
 class ModelConfig:

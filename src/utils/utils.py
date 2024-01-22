@@ -20,8 +20,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-# elif torch.backends.mps.is_available():
-#     dev = "mps"
+elif torch.backends.mps.is_available():
+    dev = "mps"
 else:
     dev = "cpu"
 os.environ["device"] = dev
@@ -115,7 +115,7 @@ def plot_metrics(
     plt.savefig(f"{save_path}{plot_title}.png")
 
 
-def obtain_a(edge_index, num_nodes, num_layers):
+def obtain_a(edge_index, num_nodes, num_layers, pruning=False):
     # if dev == "mps":
     #     local_dev = "cpu"
     # else:
@@ -152,16 +152,33 @@ def obtain_a(edge_index, num_nodes, num_layers):
     # t1 = time.time()
     adj_hat = torch.matmul(D, adj)
 
+    th = 1e-6
+    ratio = 2
     for _ in range(num_layers):
         abar = torch.matmul(adj_hat, abar)  # Sparse-dense matrix multiplication
+        if pruning:
+            abar = prune(abar, th)
+            th *= ratio
+            ratio *= 0.95
+            print(f"{_}: {abar.values().shape[0]/(num_nodes*num_nodes)}")
 
-    # abar = abar.coalesce()
     # t2 = time.time()
     # print("Finished...........................")
     # print(f"total time: {t2-t1}")
 
     if dev != "mps":
         abar = abar.to(dev)
+    return abar
+
+
+def prune(abar, th):
+    mask = abar.values() > th
+    idx = abar.indices()[:, mask]
+    val = torch.masked_select(abar.values(), mask)
+
+    abar = torch.sparse_coo_tensor(idx, val, abar.shape, device=abar.device)
+    abar = abar.coalesce()
+
     return abar
 
 
