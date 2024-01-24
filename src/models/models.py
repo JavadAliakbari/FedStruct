@@ -311,17 +311,22 @@ class LocalSage_Plus(nn.Module):
         self.mend_graph.load_state_dict(weights["mend"])
         self.classifier.load_state_dict(weights["classifier"])
 
-    def forward(self, feat, edges):
-        degree, gen_feat = self.predict_features(feat, edges)
+    def forward(self, feat, edges, true_missing, predict=True):
+        degree, gen_feat = self.predict_features(
+            feat, edges, true_missing, predict=predict
+        )
         mend_feats, mend_edges = MendGraph.mend_graph(feat, edges, gen_feat)
         # nc_pred = self.classifier(feat, edges)
         nc_pred = self.classifier(mend_feats, mend_edges)
         return degree, gen_feat, nc_pred[: feat.shape[0]]
 
-    def predict_features(self, feat, edges):
+    def predict_features(self, feat, edges, true_missing, predict=True):
         x = self.encoder_model(feat, edges)
         # degree = config.fedsage.num_pred * self.reg_model(x).squeeze(1)
-        degree = self.reg_model(x).squeeze(1)
+        if predict:
+            degree = self.reg_model(x).squeeze(1)
+        else:
+            degree = true_missing
         # degree = torch.ones(
         #     size=(1, feat.shape[0]), requires_grad=True, dtype=torch.float32
         # ).squeeze(0)

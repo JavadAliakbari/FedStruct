@@ -82,7 +82,7 @@ class FedSAGEClient(GNNClient):
         num_added_features = 0
         while num_added_features < num_train_nodes:
             if node_idx >= all_nodes.shape[0]:
-                np.random.shuffle(all_nodes)
+                all_nodes = torch.randperm(self.graph.num_nodes)
                 node_idx = 0
 
             node_id = all_nodes[node_idx]
@@ -108,16 +108,18 @@ class FedSAGEClient(GNNClient):
 
         return inter_features
 
-    def create_mend_graph(self):
-        self.neighgen.create_mend_graph()
+    def create_mend_graph(self, predict=True):
+        self.neighgen.create_mend_graph(predict=predict)
 
-    def get_neighgen_train_results(self, inter_client_features_creators=[]):
+    def get_neighgen_train_results(
+        self, inter_client_features_creators=[], predict=True
+    ):
         (
             train_loss,
             val_acc_label,
             val_acc_missing,
             # val_loss_feat,
-        ) = self.neighgen.train_step(inter_client_features_creators)
+        ) = self.neighgen.train_step(inter_client_features_creators, predict=predict)
 
         result = {
             "Train Loss": round(train_loss.item(), 4),

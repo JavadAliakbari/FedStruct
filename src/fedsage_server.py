@@ -56,10 +56,10 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         for client in self.clients:
             client.initialize_neighgen()
 
-    def create_mend_graphs(self):
+    def create_mend_graphs(self, predict=True):
         client: FedSAGEClient
         for client in self.clients:
-            client.create_mend_graph()
+            client.create_mend_graph(predict=predict)
 
     def reset_neighgen_trainings(self):
         # self.reset_neighgen_model()
@@ -81,7 +81,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         for client in self.clients:
             client.neighgen_train_mode(mode)
 
-    def train_neighgen_clients(self, inter_client_features_creators=[]):
+    def train_neighgen_clients(self, inter_client_features_creators=[], predict=True):
         results = []
 
         client: FedSAGEClient
@@ -93,7 +93,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
                     idx
                 ]
             result = client.get_neighgen_train_results(
-                inter_client_features_creators_client
+                inter_client_features_creators_client, predict=predict
             )
             results.append(result)
 
@@ -113,6 +113,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         self,
         epochs=config.fedsage.neighgen_epochs,
         inter_client_features_creators=[],
+        predict=True,
         log=True,
         plot=True,
     ):
@@ -126,7 +127,10 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
             self.reset_neighgen_trainings()
 
             self.set_neighgen_train_mode()
-            results = self.train_neighgen_clients(inter_client_features_creators)
+            results = self.train_neighgen_clients(
+                inter_client_features_creators,
+                predict=predict,
+            )
             average_result = calc_average_result(results)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
@@ -193,6 +197,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
     def train_fedgen(
         self,
         epochs=config.fedsage.neighgen_epochs,
+        predict=True,
         log=True,
         plot=True,
     ):
@@ -213,6 +218,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         self.joint_train_neighgen(
             epochs=epochs,
             inter_client_features_creators=inter_client_features_creators,
+            predict=predict,
             log=log,
             plot=plot,
         )
@@ -222,14 +228,15 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         epochs=config.model.epoch_classifier,
         propagate_type=config.model.propagate_type,
         model="both",
+        predict=True,
         log=True,
         plot=True,
     ):
         self.LOGGER.info("FedSage+ starts!")
 
         self.initialize_neighgens()
-        self.train_fedgen(log=log, plot=plot)
-        self.create_mend_graphs()
+        self.train_fedgen(predict=predict, log=log, plot=plot)
+        self.create_mend_graphs(predict=predict)
         results = {}
         if model == "WA" or model == "both":
             res1 = self.joint_train_w(
