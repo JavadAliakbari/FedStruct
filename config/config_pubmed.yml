@@ -12,20 +12,20 @@ model:
   batch: False
   batch_size: 64
   epochs_local: 1
-  lr: 0.005
+  lr: 0.008
   weight_decay: 0.001
-  dropout: 0.7
+  dropout: 0.9
   gnn_layer_type: sage
   propagate_type: DGCN
-  epoch_classifier: 50
+  epoch_classifier: 125
   metric: acc
 feature_model:
-  gnn_layer_sizes: [64,32]
-  DGCN_layer_sizes: [32]
+  gnn_layer_sizes: [256,256]
+  DGCN_layer_sizes: [128]
   mlp_layer_sizes: [64]
   DGCN_layers: 2
 structure_model:
-  GNN_structure_layers_sizes: [64,32,16]
+  GNN_structure_layers_sizes: [128,64,32]
   DGCN_structure_layers_size: [128]
   DGCN_layers: 20
   # structure_type: degree

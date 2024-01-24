@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from utils.utils import *
+from src.utils.utils import *
 from src.define_graph import define_graph
 from src.GNN_server import GNNServer
 from src.MLP_server import MLPServer
@@ -52,8 +52,8 @@ if __name__ == "__main__":
 
     rep = 10
 
-    # for partitioning in [config.subgraph.partitioning]:
-    for partitioning in ["random", "louvian", "kmeans"]:
+    for partitioning in [config.subgraph.partitioning]:
+        # for partitioning in ["random", "louvian", "kmeans"]:
         # for num_subgraphs in [config.subgraph.num_subgraphs]:
         for num_subgraphs in [5, 10, 20]:
             for train_ratio in [config.subgraph.train_ratio]:
@@ -98,8 +98,8 @@ if __name__ == "__main__":
                         epochs=epochs,
                         train_ratio=train_ratio,
                         test_ratio=test_ratio,
-                        num_subgraphs=config.subgraph.num_subgraphs,
-                        partitioning=config.subgraph.partitioning,
+                        num_subgraphs=num_subgraphs,
+                        partitioning=partitioning,
                     )
                     _LOGGER2.info(f"Run id: {i}")
                     _LOGGER2.info(json.dumps(result, indent=4))

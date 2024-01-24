@@ -16,7 +16,7 @@ model:
   weight_decay: 0.0005
   dropout: 0.7
   gnn_layer_type: sage
-  propagate_type: DGCN
+  propagate_type: GNN
   epoch_classifier: 40
   metric: acc
 feature_model:
@@ -49,7 +49,7 @@ node2vec:
   q: 1
   show_bar: True
 fedsage:
-  neighgen_epochs: 30
+  neighgen_epochs: 40
   neighgen_lr: 0.002
   neighen_feature_gen: [256, 2048]
   num_pred: 5

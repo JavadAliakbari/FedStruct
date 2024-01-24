@@ -106,6 +106,9 @@ class Graph(Data):
         self.inv_map = {v: k for k, v in node_map.items()}
         self.num_edges = edge_index.shape[1]
 
+        self.inter_edges = kwargs.get("inter_edges", None)
+        self.external_nodes = kwargs.get("external_nodes", None)
+
         self.sfv_initialized = "None"
         self.keep_sfvs = keep_sfvs
         if self.keep_sfvs:

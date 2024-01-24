@@ -9,7 +9,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from utils.utils import *
+from src.utils.utils import *
 from src.define_graph import define_graph
 from src.GNN_server import GNNServer
 from src.MLP_server import MLPServer
