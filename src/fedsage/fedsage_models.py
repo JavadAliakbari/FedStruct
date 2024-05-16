@@ -208,6 +208,7 @@ class MendGraph(nn.Module):
             train_mask=train_mask,
             test_mask=test_mask,
             val_mask=val_mask,
+            num_classes=graph.num_classes,
         )
 
         return mend_graph

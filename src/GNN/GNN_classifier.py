@@ -24,13 +24,11 @@ class GNNClassifier(Classifier):
     def __init__(
         self,
         id,
-        num_classes,
         save_path="./",
         logger=None,
     ):
         super().__init__(
             id=id,
-            num_classes=num_classes,
             save_path=save_path,
             logger=logger,
         )
@@ -61,7 +59,7 @@ class GNNClassifier(Classifier):
 
         gnn_layer_sizes = [dim_in] + config.feature_model.gnn_layer_sizes
         mlp_layer_sizes = [config.feature_model.gnn_layer_sizes[-1]] + [
-            self.num_classes
+            self.graph.num_classes
         ]
 
         model_specs = [
@@ -97,7 +95,7 @@ class GNNClassifier(Classifier):
             dim_in = self.graph.num_features
 
         mlp_layer_sizes = (
-            [dim_in] + config.feature_model.DGCN_layer_sizes + [self.num_classes]
+            [dim_in] + config.feature_model.DGCN_layer_sizes + [self.graph.num_classes]
         )
 
         model_specs = [
@@ -150,7 +148,7 @@ class GNNClassifier(Classifier):
             ] + config.structure_model.GNN_structure_layers_sizes
             mlp_layer_sizes = [
                 config.structure_model.GNN_structure_layers_sizes[-1]
-            ] + [self.num_classes]
+            ] + [self.graph.num_classes]
 
             model_specs = [
                 ModelSpecs(
@@ -187,7 +185,7 @@ class GNNClassifier(Classifier):
         SPM_layer_sizes = (
             [dim_in]
             + config.structure_model.DGCN_structure_layers_sizes
-            + [self.num_classes]
+            + [self.graph.num_classes]
         )
         model_specs = [
             ModelSpecs(

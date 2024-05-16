@@ -31,7 +31,7 @@ config = Config(path)
 
 
 if __name__ == "__main__":
-    graph, num_classes = define_graph(config.dataset.dataset_name)
+    graph = define_graph(config.dataset.dataset_name)
     true_abar = obtain_a(
         graph.edge_index,
         graph.num_nodes,
@@ -45,13 +45,13 @@ if __name__ == "__main__":
         pruning=True,
     )
 
-    MLP_server = MLPServer(graph, num_classes)
+    MLP_server = MLPServer(graph)
 
-    GNN_server = GNNServer(graph, num_classes)
+    GNN_server = GNNServer(graph)
 
-    FedSage_server = FedSAGEServer(graph, num_classes)
+    FedSage_server = FedSAGEServer(graph)
 
-    GNN_server2 = GNNServer(graph, num_classes)
+    GNN_server2 = GNNServer(graph)
 
     rep = 10
 

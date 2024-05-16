@@ -522,7 +522,7 @@ if __name__ == "__main__":
 
     graph = create_homophilic_graph2(num_patterns=5, circular_pos=True)
     y = graph.y.long()
-    num_classes = max(y).item() + 1
+    num_classes = graph.num_classes
     cmap = plt.get_cmap("gist_rainbow", num_classes)
     colors = [cmap(1.0 * i / num_classes) for i in range(num_classes)]
     node_color = [colors[i] for i in y]

@@ -16,7 +16,6 @@ class Client:
     def __init__(
         self,
         graph: Graph,
-        num_classes,
         id: int = 0,
         classifier_type="GNN",
         save_path="./",
@@ -24,7 +23,6 @@ class Client:
     ):
         self.id = id
         self.graph = graph
-        self.num_classes = num_classes
         self.classifier_type = classifier_type
         self.save_path = save_path
 

@@ -21,13 +21,11 @@ class MLPClassifier(Classifier):
     def __init__(
         self,
         id,
-        num_classes,
         save_path="./",
         logger=None,
     ):
         super().__init__(
             id=id,
-            num_classes=num_classes,
             save_path=save_path,
             logger=logger,
         )
@@ -37,7 +35,7 @@ class MLPClassifier(Classifier):
             dim_in = self.data.num_features
 
         layer_sizes = (
-            [dim_in] + config.feature_model.mlp_layer_sizes + [self.num_classes]
+            [dim_in] + config.feature_model.mlp_layer_sizes + [self.data.num_classes]
         )
         self.feature_model = MLP(
             layer_sizes=layer_sizes,

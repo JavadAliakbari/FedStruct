@@ -21,13 +21,11 @@ class GNNServer(Server, GNNClient):
     def __init__(
         self,
         graph: Graph,
-        num_classes,
         save_path="./",
         logger=None,
     ):
         super().__init__(
             graph=graph,
-            num_classes=num_classes,
             save_path=save_path,
             logger=logger,
         )
@@ -38,7 +36,6 @@ class GNNServer(Server, GNNClient):
         client = GNNClient(
             graph=subgraph,
             id=self.num_clients,
-            num_classes=self.num_classes,
             save_path=self.save_path,
             logger=self.LOGGER,
         )

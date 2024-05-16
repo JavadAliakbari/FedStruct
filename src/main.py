@@ -36,7 +36,7 @@ def set_up_system(save_path="./"):
 
     log_config(_LOGGER, config)
 
-    graph, num_classes = define_graph(config.dataset.dataset_name)
+    graph = define_graph(config.dataset.dataset_name)
 
     if config.model.propagate_type == "DGCN":
         # graph.obtain_a(config.structure_model.DGCN_layers)
@@ -55,28 +55,26 @@ def set_up_system(save_path="./"):
         graph, config.subgraph.num_subgraphs, config.subgraph.partitioning
     )
 
-    MLP_server = MLPServer(graph, num_classes, save_path=save_path, logger=_LOGGER)
+    MLP_server = MLPServer(graph, save_path=save_path, logger=_LOGGER)
 
     for subgraph in subgraphs:
         MLP_server.add_client(subgraph)
 
-    GNN_server = GNNServer(graph, num_classes, save_path=save_path, logger=_LOGGER)
+    GNN_server = GNNServer(graph, save_path=save_path, logger=_LOGGER)
 
     for subgraph in subgraphs:
         GNN_server.add_client(subgraph)
 
-    GNN_server2 = GNNServer(graph, num_classes, save_path=save_path, logger=_LOGGER)
+    GNN_server2 = GNNServer(graph, save_path=save_path, logger=_LOGGER)
     for subgraph in subgraphs:
         mend_graph = create_mend_graph(subgraph, graph, 0)
         GNN_server2.add_client(mend_graph)
-    GNN_server3 = GNNServer(graph, num_classes, save_path=save_path, logger=_LOGGER)
+    GNN_server3 = GNNServer(graph, save_path=save_path, logger=_LOGGER)
     for subgraph in subgraphs:
         mend_graph = create_mend_graph(subgraph, graph, 1)
         GNN_server3.add_client(mend_graph)
 
-    FedSage_server = FedSAGEServer(
-        graph, num_classes, save_path=save_path, logger=_LOGGER
-    )
+    FedSage_server = FedSAGEServer(graph, save_path=save_path, logger=_LOGGER)
 
     for subgraph in subgraphs:
         FedSage_server.add_client(subgraph)

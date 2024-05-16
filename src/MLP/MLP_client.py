@@ -13,14 +13,12 @@ class MLPClient(Client):
     def __init__(
         self,
         graph: Data,
-        num_classes,
         id: int = 0,
         save_path="./",
         logger=None,
     ):
         super().__init__(
             graph=graph,
-            num_classes=num_classes,
             id=id,
             classifier_type="MLP",
             save_path=save_path,
@@ -29,7 +27,6 @@ class MLPClient(Client):
 
         self.classifier: MLPClassifier = MLPClassifier(
             id=self.id,
-            num_classes=self.num_classes,
             save_path=self.save_path,
             logger=self.LOGGER,
         )

@@ -28,14 +28,12 @@ class NeighGen:
     def __init__(
         self,
         id,
-        num_classes,
         x,
         save_path="./",
         logger=None,
     ):
         self.num_pred = config.fedsage.num_pred
         self.id = id
-        self.num_classes = num_classes
         self.save_path = save_path
         self.LOGGER = logger or logging
 
@@ -216,7 +214,7 @@ class NeighGen:
         self.predictor = LocalSage_Plus(
             feat_shape=self.impaired_graph.num_features,
             node_len=self.impaired_graph.num_nodes,
-            n_classes=self.num_classes,
+            n_classes=self.original_graph.num_classes,
             node_ids=self.impaired_graph.node_ids,
         )
         self.predictor.to(device)

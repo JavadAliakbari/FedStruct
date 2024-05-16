@@ -30,14 +30,12 @@ def define_graph(dataset_name=config.dataset.dataset_name):
             dataset = Planetoid(root=root, name=dataset_name)
             node_ids = torch.arange(dataset[0].num_nodes)
             edge_index = dataset[0].edge_index
-            num_classes = dataset.num_classes
         elif dataset_name in ["chameleon", "crocodile", "squirrel"]:
             dataset = WikipediaNetwork(
                 root=root, geom_gcn_preprocess=True, name=dataset_name
             )
             node_ids = torch.arange(dataset[0].num_nodes)
             edge_index = dataset[0].edge_index
-            num_classes = dataset.num_classes
         elif dataset_name in [
             "Roman-empire",
             "Amazon-ratings",
@@ -64,7 +62,6 @@ def define_graph(dataset_name=config.dataset.dataset_name):
     if dataset is not None:
         node_ids = torch.arange(dataset[0].num_nodes)
         edge_index = dataset[0].edge_index
-        num_classes = dataset.num_classes
 
         edge_index = to_undirected(edge_index)
         edge_index = remove_self_loops(edge_index)[0]
@@ -78,9 +75,7 @@ def define_graph(dataset_name=config.dataset.dataset_name):
             train_mask=dataset[0].train_mask,
             val_mask=dataset[0].val_mask,
             test_mask=dataset[0].test_mask,
-            num_classes=num_classes,
+            num_classes=dataset.num_classes,
         )
-    else:
-        num_classes = max(graph.y).item() + 1
 
-    return graph, num_classes
+    return graph

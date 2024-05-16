@@ -14,13 +14,11 @@ class Server(Client):
     def __init__(
         self,
         graph: Graph,
-        num_classes,
         save_path="./",
         logger=None,
     ):
         super().__init__(
             graph=graph,
-            num_classes=num_classes,
             id="Server",
             save_path=save_path,
             logger=logger,

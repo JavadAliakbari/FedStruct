@@ -14,14 +14,12 @@ class GNNClient(Client):
     def __init__(
         self,
         graph: Graph,
-        num_classes,
         id: int = 0,
         save_path="./",
         logger=None,
     ):
         super().__init__(
             graph=graph,
-            num_classes=num_classes,
             id=id,
             classifier_type="GNN",
             save_path=save_path,
@@ -32,7 +30,6 @@ class GNNClient(Client):
 
         self.classifier: GNNClassifier = GNNClassifier(
             id=self.id,
-            num_classes=self.num_classes,
             save_path=self.save_path,
             logger=self.LOGGER,
         )

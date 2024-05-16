@@ -78,12 +78,9 @@ def run(
 
 
 if __name__ == "__main__":
-    graph, num_classes = define_graph(config.dataset.dataset_name)
+    graph = define_graph(config.dataset.dataset_name)
 
-    GNN_server = GNNServer(
-        graph,
-        num_classes,
-    )
+    GNN_server = GNNServer(graph)
 
     rep = 10
 
