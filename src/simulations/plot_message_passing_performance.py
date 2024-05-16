@@ -15,7 +15,7 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, remove_self_loops, to_undirected
 from sklearn.preprocessing import StandardScaler
 
-from src.models.GNN_models import MLP
+from src.models.model_binders import MLP
 from src.models.Node2Vec import find_node2vect_embedings
 from src.server import Server
 from src.utils.config_parser import Config

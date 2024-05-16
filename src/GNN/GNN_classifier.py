@@ -8,7 +8,7 @@ from src.utils.utils import *
 from src.utils.graph import Graph
 from src.classifier import Classifier
 from src.utils.config_parser import Config
-from src.models.GNN_models import (
+from src.models.model_binders import (
     ModelBinder,
     ModelSpecs,
 )

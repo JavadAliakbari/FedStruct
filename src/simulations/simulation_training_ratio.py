@@ -8,13 +8,13 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from src.utils.utils import *
-from src.define_graph import define_graph
-from src.GNN_server import GNNServer
-from src.MLP_server import MLPServer
-from src.fedsage_server import FedSAGEServer
+from src.utils.define_graph import define_graph
+from src.GNN.GNN_server import GNNServer
+from src.MLP.MLP_server import MLPServer
+from src.fedsage.fedsage_server import FedSAGEServer
 from src.utils.logger import get_logger
 from src.utils.config_parser import Config
-from src.simulation import *
+from src.simulations.simulation import *
 
 # Change plot canvas size
 plt.rcParams["figure.figsize"] = [24, 16]

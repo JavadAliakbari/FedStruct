@@ -4,25 +4,19 @@ import random
 
 import torch
 import numpy as np
-from matplotlib import pyplot as plt
 
 from src.utils.utils import log_config
-from src.GNN_server import GNNServer
-from src.MLP_server import MLPServer
-from src.fedsage_server import FedSAGEServer
+from src.GNN.GNN_server import GNNServer
+from src.MLP.MLP_server import MLPServer
+from src.fedsage.fedsage_server import FedSAGEServer
 from src.utils.logger import get_logger
 from src.utils.config_parser import Config
-from src.define_graph import define_graph
+from src.utils.define_graph import define_graph
 from src.utils.graph_partitioning import (
     create_mend_graph,
     create_mend_graph2,
     partition_graph,
 )
-
-# Change plot canvas size
-plt.rcParams["figure.figsize"] = [24, 16]
-plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
-plt.rcParams.update({"figure.max_open_warning": 0})
 
 seed = 65
 random.seed(seed)

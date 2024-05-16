@@ -1,10 +1,9 @@
 import os
 
-from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.utils.graph import Data
 from src.client import Client
-from src.MLP_classifier import MLPClassifier
+from src.MLP.MLP_classifier import MLPClassifier
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)

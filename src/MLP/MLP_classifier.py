@@ -3,12 +3,11 @@ import os
 import torch
 from torch.utils.data import DataLoader
 
-from src.utils.utils import *
 from src.utils.graph import Data
 from src.classifier import Classifier
 from src.utils.config_parser import Config
-from src.utils.utils import calc_accuracy, calc_f1_score
-from src.models.GNN_models import MLP
+from src.utils.utils import calc_metrics, calc_accuracy, calc_f1_score
+from src.MLP.MLP_model import MLP
 
 dev = os.environ.get("device", "cpu")
 device = torch.device(dev)

@@ -1,11 +1,10 @@
 import os
 from ast import List
 
-from src.utils.utils import *
 from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.server import Server
-from src.MLP_client import MLPClient
+from src.MLP.MLP_client import MLPClient
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)

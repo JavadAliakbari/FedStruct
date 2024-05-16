@@ -11,7 +11,6 @@ from torch_geometric.utils import subgraph
 from torch_geometric.utils.convert import to_scipy_sparse_matrix
 from sklearn.cluster import k_means
 import networkx as nx
-import metis
 
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
@@ -268,6 +267,8 @@ def Kmeans_cut(graph: Graph, num_subgraphs):
 
 
 def Metis_cut(graph: Graph, num_subgraphs):
+    import metis
+
     edges = graph.edge_index.T.tolist()
     nx_graph = nx.Graph()
     nx_graph.add_nodes_from(range(graph.num_nodes))

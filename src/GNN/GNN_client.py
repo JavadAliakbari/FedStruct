@@ -4,7 +4,7 @@ from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.client import Client
 from src.utils.graph import Graph
-from src.GNN_classifier import GNNClassifier
+from src.GNN.GNN_classifier import GNNClassifier
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)

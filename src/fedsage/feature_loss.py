@@ -1,7 +1,6 @@
 import os
 
 import torch
-import numpy as np
 
 from src.utils.config_parser import Config
 

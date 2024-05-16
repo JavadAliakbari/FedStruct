@@ -3,7 +3,7 @@ from typing import Union
 
 import torch
 
-from src.models.GNN_models import ModelBinder
+from src.models.model_binders import ModelBinder
 
 
 class Classifier:

@@ -13,9 +13,9 @@ from torch_geometric.utils import subgraph
 from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
-from src.models.models import MendGraph
-from src.models.models import LocalSage_Plus
-from src.models.feature_loss import greedy_loss
+from src.fedsage.fedsage_models import MendGraph
+from src.fedsage.fedsage_models import LocalSage_Plus
+from src.fedsage.feature_loss import greedy_loss
 
 dev = os.environ.get("device", "cpu")
 device = torch.device(dev)
@@ -171,7 +171,7 @@ class NeighGen:
         for node_id in range(impaired_graph.num_nodes):
             subgraph_neighbors = find_neighbors_(
                 node_id,
-                edges
+                edges,
                 # include_external=config.fedsage.use_inter_connections,
             )
             impaired_graph_neighbors = find_neighbors_(node_id, impaired_edges)

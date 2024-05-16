@@ -14,7 +14,7 @@ from torch_geometric.datasets import (
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, remove_self_loops, to_undirected
 
-from src.models.GNN_models import MLP
+from src.models.model_binders import MLP
 from src.server import Server
 from src.utils.config_parser import Config
 from src.utils.create_graph import create_heterophilic_graph2, create_homophilic_graph2

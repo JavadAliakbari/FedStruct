@@ -11,7 +11,7 @@ from torch_geometric.nn.models import Node2Vec
 from torch_geometric.datasets import TUDataset, Planetoid
 
 from src.utils.graph import Graph
-from src.models.GNN_models import MLP
+from src.models.model_binders import MLP
 from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.create_graph import (
     create_heterophilic_graph,

@@ -9,9 +9,9 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from src.utils.utils import *
-from src.GNN_server import GNNServer
-from src.MLP_server import MLPServer
-from src.fedsage_server import FedSAGEServer
+from src.GNN.GNN_server import GNNServer
+from src.MLP.MLP_server import MLPServer
+from src.fedsage.fedsage_server import FedSAGEServer
 from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.utils.graph_partitioning import (

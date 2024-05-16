@@ -1,12 +1,10 @@
 import os
 
-import numpy as np
-
-from src.GNN_client import GNNClient
+from src.GNN.GNN_client import GNNClient
 from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
-from src.neighgen import NeighGen
+from src.fedsage.neighgen import NeighGen
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)

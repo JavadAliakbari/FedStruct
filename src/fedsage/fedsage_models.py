@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 
-from src.models.GNN_models import GNN, MLP
+from src.models.model_binders import GNN, MLP
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
 

@@ -3,7 +3,7 @@ import os
 from ast import List
 
 import torch
-from src.GNN_client import GNNClient
+from src.GNN.GNN_client import GNNClient
 
 from src.utils.utils import *
 from src.utils.graph import Graph
