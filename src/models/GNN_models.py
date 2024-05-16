@@ -1,5 +1,7 @@
 import os
 
+from sklearn.utils import compute_class_weight
+
 from src.utils.utils import *
 
 import matplotlib.pyplot as plt
@@ -107,16 +109,16 @@ class ModelBinder(torch.nn.Module):
         for grad, parameter in zip(grads, model_parameters):
             parameter.grad = grad
 
-    def step(self, model, h, edge_index=None) -> None:
+    def step(self, model: GCNConv, h, edge_index=None, edge_weight=None) -> None:
         if model.type_ == "MLP":
             return model(h)
         else:
-            return model(h, edge_index)
+            return model(h, edge_index, edge_weight)
 
-    def forward(self, x, edge_index=None):
+    def forward(self, x, edge_index=None, edge_weight=None):
         h = x
         for model in self.models:
-            h = self.step(model, h, edge_index)
+            h = self.step(model, h, edge_index, edge_weight)
         return h
 
 
@@ -285,11 +287,11 @@ class GNN(torch.nn.Module):
         for grad, parameter in zip(grads, model_parameters):
             parameter.grad = grad
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, edge_weight=None):
         h = x
         for layer in self.layers:
             if isinstance(layer, MessagePassing):
-                h = layer(h, edge_index)
+                h = layer(h, edge_index, edge_weight)
             else:
                 h = layer(h)
 
@@ -348,6 +350,8 @@ class MLP(nn.Module):
             layers.append(nn.ReLU())
         elif self.last_layer == "tanh":
             layers.append(nn.Tanh())
+        elif self.last_layer == "sigmoid":
+            layers.append(nn.Sigmoid())
 
         return layers
 

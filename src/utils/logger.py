@@ -10,6 +10,7 @@ def get_logger(
     log_on_file=False,
     save_path="./",
     append=False,
+    use_formatter=True,
 ):
     log_level = os.getenv("LOG_LEVEL", _DEV_LOG_LEVEL)
 
@@ -20,9 +21,12 @@ def get_logger(
     logger.setLevel(log_level)
 
     # create formatter
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    if use_formatter:
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+    else:
+        formatter = logging.Formatter()
 
     # create console handler and set level to debug
     if terminal:

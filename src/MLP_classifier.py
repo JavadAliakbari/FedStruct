@@ -90,22 +90,25 @@ class MLPClassifier(Classifier):
         elif metric == "f1":
             val_acc = calc_f1_score(out.argmax(dim=1), test_y)
 
-        return val_acc
+        return val_acc, None, None
 
     def get_prediction(self):
         h = self.feature_model(self.data.x)
         y_pred = torch.nn.functional.softmax(h, dim=1)
         return y_pred
 
-    def train_step(self):
+    def train_step(self, eval_=True):
         y_pred = self.get_prediction()
         y = self.data.y
 
         train_mask, val_mask, _ = self.data.get_masks()
 
         train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
-        val_loss, val_acc = calc_metrics(y, y_pred, val_mask)
-
         train_loss.backward(retain_graph=False)
+        if eval_:
+            self.eval()
+            val_loss, val_acc = calc_metrics(y, y_pred, val_mask)
 
-        return train_loss, train_acc, val_loss, val_acc
+            return train_loss, train_acc, val_loss, val_acc, 0, 0
+        else:
+            return train_loss, train_acc, torch.tensor(0), 0, 0, 0

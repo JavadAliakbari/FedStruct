@@ -45,8 +45,9 @@ class Data:
         self.dataset_name = dataset_name
 
         self.train_mask = kwargs.get("train_mask", None)
-        self.test_mask = kwargs.get("val_mask", None)
-        self.val_mask = kwargs.get("test_mask", None)
+        self.test_mask = kwargs.get("test_mask", None)
+        self.val_mask = kwargs.get("val_mask", None)
+        self.num_classes = kwargs.get("num_classes", None)
 
     def get_masks(self):
         return (self.train_mask, self.val_mask, self.test_mask)
@@ -58,7 +59,7 @@ class Data:
 
     def add_masks(self, train_size=0.5, test_size=0.2):
         num_nodes = self.num_nodes
-        indices = torch.arange(num_nodes)
+        indices = torch.arange(num_nodes, device=dev)
 
         train_indices, test_indices = model_selection.train_test_split(
             indices,
@@ -66,8 +67,8 @@ class Data:
             test_size=test_size,
         )
 
-        self.train_mask = torch.isin(indices, train_indices)
-        self.test_mask = torch.isin(indices, test_indices)
+        self.train_mask = indices.unsqueeze(1).eq(train_indices).any(1)
+        self.test_mask = indices.unsqueeze(1).eq(test_indices).any(1)
         self.val_mask = ~(self.test_mask | self.train_mask)
 
 
@@ -121,16 +122,19 @@ class Graph(Data):
 
     def reindex_nodes(nodes, edges):
         node_map = {node.item(): ind for ind, node in enumerate(nodes)}
-        new_edges = edges.to("cpu").numpy()
+        if edges.shape[1] == 0:
+            new_edges = torch.empty((2, 0), dtype=torch.int64, device=edges.device)
+        else:
+            new_edges = edges.to("cpu").numpy()
 
-        new_edges = np.vstack(
-            (
-                itemgetter(*new_edges[0])(node_map),
-                itemgetter(*new_edges[1])(node_map),
+            new_edges = np.vstack(
+                (
+                    itemgetter(*new_edges[0])(node_map),
+                    itemgetter(*new_edges[1])(node_map),
+                )
             )
-        )
 
-        new_edges = torch.tensor(new_edges, device=edges.device)
+            new_edges = torch.tensor(new_edges, device=edges.device)
 
         return node_map, new_edges
 

@@ -186,9 +186,7 @@ def is_connected(edge_index, node_ids):
 
     count = 0
     while len(connectesd_nodes) < num_nodes:
-        edge_mask = np.isin(edge_index[0], connectesd_nodes) | np.isin(
-            edge_index[1], connectesd_nodes
-        )
+        edge_mask = edge_index.unsqueeze(2).eq(connectesd_nodes).any(2).any(0)
         new_conncted_nodes = np.unique(edge_index[:, edge_mask].flatten())
 
         if len(new_conncted_nodes) == len(connectesd_nodes):

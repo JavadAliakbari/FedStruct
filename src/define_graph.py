@@ -21,22 +21,19 @@ path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
 
-def define_graph(dataset_name=config.dataset.dataset_name) -> [Graph, int]:
+def define_graph(dataset_name=config.dataset.dataset_name):
+    root = f"./datasets/{dataset_name}"
+    os.makedirs(root, exist_ok=True)
     try:
         dataset = None
         if dataset_name in ["Cora", "PubMed", "CiteSeer"]:
-            dataset = Planetoid(
-                root=f"/tmp/{dataset_name}",
-                name=dataset_name,
-            )
+            dataset = Planetoid(root=root, name=dataset_name)
             node_ids = torch.arange(dataset[0].num_nodes)
             edge_index = dataset[0].edge_index
             num_classes = dataset.num_classes
         elif dataset_name in ["chameleon", "crocodile", "squirrel"]:
             dataset = WikipediaNetwork(
-                root=f"/tmp/{dataset_name}",
-                geom_gcn_preprocess=True,
-                name=dataset_name,
+                root=root, geom_gcn_preprocess=True, name=dataset_name
             )
             node_ids = torch.arange(dataset[0].num_nodes)
             edge_index = dataset[0].edge_index
@@ -48,17 +45,11 @@ def define_graph(dataset_name=config.dataset.dataset_name) -> [Graph, int]:
             "Tolokers",
             "Questions",
         ]:
-            dataset = HeterophilousGraphDataset(
-                root=f"/tmp/{dataset_name}",
-                name=dataset_name,
-            )
+            dataset = HeterophilousGraphDataset(root=root, name=dataset_name)
         elif dataset_name in ["Actor"]:
-            dataset = Actor(root=f"/tmp/{dataset_name}")
+            dataset = Actor(root=root)
         elif config.dataset.dataset_name in ["Computers", "Photo"]:
-            dataset = Amazon(
-                root=f"/tmp/{config.dataset.dataset_name}",
-                name=config.dataset.dataset_name,
-            )
+            dataset = Amazon(root=root, name=dataset_name)
         elif dataset_name == "Heterophilic_example":
             num_patterns = 500
             graph = create_heterophilic_graph2(num_patterns, use_random_features=True)
@@ -83,7 +74,11 @@ def define_graph(dataset_name=config.dataset.dataset_name) -> [Graph, int]:
             edge_index=edge_index.to(device),
             node_ids=node_ids.to(device),
             keep_sfvs=True,
-            dataset_name=config.dataset.dataset_name,
+            dataset_name=dataset_name,
+            train_mask=dataset[0].train_mask,
+            val_mask=dataset[0].val_mask,
+            test_mask=dataset[0].test_mask,
+            num_classes=num_classes,
         )
     else:
         num_classes = max(graph.y).item() + 1

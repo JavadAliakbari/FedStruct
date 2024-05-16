@@ -40,6 +40,7 @@ class GNNClassifier(Classifier):
 
         self.GNN_structure_embedding = None
         self.get_structure_embeddings_from_server = None
+        self.use_struct = False
 
     def reset(self):
         super().reset()
@@ -52,6 +53,7 @@ class GNNClassifier(Classifier):
         self.abar_i = None
         self.GNN_structure_embedding = None
         self.get_structure_embeddings_from_server = None
+        self.use_struct = False
 
     def set_GNN_FPM(self, dim_in=None):
         if dim_in is None:
@@ -138,6 +140,7 @@ class GNNClassifier(Classifier):
         self.abar = abar
 
     def set_GNN_SPM(self, dim_in=None, get_structure_embeddings=None):
+        self.use_struct = True
         if self.id == "Server":
             if dim_in is None:
                 dim_in = self.graph.num_structural_features
@@ -178,6 +181,7 @@ class GNNClassifier(Classifier):
         self.abar = None
 
     def set_DGCN_SPM(self, dim_in=None):
+        self.use_struct = True
         if dim_in is None:
             dim_in = config.structure_model.num_structural_features
         SPM_layer_sizes = (
@@ -248,24 +252,29 @@ class GNNClassifier(Classifier):
 
     @torch.no_grad()
     def calc_test_accuracy(self, metric="acc"):
-        self.feature_model.eval()
-        if self.structure_model is not None:
-            self.structure_model.eval()
+        self.eval()
 
-        y_pred = self.get_prediction()
         y = self.graph.y
         test_mask = self.graph.test_mask
+        y_pred = self.get_prediction()
+        y_pred_f = self.get_prediction(model_use="feature")
+        y_pred_s = self.get_prediction(model_use="structure")
 
         test_loss, test_acc = calc_metrics(y, y_pred, test_mask)
+        if self.use_struct:
+            test_loss_f, test_acc_f = calc_metrics(y, y_pred_f, test_mask)
+            test_loss_s, test_acc_s = calc_metrics(y, y_pred_s, test_mask)
+        else:
+            test_acc_f, test_loss_f, test_acc_s, test_loss_s = None, None, None, None
 
         if metric == "acc":
-            return test_acc
+            return test_acc, test_acc_f, test_acc_s
         # elif metric == "f1":
         #     return test_f1_score
         else:
-            return test_loss
+            return test_loss, test_loss_f, test_loss_s
 
-    def get_prediction(self):
+    def get_feature_embeddings(self):
         h = GNNClassifier.get_embeddings(
             self.feature_model,
             self.graph.x,
@@ -273,6 +282,10 @@ class GNNClassifier(Classifier):
             self.abar_i,
         )
 
+        return h
+
+    def get_structure_embeddings(self):
+        s = None
         if self.structure_model is not None:
             s = GNNClassifier.get_embeddings(
                 self.structure_model,
@@ -280,29 +293,61 @@ class GNNClassifier(Classifier):
                 self.graph.edge_index,
                 a=self.abar,
             )
-            o = h + s
         elif self.get_structure_embeddings_from_server is not None:
             s = self.get_structure_embeddings_from_server(self.graph.node_ids)
-            o = h + s
         elif self.SFV is not None:
             if self.SFV.requires_grad:
                 s = self.abar.matmul(self.SFV)
-                o = h + s
-        else:
+
+        return s
+
+    def get_prediction(self, model_use="both"):
+        y_pred = None
+        o = None
+        h = None
+        s = None
+        if model_use == "both" or model_use == "feature":
+            h = self.get_feature_embeddings()
+
+        if model_use == "both" or model_use == "structure":
+            s = self.get_structure_embeddings()
+
+        if h is not None:
             o = h
-        y_pred = torch.nn.functional.softmax(o, dim=1)
+
+        if s is not None:
+            if o is not None:
+                o += s
+            else:
+                o = s
+
+        if o is not None:
+            y_pred = torch.nn.functional.softmax(o, dim=1)
 
         return y_pred
 
-    def train_step(self):
+    def train_step(self, eval_=True):
         y_pred = self.get_prediction()
         y = self.graph.y
 
         train_mask, val_mask, _ = self.graph.get_masks()
 
         train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
-        val_loss, val_acc = calc_metrics(y, y_pred, val_mask)
-
         train_loss.backward(retain_graph=True)
 
-        return train_loss, train_acc, val_loss, val_acc
+        if eval_:
+            self.eval()
+            y_pred_val = self.get_prediction()
+            y_pred_f = self.get_prediction(model_use="feature")
+            y_pred_s = self.get_prediction(model_use="structure")
+
+            val_loss, val_acc = calc_metrics(y, y_pred_val, val_mask)
+            if self.use_struct:
+                _, val_acc_f = calc_metrics(y, y_pred_f, val_mask)
+                _, val_acc_s = calc_metrics(y, y_pred_s, val_mask)
+            else:
+                val_acc_f, val_acc_s = 0, 0
+
+            return train_loss, train_acc, val_loss, val_acc, val_acc_f, val_acc_s
+        else:
+            return train_loss, train_acc, torch.tensor(0), 0, 0, 0

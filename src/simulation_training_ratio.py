@@ -15,7 +15,6 @@ from src.fedsage_server import FedSAGEServer
 from src.utils.logger import get_logger
 from src.utils.config_parser import Config
 from src.simulation import *
-from src.main import log_config
 
 # Change plot canvas size
 plt.rcParams["figure.figsize"] = [24, 16]
@@ -33,29 +32,34 @@ config = Config(path)
 
 if __name__ == "__main__":
     graph, num_classes = define_graph(config.dataset.dataset_name)
-    graph.obtain_a(config.structure_model.DGCN_layers)
-
-    MLP_server = MLPServer(
-        graph,
-        num_classes,
+    true_abar = obtain_a(
+        graph.edge_index,
+        graph.num_nodes,
+        config.structure_model.DGCN_layers,
+        pruning=False,
+    )
+    prune_abar = obtain_a(
+        graph.edge_index,
+        graph.num_nodes,
+        config.structure_model.DGCN_layers,
+        pruning=True,
     )
 
-    GNN_server = GNNServer(
-        graph,
-        num_classes,
-    )
+    MLP_server = MLPServer(graph, num_classes)
 
-    FedSage_server = FedSAGEServer(
-        graph,
-        num_classes,
-    )
+    GNN_server = GNNServer(graph, num_classes)
+
+    FedSage_server = FedSAGEServer(graph, num_classes)
+
+    GNN_server2 = GNNServer(graph, num_classes)
 
     rep = 10
 
-    for partitioning in [config.subgraph.partitioning]:
-        # for partitioning in ["random", "louvian", "kmeans"]:
+    # for partitioning in [config.subgraph.partitioning]:
+    for partitioning in ["random", "louvain", "kmeans"]:
         # for num_subgraphs in [config.subgraph.num_subgraphs]:
-        for num_subgraphs in [5, 10, 20]:
+        for num_subgraphs in [10]:
+            # for num_subgraphs in [5, 10, 20]:
             for train_ratio in [config.subgraph.train_ratio]:
                 # for train_ratio in np.arange(0.1, 0.65, 0.05):
                 test_ratio = config.subgraph.test_ratio
@@ -64,7 +68,7 @@ if __name__ == "__main__":
                 # epochs = int(train_ratio * 100 + 30)
 
                 save_path = (
-                    "./results/Paper Results/"
+                    "./results/Paper Results2/"
                     f"{config.dataset.dataset_name}/"
                     f"{partitioning}/"
                     f"{num_subgraphs}/"
@@ -84,27 +88,70 @@ if __name__ == "__main__":
                     log_on_file=True,
                     save_path=save_path,
                 )
-                log_config(_LOGGER)
+                log_config(_LOGGER, config)
 
                 bar = tqdm(total=rep)
                 results = []
                 for i in range(rep):
-                    result = run(
+                    create_clients(
                         graph,
                         MLP_server,
                         GNN_server,
+                        GNN_server2,
                         FedSage_server,
-                        bar=bar,
-                        epochs=epochs,
                         train_ratio=train_ratio,
                         test_ratio=test_ratio,
                         num_subgraphs=num_subgraphs,
                         partitioning=partitioning,
                     )
-                    _LOGGER2.info(f"Run id: {i}")
-                    _LOGGER2.info(json.dumps(result, indent=4))
+                    model_results = {}
 
-                    results.append(result)
+                    # MLP_results = get_MLP_results(
+                    #     MLP_server,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    # )
+                    # model_results.update(MLP_results)
+                    # Fedsage_results = get_Fedsage_results(
+                    #     FedSage_server,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    # )
+                    # model_results.update(Fedsage_results)
+                    # Fedsage_ideal_results = get_Fedsage_ideal_reults(
+                    #     GNN_server2,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    # )
+                    # model_results.update(Fedsage_ideal_results)
+
+                    graph.abar = true_abar
+                    GNN_result_true = get_GNN_results(
+                        GNN_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+
+                    GNN_result_true2 = {}
+                    for key, val in GNN_result_true.items():
+                        GNN_result_true2[f"{key}_true"] = val
+                    model_results.update(GNN_result_true2)
+
+                    graph.abar = prune_abar
+                    GNN_result_prune = get_GNN_results(
+                        GNN_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    GNN_result_prune2 = {}
+                    for key, val in GNN_result_prune.items():
+                        GNN_result_prune2[f"{key}_prune"] = val
+                    model_results.update(GNN_result_prune2)
+
+                    _LOGGER2.info(f"Run id: {i}")
+                    _LOGGER2.info(json.dumps(model_results, indent=4))
+
+                    results.append(model_results)
 
                     average_result = calc_average_std_result(results)
                     file_name = f"{save_path}final_result_{train_ratio}.csv"

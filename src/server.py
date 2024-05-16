@@ -60,12 +60,12 @@ class Server(Client):
         for client in self.clients:
             client.train(mode)
 
-    def train_clients(self):
+    def train_clients(self, eval_=True):
         results = []
 
         client: Client
         for client in self.clients:
-            result = client.get_train_results()
+            result = client.get_train_results(eval_=eval_)
             results.append(result)
 
         return results
@@ -91,7 +91,7 @@ class Server(Client):
             self.LOGGER.info(f"Average {key}: {val / len(average_result):0.4f}")
 
     def report_server_test(self):
-        test_acc = self.test_classifier()
+        test_acc, test_acc_f, test_acc_s = self.test_classifier()
         self.LOGGER.info(f"Server test: {test_acc:0.4f}")
 
     def update_models(self):
@@ -128,7 +128,7 @@ class Server(Client):
             self.reset_trainings()
 
             self.set_train_mode()
-            results = self.train_clients()
+            results = self.train_clients(eval_=log)
             average_result = calc_average_result(results)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
@@ -184,7 +184,7 @@ class Server(Client):
             self.reset_trainings()
 
             self.set_train_mode()
-            results = self.train_clients()
+            results = self.train_clients(eval_=log)
             average_result = calc_average_result(results)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)

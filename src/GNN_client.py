@@ -28,7 +28,7 @@ class GNNClient(Client):
             logger=logger,
         )
 
-        self.LOGGER.info(f"Number of edges: {self.graph.num_edges}")
+        # self.LOGGER.info(f"Number of edges: {self.graph.num_edges}")
 
         self.classifier: GNNClassifier = GNNClassifier(
             id=self.id,

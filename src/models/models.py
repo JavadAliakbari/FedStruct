@@ -187,13 +187,13 @@ class MendGraph(nn.Module):
         node_ids = torch.hstack((graph.node_ids, new_node_ids))
 
         train_mask = torch.hstack(
-            (train_mask, torch.zeros(new_added_nodes, dtype=torch.bool))
+            (train_mask, torch.zeros(new_added_nodes, dtype=torch.bool, device=dev))
         )
         test_mask = torch.hstack(
-            (test_mask, torch.zeros(new_added_nodes, dtype=torch.bool))
+            (test_mask, torch.zeros(new_added_nodes, dtype=torch.bool, device=dev))
         )
         val_mask = torch.hstack(
-            (val_mask, torch.zeros(new_added_nodes, dtype=torch.bool))
+            (val_mask, torch.zeros(new_added_nodes, dtype=torch.bool, device=dev))
         )
 
         y_shape = list(y.shape)

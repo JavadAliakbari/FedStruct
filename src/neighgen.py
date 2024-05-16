@@ -77,7 +77,9 @@ class NeighGen:
             )
         )
 
-        node_mask = ~torch.isin(node_ids.to("cpu"), hide_nodes)
+        # node_mask = ~torch.isin(node_ids.to("cpu"), hide_nodes)
+        node_mask = ~node_ids.cpu().unsqueeze(1).eq(hide_nodes).any(1)
+
         impaired_nodes = node_ids[node_mask]
         # impaired_edges0 = torch.isin(edges[0], impaired_nodes)
         # impaired_edges1 = torch.isin(edges[1], impaired_nodes)
@@ -116,7 +118,7 @@ class NeighGen:
                 node_idx = np.array(
                     itemgetter(*missing_neighbors.numpy())(graph.node_map)
                 )
-                missing_features.append(self.x[node_idx])
+                missing_features.append(self.original_graph.x[node_idx])
                 true_missing.append(missing_neighbors.shape[0])
             else:
                 missing_features.append([])
@@ -178,10 +180,13 @@ class NeighGen:
             #         subgraph_neighbors, impaired_graph_neighbors, assume_unique=True
             #     )
             # )
-            mask = torch.isin(
-                subgraph_neighbors,
-                impaired_graph_neighbors,
-            )
+
+            # mask = torch.isin(
+            #     subgraph_neighbors,
+            #     impaired_graph_neighbors,
+            # )
+            mask = subgraph_neighbors.unsqueeze(1).eq(impaired_graph_neighbors).any(1)
+
             missing_nodes = subgraph_neighbors[~mask]
 
             num_missing_neighbors = missing_nodes.shape[0]
@@ -275,22 +280,25 @@ class NeighGen:
         if predict:
             loss_missing = F.smooth_l1_loss(pred_missing[mask], true_missing[mask])
         else:
-            loss_missing = torch.tensor([0], dtype=torch.float32, device=dev)
+            loss_missing = torch.tensor(0, dtype=torch.float32, device=dev)
 
         # loss_feat = greedy_loss(pred_feat, true_feat, mask)
         masked_pred_feat = list(compress(pred_feat, mask))
         loss_feat = greedy_loss(masked_pred_feat, compress(true_feat, mask))
+        if loss_feat is None:
+            loss_feat = torch.tensor(0, dtype=torch.float32, device=dev)
 
         loss_list = []
         for inter_features in inter_features_list:
             # inter_loss_client = greedy_loss(pred_feat, inter_features, mask)
             inter_loss_client = greedy_loss(masked_pred_feat, inter_features)
-            loss_list.append(inter_loss_client)
+            if inter_loss_client is not None:
+                loss_list.append(inter_loss_client)
 
         if len(loss_list) > 0:
             inter_loss = torch.mean(torch.stack(loss_list), dim=0)
         else:
-            inter_loss = torch.tensor([0], dtype=torch.float32, device=dev)
+            inter_loss = torch.tensor(0, dtype=torch.float32, device=dev)
 
         loss = (
             config.fedsage.a * loss_missing
@@ -367,7 +375,7 @@ class NeighGen:
 
         inter_features = NeighGen.create_inter_features(
             inter_client_features_creators,
-            train_mask,
+            self.impaired_graph.node_ids[train_mask],
         )
 
         train_loss = NeighGen.calc_loss(

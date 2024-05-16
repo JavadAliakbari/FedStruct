@@ -30,8 +30,8 @@ class Client:
 
         self.LOGGER = logger or logging
 
-        self.LOGGER.info(f"Client{self.id} statistics:")
-        self.LOGGER.info(f"Number of nodes: {self.graph.num_nodes}")
+        # self.LOGGER.info(f"Client{self.id} statistics:")
+        # self.LOGGER.info(f"Number of nodes: {self.graph.num_nodes}")
 
         self.classifier: Classifier = None
 
@@ -65,29 +65,38 @@ class Client:
     def test_classifier(self, metric=config.model.metric):
         return self.classifier.calc_test_accuracy(metric)
 
-    def get_train_results(self):
+    def get_train_results(self, eval_=True):
         (
             train_loss,
             train_acc,
             val_loss,
             val_acc,
-        ) = self.train_step()
+            val_acc_f,
+            val_acc_s,
+        ) = self.train_step(eval_=eval_)
 
         result = {
             "Train Loss": round(train_loss.item(), 4),
             "Train Acc": round(train_acc, 4),
             "Val Loss": round(val_loss.item(), 4),
             "Val Acc": round(val_acc, 4),
+            "Val F Acc": round(val_acc_f, 4),
+            "Val S Acc": round(val_acc_s, 4),
         }
 
         return result
 
     def get_test_results(self):
-        test_acc = self.test_classifier()
+        test_acc, test_acc_f, test_acc_s = self.test_classifier()
 
-        result = {
-            "Test Acc": round(test_acc, 4),
-        }
+        if test_acc_s is not None:
+            result = {
+                "Test Acc": round(test_acc, 4),
+                "Test Acc F": round(test_acc_f, 4),
+                "Test Acc S": round(test_acc_s, 4),
+            }
+        else:
+            result = {"Test Acc": round(test_acc, 4)}
 
         return result
 
@@ -112,7 +121,7 @@ class Client:
             self.reset_model()
 
             self.train()
-            result = self.get_train_results()
+            result = self.get_train_results(eval_=log)
             result["Epoch"] = epoch + 1
             results.append(result)
 
@@ -147,5 +156,5 @@ class Client:
     def reset_model(self):
         self.classifier.reset()
 
-    def train_step(self):
-        return self.classifier.train_step()
+    def train_step(self, eval_=True):
+        return self.classifier.train_step(eval_=eval_)

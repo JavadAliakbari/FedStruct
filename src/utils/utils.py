@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 from copy import deepcopy
 from statistics import mean
@@ -11,7 +12,8 @@ from torch_sparse import SparseTensor
 from torch_geometric.utils import add_self_loops
 from torch_geometric.utils import degree
 from tqdm import tqdm
-
+from sknetwork.clustering import Louvain
+from torch_geometric.utils.convert import to_scipy_sparse_matrix
 
 plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
@@ -20,16 +22,34 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-elif torch.backends.mps.is_available():
-    dev = "mps"
+# elif torch.backends.mps.is_available():
+#     dev = "mps"
 else:
     dev = "cpu"
 os.environ["device"] = dev
 
 
+class bcolors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+@torch.no_grad()
 def calc_accuracy(pred_y, y):
     """Calculate accuracy."""
     return ((pred_y == y).sum() / len(y)).item()
+
+
+def calc_accuracy2(pred_y, y):
+    """Calculate accuracy."""
+    return sum(pred_y == y) / len(y)
 
 
 @torch.no_grad()
@@ -41,7 +61,7 @@ def calc_f1_score(pred_y, y):
         pred_y.data,
         y.data,
         average="micro",
-        labels=torch.unique(pred_y)
+        labels=torch.unique(pred_y),
         # pred_y.data, y.data, average="weighted", labels=np.unique(pred_y)
     )
     return f1score
@@ -65,24 +85,16 @@ def find_neighbors_(
     flow="undirected",  # could be "undirected", "source_to_target" or "target_to_source"
 ):
     if flow == "undirected":
-        all_neighbors = torch.unique(
-            torch.hstack(
-                (
-                    edge_index[1, edge_index[0] == node_id],
-                    edge_index[0, edge_index[1] == node_id],
-                )
-            )
-        )
+        edge_mask = edge_index.unsqueeze(2).eq(node_id).any(2).any(0)
+        edges = edge_index[:, edge_mask]
     elif flow == "source_to_target":
-        all_neighbors = torch.unique(
-            edge_index[0, edge_index[1] == node_id],
-        )
-        # all_neighbors = k_hop_subgraph(node_id, 1, edge_index, flow=flow)
+        edge_mask = edge_index[0].unsqueeze(1).eq(node_id).any(1)
+        edges = edge_index[0, edge_mask]
     elif flow == "target_to_source":
-        all_neighbors = torch.unique(
-            edge_index[1, edge_index[0] == node_id],
-        )
+        edge_mask = edge_index[1].unsqueeze(1).eq(node_id).any(1)
+        edges = edge_index[1, edge_mask]
 
+    all_neighbors = torch.unique(edges)
     if not include_node:
         mask = all_neighbors != node_id
         all_neighbors = all_neighbors[mask]
@@ -115,6 +127,15 @@ def plot_metrics(
     plt.savefig(f"{save_path}{plot_title}.png")
 
 
+def sparse_eye(n, vals=None, dev="cpu"):
+    if vals is None:
+        vals = torch.ones(n, dtype=torch.float32, device=dev)
+    eye = torch.Tensor.repeat(torch.arange(n, device=dev), [2, 1])
+    sparse_matrix = torch.sparse_coo_tensor(eye, vals, (n, n), device=dev)
+
+    return sparse_matrix
+
+
 def obtain_a(edge_index, num_nodes, num_layers, pruning=False):
     # if dev == "mps":
     #     local_dev = "cpu"
@@ -122,14 +143,7 @@ def obtain_a(edge_index, num_nodes, num_layers, pruning=False):
     #     local_dev = dev
     local_dev = "cpu"
 
-    vals = torch.ones(num_nodes, dtype=torch.float32, device=local_dev)
-    eye = torch.Tensor.repeat(torch.arange(num_nodes, device=local_dev), [2, 1])
-    abar = torch.sparse_coo_tensor(
-        eye,
-        vals,
-        (num_nodes, num_nodes),
-        device=local_dev,
-    )
+    abar = sparse_eye(num_nodes, dev=local_dev)
 
     edge_index_ = add_self_loops(edge_index)[0].to(local_dev)
 
@@ -142,39 +156,37 @@ def obtain_a(edge_index, num_nodes, num_layers, pruning=False):
     )
 
     node_degree = 1 / degree(edge_index_[0], num_nodes).long()
-    D = torch.sparse_coo_tensor(
-        eye,
-        node_degree,
-        (num_nodes, num_nodes),
-        device=local_dev,
-    )
-    # print("Start...........................")
-    # t1 = time.time()
+    D = sparse_eye(num_nodes, node_degree, local_dev)
     adj_hat = torch.matmul(D, adj)
 
-    th = 1e-6
-    ratio = 2
-    for _ in range(num_layers):
+    # abar = sparse_matrix_pow2(adj_hat, num_layers, num_nodes)
+
+    th = 30
+    for i in range(num_layers):
         abar = torch.matmul(adj_hat, abar)  # Sparse-dense matrix multiplication
         if pruning:
             abar = prune(abar, th)
-            th *= ratio
-            ratio *= 0.95
-            print(f"{_}: {abar.values().shape[0]/(num_nodes*num_nodes)}")
-
-    # t2 = time.time()
-    # print("Finished...........................")
-    # print(f"total time: {t2-t1}")
+        # print(f"{i}: {abar.values().shape[0]/(num_nodes*num_nodes)}")
 
     if dev != "mps":
         abar = abar.to(dev)
     return abar
 
 
-def prune(abar, th):
-    mask = abar.values() > th
-    idx = abar.indices()[:, mask]
-    val = torch.masked_select(abar.values(), mask)
+def prune(abar, degree):
+    num_nodes = abar.shape[0]
+    num_vals = num_nodes * degree
+    vals = abar.values()
+    if num_vals >= vals.shape[0]:
+        return abar
+    sorted_vals_idx = torch.argsort(vals, descending=True)
+    chosen_vals_idx = sorted_vals_idx[:num_vals]
+    # chosen_vals_idx = np.random.choice(vals.shape[0], num_vals, replace=False)
+
+    # mask = abar.values() > th
+    idx = abar.indices()[:, chosen_vals_idx]
+    val = abar.values()[chosen_vals_idx]
+    # val = torch.masked_select(abar.values(), mask)
 
     abar = torch.sparse_coo_tensor(idx, val, abar.shape, device=abar.device)
     abar = abar.coalesce()
@@ -182,41 +194,20 @@ def prune(abar, th):
     return abar
 
 
-def sparse_matrix_pow(mat, power):
-    # eye = torch.Tensor.repeat(torch.arange(dim), [2, 1])
-    res = deepcopy(mat)
-    current_power = 1
+def plot_abar(abar, edge_index):
+    dense_abar = abar.to_dense().numpy()
+    dense_abar = np.power(dense_abar, 0.25)
 
-    while current_power < power:
-        if current_power * 2 <= power:
-            res = res.matmul(res)
-            current_power *= 2
-        else:
-            res = res.matmul(mat)
-            current_power += 1
+    adjacency = to_scipy_sparse_matrix(edge_index)
+    louvain = Louvain()
+    community_map = louvain.fit_predict(adjacency)
+    community_based_node_order = np.argsort(community_map)
+    dense_abar = dense_abar[:, community_based_node_order]
+    dense_abar = dense_abar[community_based_node_order, :]
 
-    return res
-
-
-def sparse_matrix_pow2(mat, power, dim):
-    binary = list(bin(power)[2:])
-    binary.reverse()
-    if binary[0] == "0":
-        res = torch.Tensor.repeat(torch.arange(dim), [2, 1])
-        res = SparseTensor(
-            row=res[0],
-            col=res[1],
-            sparse_sizes=(dim, dim),
-        )
-    else:
-        res = deepcopy(mat)
-    powers = deepcopy(mat)
-    for val in binary[1:]:
-        powers = powers.matmul(powers)
-        if val == "1":
-            res = res.matmul(powers)
-
-    return res
+    plt.imshow(dense_abar, cmap="gray", interpolation="nearest")
+    plt.imsave("./models/CiteSeer_True.png", dense_abar)
+    plt.show()
 
 
 def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
@@ -246,9 +237,8 @@ def calc_metrics(y, y_pred, mask):
 
     loss = criterion(y_pred_masked, y_masked)
 
-    with torch.no_grad():
-        acc = calc_accuracy(y_pred[mask].argmax(dim=1), y[mask])
-        # f1_score = calc_f1_score(y_pred[mask].argmax(dim=1), y[mask])
+    acc = calc_accuracy(y_pred_masked.argmax(dim=1), y_masked)
+    # f1_score = calc_f1_score(y_pred[mask].argmax(dim=1), y[mask])
 
     return loss, acc
 
@@ -357,3 +347,37 @@ def calc_average_result2(test_results):
         average_result[key] = round(val / len(test_results), 4)
 
     return average_result
+
+
+def log_config(_LOGGER, config):
+    _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
+    _LOGGER.info(f"num subgraphs: {config.subgraph.num_subgraphs}")
+    _LOGGER.info(f"partitioning method: {config.subgraph.partitioning}")
+    _LOGGER.info(f"num Epochs: {config.model.epoch_classifier}")
+    _LOGGER.info(f"batch: {config.model.batch}")
+    _LOGGER.info(f"batch size: {config.model.batch_size}")
+    _LOGGER.info(f"learning rate: {config.model.lr}")
+    _LOGGER.info(f"weight decay: {config.model.weight_decay}")
+    _LOGGER.info(f"dropout: {config.model.dropout}")
+    _LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
+    _LOGGER.info(f"propagate type: {config.model.propagate_type}")
+    _LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
+    _LOGGER.info(f"DGCN_layer_sizes: {config.feature_model.DGCN_layer_sizes}")
+    _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
+    _LOGGER.info(f"structure DGCN layers: {config.structure_model.DGCN_layers}")
+    _LOGGER.info(f"feature DGCN layers: {config.feature_model.DGCN_layers}")
+    if config.model.propagate_type == "GNN":
+        _LOGGER.info(
+            f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
+        )
+    else:
+        _LOGGER.info(
+            f"structure layers size: {config.structure_model.DGCN_structure_layers_sizes}"
+        )
+    _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
+    _LOGGER.info(
+        f"num structural features: {config.structure_model.num_structural_features}"
+    )
+    _LOGGER.info(
+        f"Train-Test ratio: [{config.subgraph.train_ratio}, {config.subgraph.test_ratio}]"
+    )

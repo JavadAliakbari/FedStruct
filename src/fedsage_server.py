@@ -209,9 +209,14 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
             inter_client_features_creators_client = []
             for other_client in self.clients:
                 if other_client.id != client.id:
-                    inter_client_features_creators_client.append(
-                        other_client.create_inter_features
-                    )
+                    if predict:
+                        inter_client_features_creators_client.append(
+                            other_client.create_inter_features
+                        )
+                    else:
+                        inter_client_features_creators_client.append(
+                            other_client.create_inter_features2
+                        )
 
             inter_client_features_creators.append(inter_client_features_creators_client)
 

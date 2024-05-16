@@ -70,8 +70,8 @@ class FedSAGEClient(GNNClient):
         self.neighgen.prepare_data(self.graph)
         self.neighgen.set_model()
 
-    def create_inter_features(self, mask):
-        num_train_nodes = sum(mask.numpy())
+    def create_inter_features(self, node_ids):
+        num_train_nodes = node_ids.shape[0]
         all_nodes = torch.randperm(self.graph.num_nodes)
 
         node_degrees = degree(self.edges[0], self.graph.num_nodes).long()
@@ -102,9 +102,29 @@ class FedSAGEClient(GNNClient):
                 ]
                 selected_neighbors_ids = neighbors_ids[rand_idx]
 
-            inter_features.append(self.x[selected_neighbors_ids])
+            inter_features.append(self.graph.x[selected_neighbors_ids])
             num_added_features += 1
             node_idx += 1
+
+        return inter_features
+
+    def create_inter_features2(self, node_ids):
+        inter_features = []
+        for node_id in node_ids:
+            neighbors_ids = find_neighbors_(node_id, self.graph.inter_edges)
+
+            if neighbors_ids.shape[0] < config.fedsage.num_pred:
+                selected_neighbors_ids = neighbors_ids
+            else:
+                # print("iiiiiii")
+                rand_idx = torch.randperm(neighbors_ids.shape[0])[
+                    : config.fedsage.num_pred
+                ]
+                selected_neighbors_ids = neighbors_ids[rand_idx]
+
+            mask = self.graph.node_ids.unsqueeze(1).eq(selected_neighbors_ids).any(1)
+
+            inter_features.append(self.graph.x[mask])
 
         return inter_features
 

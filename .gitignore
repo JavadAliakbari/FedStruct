@@ -12,3 +12,5 @@
 *.emb
 *results
 *.pkl
+\data
+\datasets
