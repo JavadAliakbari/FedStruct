@@ -155,7 +155,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
 
     def train_locsages(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
         log=True,
         plot=True,
@@ -227,7 +227,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
 
     def train_fedSage_plus(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
         model="both",
         predict=True,

@@ -65,7 +65,7 @@ def create_clients(
 def get_MLP_results(
     MLP_server: MLPServer,
     bar: tqdm,
-    epochs=config.model.epoch_classifier,
+    epochs=config.model.iterations,
 ):
     result = {}
     MLP_runs = {
@@ -93,7 +93,7 @@ def get_MLP_results(
 def get_Fedsage_results(
     FedSage_server: FedSAGEServer,
     bar: tqdm,
-    epochs=config.model.epoch_classifier,
+    epochs=config.model.iterations,
 ):
     result = {}
     res = FedSage_server.train_fedSage_plus(
@@ -113,7 +113,7 @@ def get_Fedsage_results(
 def get_Fedsage_ideal_reults(
     GNN_server2: GNNServer,
     bar: tqdm,
-    epochs=config.model.epoch_classifier,
+    epochs=config.model.iterations,
 ):
     result = {}
 
@@ -144,7 +144,7 @@ def get_Fedsage_ideal_reults(
 def get_GNN_results(
     GNN_server: GNNServer,
     bar: tqdm,
-    epochs=config.model.epoch_classifier,
+    epochs=config.model.iterations,
 ):
     result = {}
 

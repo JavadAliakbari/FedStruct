@@ -107,7 +107,7 @@ class Server(Client):
 
     def joint_train_g(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         FL=True,
         log=True,
         plot=True,
@@ -164,7 +164,7 @@ class Server(Client):
 
     def joint_train_w(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         log=True,
         plot=True,
         FL=True,

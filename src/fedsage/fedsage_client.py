@@ -165,7 +165,7 @@ class FedSAGEClient(GNNClient):
 
     def train_neighgen_model(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         inter_client_features_creators: list = [],
         log=True,
         plot=True,

@@ -5,12 +5,11 @@ from src.FedPub.utils import *
 
 
 class GCN(nn.Module):
-    def __init__(self, n_feat=10, n_dims=128, n_clss=10, args=None):
+    def __init__(self, n_feat=10, n_dims=128, n_clss=10):
         super().__init__()
         self.n_feat = n_feat
         self.n_dims = n_dims
         self.n_clss = n_clss
-        self.args = args
 
         from torch_geometric.nn import GCNConv
 
@@ -32,22 +31,17 @@ class GCN(nn.Module):
 
 
 class MaskedGCN(nn.Module):
-    def __init__(self, n_feat=10, n_dims=128, n_clss=10, l1=1e-3, args=None):
+    def __init__(self, n_feat=10, n_dims=128, n_clss=10, l1=1e-3):
         super().__init__()
         self.n_feat = n_feat
         self.n_dims = n_dims
         self.n_clss = n_clss
-        self.args = args
 
         from src.FedPub.layers import MaskedGCNConv, MaskedLinear
 
-        self.conv1 = MaskedGCNConv(
-            self.n_feat, self.n_dims, cached=False, l1=l1, args=args
-        )
-        self.conv2 = MaskedGCNConv(
-            self.n_dims, self.n_dims, cached=False, l1=l1, args=args
-        )
-        self.clsif = MaskedLinear(self.n_dims, self.n_clss, l1=l1, args=args)
+        self.conv1 = MaskedGCNConv(self.n_feat, self.n_dims, cached=False, l1=l1)
+        self.conv2 = MaskedGCNConv(self.n_dims, self.n_dims, cached=False, l1=l1)
+        self.clsif = MaskedLinear(self.n_dims, self.n_clss, l1=l1)
 
     def forward(self, data, is_proxy=False):
         x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr

@@ -22,9 +22,7 @@ def get_logger(
 
     # create formatter
     if use_formatter:
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(message)s")
     else:
         formatter = logging.Formatter()
 
@@ -38,7 +36,7 @@ def get_logger(
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
-        filename = f"{save_path}result_{name}"
+        filename = f"{save_path}{name}"
         i = ""
         while os.path.exists(f"{filename}{i}.log"):
             if i == "":

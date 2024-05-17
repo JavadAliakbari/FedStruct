@@ -352,7 +352,7 @@ def log_config(_LOGGER, config):
     _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
     _LOGGER.info(f"num subgraphs: {config.subgraph.num_subgraphs}")
     _LOGGER.info(f"partitioning method: {config.subgraph.partitioning}")
-    _LOGGER.info(f"num Epochs: {config.model.epoch_classifier}")
+    _LOGGER.info(f"num Epochs: {config.model.iterations}")
     _LOGGER.info(f"batch: {config.model.batch}")
     _LOGGER.info(f"batch size: {config.model.batch_size}")
     _LOGGER.info(f"learning rate: {config.model.lr}")

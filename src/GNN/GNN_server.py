@@ -147,7 +147,7 @@ class GNNServer(Server, GNNClient):
 
     def joint_train_g(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
         FL=True,
         structure=False,
@@ -184,7 +184,7 @@ class GNNServer(Server, GNNClient):
 
     def joint_train_w(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
         FL=True,
         structure=False,

@@ -11,13 +11,13 @@ model:
   num_samples: [5, 10]
   batch: False
   batch_size: 64
-  epochs_local: 1
+  local_epochs: 1
   lr: 0.002
   weight_decay: 0.0005
   dropout: 0.7
   gnn_layer_type: sage
   propagate_type: DGCN
-  epoch_classifier: 40
+  iterations: 40
   metric: acc
 feature_model:
   gnn_layer_sizes: [128,64]

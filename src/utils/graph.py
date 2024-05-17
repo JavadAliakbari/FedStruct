@@ -7,10 +7,11 @@ import numpy as np
 from sklearn import model_selection
 import torch.nn.functional as F
 from torch_geometric.typing import OptTensor
-from torch_geometric.utils import degree, add_self_loops
+from torch_geometric.utils import degree, add_self_loops, to_scipy_sparse_matrix
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
 from torch_sparse import SparseTensor
+from scipy import sparse as sp
 
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
@@ -241,8 +242,7 @@ class Graph(Data):
                 if save:
                     if dataset_name is not None:
                         directory = f"models/{dataset_name}/{structure_type}/"
-                        if not os.path.exists(directory):
-                            os.makedirs(directory)
+                        os.makedirs(directory, exist_ok=True)
                         path = f"{directory}{structure_type}_model.pkl"
                         torch.save(structural_features, path)
         elif structure_type == "node2vec":
@@ -260,8 +260,7 @@ class Graph(Data):
                 if save:
                     if dataset_name is not None:
                         directory = f"models/{dataset_name}/{structure_type}/"
-                        if not os.path.exists(directory):
-                            os.makedirs(directory)
+                        os.makedirs(directory, exist_ok=True)
                         path = f"{directory}{structure_type}_model.pkl"
                         torch.save(structural_features, path)
         elif structure_type == "mp":
@@ -277,6 +276,21 @@ class Graph(Data):
             structural_features = Graph.initialize_random_features(
                 size=(len(node_ids), num_structural_features)
             )
+        elif structure_type == "fedstar":
+            if dataset_name is not None:
+                path = (
+                    f"models/{dataset_name}/{structure_type}/{structure_type}_model.pkl"
+                )
+                if os.path.exists(path):
+                    structural_features = torch.load(path)
+            if structural_features is None:
+                structural_features = Graph.calc_fedStar(edge_index, num_nodes)
+                if save:
+                    if dataset_name is not None:
+                        directory = f"models/{dataset_name}/{structure_type}/"
+                        os.makedirs(directory, exist_ok=True)
+                        path = f"{directory}{structure_type}_model.pkl"
+                        torch.save(structural_features, path)
         else:
             structural_features = None
 
@@ -313,6 +327,75 @@ class Graph(Data):
         mp = np.array(mp, dtype=np.float32).transpose([1, 2, 0])
         mp = torch.tensor(mp)
         return mp
+
+    def calc_fedStar(edge_index, num_nodes, type_init="rw_dg"):
+        if type_init == "rw":
+            # Geometric diffusion features with Random Walk
+            A = to_scipy_sparse_matrix(edge_index, num_nodes=num_nodes)
+            D = (degree(edge_index[0], num_nodes=num_nodes) ** -1.0).numpy()
+
+            Dinv = sp.diags(D)
+            RW = A * Dinv
+            M = RW
+
+            SE_rw = [torch.from_numpy(M.diagonal()).float()]
+            M_power = M
+            for _ in range(config.DGCN_layers - 1):
+                M_power = M_power * M
+                SE_rw.append(torch.from_numpy(M_power.diagonal()).float())
+            SE_rw = torch.stack(SE_rw, dim=-1)
+            return SE_rw
+            # g["stc_enc"] = SE_rw
+
+        elif type_init == "dg":
+            # for g in gs:
+            # PE_degree
+            g_dg = (
+                (degree(edge_index[0], num_nodes=num_nodes))
+                .numpy()
+                .clip(1, config.num_structural_features)
+            )
+            SE_dg = torch.zeros([num_nodes, config.num_structural_features])
+            for i in range(len(g_dg)):
+                SE_dg[i, int(g_dg[i] - 1)] = 1
+
+                # g["stc_enc"] = SE_dg
+
+            return SE_dg
+
+        elif type_init == "rw_dg":
+            # for g in gs:
+            # SE_rw
+            A = to_scipy_sparse_matrix(edge_index, num_nodes=num_nodes)
+            D = (degree(edge_index[0], num_nodes=num_nodes) ** -1.0).numpy()
+
+            Dinv = sp.diags(D)
+            RW = A * Dinv
+            M = RW
+
+            SE = [torch.from_numpy(M.diagonal()).float()]
+            M_power = M
+            rw_len = config.rw_len
+            # rw_size = config.DGCN_layers
+            for _ in range(rw_len - 1):
+                M_power = M_power * M
+                SE.append(torch.from_numpy(M_power.diagonal()).float())
+            SE_rw = torch.stack(SE, dim=-1)
+
+            # PE_degree
+            g_dg = (
+                (degree(edge_index[0], num_nodes=num_nodes))
+                .numpy()
+                .clip(1, config.num_structural_features)
+            )
+            SE_dg = torch.zeros([num_nodes, config.num_structural_features - rw_len])
+            for i in range(len(g_dg)):
+                SE_dg[i, int(g_dg[i] - 1)] = 1
+
+            SE_rw_dg = torch.cat([SE_rw, SE_dg], dim=1)
+            return SE_rw_dg
+
+        # return gs
 
     def initialize_random_features(size):
         return torch.normal(

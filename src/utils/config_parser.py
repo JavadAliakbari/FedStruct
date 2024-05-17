@@ -12,6 +12,7 @@ class Config:
         self.structure_model = StructureModelConfig(self.config["structure_model"])
         self.node2vec = Node2VecConfig(self.config["node2vec"])
         self.fedsage = FedSAGEConfig(self.config["fedsage"])
+        self.fedpub = PubMedConfig(self.config["fedpub"])
 
     def load_config(path):
         with open(path) as f:
@@ -49,13 +50,13 @@ class ModelConfig:
         self.num_samples = model["num_samples"]
         self.batch = model["batch"]
         self.batch_size = model["batch_size"]
-        self.epochs_local = model["epochs_local"]
+        self.local_epochs = model["local_epochs"]
         self.lr = model["lr"]
         self.weight_decay = model["weight_decay"]
         self.gnn_layer_type = model["gnn_layer_type"]
         self.propagate_type = model["propagate_type"]
         self.dropout = model["dropout"]
-        self.epoch_classifier = model["epoch_classifier"]
+        self.iterations = model["iterations"]
         self.metric = model["metric"]
 
 
@@ -82,6 +83,7 @@ class StructureModelConfig:
         self.num_structural_features = structure_model["num_structural_features"]
         self.estimate = structure_model["estimate"]
         self.num_mp_vectors = structure_model["num_mp_vectors"]
+        self.rw_len = structure_model["rw_len"]
         self.gnn_epochs = structure_model["gnn_epochs"]
         self.mlp_epochs = structure_model["mlp_epochs"]
 
@@ -121,3 +123,26 @@ class FedSAGEConfig:
         self.a = fedsage["a"]
         self.b = fedsage["b"]
         self.c = fedsage["c"]
+
+
+class PubMedConfig:
+    def __init__(self, fedpub):
+        self.load_config(fedpub)
+
+    def load_config(self, fedpub):
+        self.frac = fedpub["frac"]
+        self.clsf_mask_one = fedpub["clsf_mask_one"]
+        self.laye_mask_one = fedpub["laye_mask_one"]
+        self.norm_scale = fedpub["norm_scale"]
+        self.min_lr = fedpub["min_lr"]
+        self.momentum_opt = fedpub["momentum_opt"]
+        self.lr = fedpub["lr"]
+        self.weight_decay = fedpub["weight_decay"]
+        self.warmup_epochs = fedpub["warmup_epochs"]
+        self.base_momentum = fedpub["base_momentum"]
+        self.final_momentum = fedpub["final_momentum"]
+        self.n_dims = fedpub["n_dims"]
+        self.agg_norm = fedpub["agg_norm"]
+        self.n_proxy = fedpub["n_proxy"]
+        self.l1 = fedpub["l1"]
+        self.loc_l2 = fedpub["loc_l2"]

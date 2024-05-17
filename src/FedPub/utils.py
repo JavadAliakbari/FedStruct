@@ -35,7 +35,7 @@ def shuffle(seed, x, y):
 def save(base_dir, filename, data):
     os.makedirs(base_dir, exist_ok=True)
     with open(os.path.join(base_dir, filename), "w+") as outfile:
-        json.dump(data, outfile)
+        json.dump(data, outfile, indent=4)
 
 
 def exists(base_dir, filename):
@@ -95,6 +95,22 @@ def convert_np_to_tensor_cpu(state_dict):
     for k, v in state_dict.items():
         _state_dict[k] = torch.tensor(v)
     return _state_dict
+
+
+def aggregate(local_weights, ratio=None):
+    aggr_theta = OrderedDict([(k, None) for k in local_weights[0].keys()])
+    if ratio is not None:
+        for name, params in aggr_theta.items():
+            aggr_theta[name] = np.sum(
+                [theta[name] * ratio[j] for j, theta in enumerate(local_weights)], 0
+            )
+    else:
+        ratio = 1 / len(local_weights)
+        for name, params in aggr_theta.items():
+            aggr_theta[name] = np.sum(
+                [theta[name] * ratio for j, theta in enumerate(local_weights)], 0
+            )
+    return aggr_theta
 
 
 def from_networkx(G, group_node_attrs=None, group_edge_attrs=None):

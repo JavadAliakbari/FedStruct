@@ -15,6 +15,10 @@ from torch_geometric.utils import add_remaining_self_loops
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 
 from src.FedPub.utils import *
+from src.utils.config_parser import Config
+
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 @torch.jit._overload
@@ -159,7 +163,6 @@ class MaskedGCNConv(MessagePassing):
         normalize: bool = True,
         bias: bool = True,
         l1=1e-3,
-        args=None,
         **kwargs,
     ):
 
@@ -173,7 +176,7 @@ class MaskedGCNConv(MessagePassing):
         self.add_self_loops = add_self_loops
         self.normalize = normalize
         self.l1 = l1
-        self.mask_one_init = args.laye_mask_one
+        self.mask_one_init = config.fedpub.laye_mask_one
 
         self._cached_edge_index = None
         self._cached_adj_t = None
@@ -460,12 +463,12 @@ class MaksedGCNLinear(torch.nn.Module):
 
 
 class MaskedLinear(torch.nn.Module):
-    def __init__(self, d_i, d_o, l1=1e-3, args=None):
+    def __init__(self, d_i, d_o, l1=1e-3):
         super(MaskedLinear, self).__init__()
         self.d_i = d_i
         self.d_o = d_o
         self.l1 = l1
-        self.mask_one_init = args.clsf_mask_one
+        self.mask_one_init = config.fedpub.clsf_mask_one
 
         self.weight = torch.nn.Parameter(
             torch.empty((self.d_o, self.d_i), requires_grad=True, dtype=torch.float32)

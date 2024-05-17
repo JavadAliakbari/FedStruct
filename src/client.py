@@ -104,7 +104,7 @@ class Client:
 
     def train_local_model(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         log=True,
         plot=True,
         model_type="GNN",

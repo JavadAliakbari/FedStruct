@@ -73,7 +73,7 @@ class GNNClient(Client):
 
     def train_local_model(
         self,
-        epochs=config.model.epoch_classifier,
+        epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
         log=True,
         plot=True,

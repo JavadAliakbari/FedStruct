@@ -64,7 +64,7 @@ if __name__ == "__main__":
                 # for train_ratio in np.arange(0.1, 0.65, 0.05):
                 test_ratio = config.subgraph.test_ratio
                 # test_ratio = (1 - train_ratio) / 2
-                epochs = config.model.epoch_classifier
+                epochs = config.model.iterations
                 # epochs = int(train_ratio * 100 + 30)
 
                 save_path = (

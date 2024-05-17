@@ -11,13 +11,13 @@ model:
   num_samples: [5, 10]
   batch: False
   batch_size: 64
-  epochs_local: 1
+  local_epochs: 1
   lr: 0.008
   weight_decay: 0.001
   dropout: 0.9
   gnn_layer_type: sage
   propagate_type: DGCN
-  epoch_classifier: 125
+  iterations: 35
   metric: acc
 feature_model:
   gnn_layer_sizes: [256,256]
@@ -27,7 +27,7 @@ feature_model:
 structure_model:
   GNN_structure_layers_sizes: [128,64,32]
   DGCN_structure_layers_size: [128]
-  DGCN_layers: 20
+  DGCN_layers: 10
   # structure_type: degree
   # structure_type: GDV
   structure_type: random
@@ -35,6 +35,7 @@ structure_model:
   num_structural_features: 256
   estimate: False
   num_mp_vectors: 10
+  rw_len: 50
   gnn_epochs: 500
   mlp_epochs: 200
 node2vec:
@@ -62,3 +63,20 @@ fedsage:
   a: 1
   b: 1
   c: 1
+fedpub:
+  frac: 1.0
+  clsf_mask_one: True
+  laye_mask_one: True
+  norm_scale: 3
+  min_lr: 0.0001
+  momentum_opt: 0.9
+  lr: 0.01
+  weight_decay: 0.000001
+  warmup_epochs: 10
+  base_momentum: 0.99
+  final_momentum: 1.0
+  n_dims: 128
+  agg_norm: exp
+  n_proxy: 5
+  l1: 0.001
+  loc_l2: 0.001
