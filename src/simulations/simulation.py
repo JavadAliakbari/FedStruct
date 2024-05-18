@@ -1,32 +1,32 @@
 import os
-from copy import deepcopy
 import random
+import json
+from datetime import datetime
+
+now = datetime.now().strftime("%Y%m%d_%H%M%S")
+os.environ["now"] = now
 
 import torch
 import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from src.FedPub.fedpub_server import FedPubServer
 from src.utils.utils import *
+from src.utils.define_graph import define_graph
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
 from src.fedsage.fedsage_server import FedSAGEServer
-from src.utils.graph import Graph
+from src.utils.logger import get_logger
 from src.utils.config_parser import Config
-from src.utils.graph_partitioning import (
-    create_mend_graph,
-    create_mend_graph2,
-    partition_graph,
-)
+from src.simulations.simulation_utils import *
 
 # Change plot canvas size
 plt.rcParams["figure.figsize"] = [24, 16]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
 plt.rcParams.update({"figure.max_open_warning": 0})
 
-seed = 4
+seed = 119
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -35,227 +35,145 @@ path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
 
-def create_clients(
-    graph: Graph,
-    MLP_server: MLPServer,
-    GNN_server: GNNServer,
-    GNN_server2: GNNServer,
-    FedSage_server: FedSAGEServer,
-    FedPub_server: FedPubServer,
-    train_ratio=config.subgraph.train_ratio,
-    test_ratio=config.subgraph.test_ratio,
-    num_subgraphs=config.subgraph.num_subgraphs,
-    partitioning=config.subgraph.partitioning,
-):
-    graph.add_masks(train_size=train_ratio, test_size=test_ratio)
-
-    MLP_server.remove_clients()
-    GNN_server.remove_clients()
-    GNN_server2.remove_clients()
-    FedSage_server.remove_clients()
-    FedPub_server.remove_clients()
-
-    subgraphs = partition_graph(graph, num_subgraphs, partitioning)
-
-    for subgraph in subgraphs:
-        MLP_server.add_client(subgraph)
-        GNN_server.add_client(subgraph)
-        FedSage_server.add_client(subgraph)
-        FedPub_server.add_client(subgraph)
-        mend_graph = create_mend_graph2(subgraph, graph)
-        GNN_server2.add_client(mend_graph)
-
-
-def get_MLP_results(
-    MLP_server: MLPServer,
-    bar: tqdm,
-    epochs=config.model.iterations,
-):
-    result = {}
-    MLP_runs = {
-        "local_MLP": [MLP_server.joint_train_g, False],
-        # "flwa_MLP": [MLP_server.joint_train_w, True],
-        "flga_MLP": [MLP_server.joint_train_g, True],
-    }
-    res = MLP_server.train_local_model(epochs=epochs, log=False, plot=False)
-    result[f"server_MLP"] = res
-    bar.set_postfix_str(f"server_MLP: {res['Test Acc']}")
-
-    for name, run in MLP_runs.items():
-        res = run[0](
-            epochs=epochs,
-            FL=run[1],
-            log=False,
-            plot=False,
-        )
-        result[f"{name}"] = res
-        bar.set_postfix_str(f"{name}: {res['Average']['Test Acc']}")
-
-    return result
-
-
-def get_Fedsage_results(
-    FedSage_server: FedSAGEServer,
-    bar: tqdm,
-    epochs=config.model.iterations,
-):
-    result = {}
-    res = FedSage_server.train_fedSage_plus(
-        epochs=epochs,
-        propagate_type="GNN",
-        model="both",
-        log=False,
-        plot=False,
+if __name__ == "__main__":
+    graph = define_graph(config.dataset.dataset_name)
+    true_abar = obtain_a(
+        graph.edge_index,
+        graph.num_nodes,
+        config.structure_model.DGCN_layers,
+        pruning=False,
     )
-    result[f"fedsage+_WA_"] = res["WA"]
-    bar.set_postfix_str(f"fedsage+_WA: {res['WA']['Average']['Test Acc']}")
-    result[f"fedsage+_GA"] = res["GA"]
-    bar.set_postfix_str(f"fedsage+_GA: {res['GA']['Average']['Test Acc']}")
-
-    return result
-
-
-def get_Fedpub_results(
-    FedPub_server: FedPubServer,
-    bar: tqdm,
-    epochs=config.model.iterations,
-):
-    result = {}
-    res = FedPub_server.start(
-        iterations=epochs,
-        log=False,
-        plot=False,
+    prune_abar = obtain_a(
+        graph.edge_index,
+        graph.num_nodes,
+        config.structure_model.DGCN_layers,
+        pruning=True,
     )
-    result[f"fedpub"] = res
-    bar.set_postfix_str(f"fedpub: {res['Average']['Test Acc']}")
 
-    return result
+    MLP_server = MLPServer(graph)
 
+    GNN_server = GNNServer(graph)
 
-def get_Fedsage_ideal_reults(
-    GNN_server2: GNNServer,
-    bar: tqdm,
-    epochs=config.model.iterations,
-):
-    result = {}
+    FedSage_server = FedSAGEServer(graph)
 
-    GNN_runs = {
-        # "fedsage_ideal_w": [GNN_server2.joint_train_w, True, False, ""],
-        "fedsage_ideal_g": [GNN_server2.joint_train_g, True, False, ""],
-    }
+    FedPub_server = FedPubServer(graph)
 
-    for propagate_type in ["DGCN", "GNN"]:
-        for name, run in GNN_runs.items():
-            res = run[0](
-                epochs=epochs,
-                propagate_type=propagate_type,
-                FL=run[1],
-                structure=run[2],
-                structure_type=run[3],
-                log=False,
-                plot=False,
-            )
-            result[f"{name}_{propagate_type}"] = res
-            bar.set_postfix_str(
-                f"{name}_{propagate_type}: {res['Average']['Test Acc']}"
-            )
+    GNN_server2 = GNNServer(graph)
 
-    return result
+    rep = 10
 
+    # for partitioning in [config.subgraph.partitioning]:
+    for partitioning in ["random", "louvain", "kmeans"]:
+        # for num_subgraphs in [config.subgraph.num_subgraphs]:
+        # for num_subgraphs in [10]:
+        for num_subgraphs in [5, 10, 20]:
+            for train_ratio in [config.subgraph.train_ratio]:
+                # for train_ratio in np.arange(0.1, 0.65, 0.05):
+                test_ratio = config.subgraph.test_ratio
+                # test_ratio = (1 - train_ratio) / 2
+                epochs = config.model.iterations
+                # epochs = int(train_ratio * 100 + 30)
 
-def get_GNN_results(
-    GNN_server: GNNServer,
-    bar: tqdm,
-    epochs=config.model.iterations,
-):
-    result = {}
+                save_path = (
+                    "./results/Neurips/"
+                    f"{config.dataset.dataset_name}/"
+                    f"{partitioning}/"
+                    f"{num_subgraphs}/"
+                    f"{train_ratio}/"
+                )
 
-    funcs = {
-        "flwa": GNN_server.joint_train_w,
-        "flga": GNN_server.joint_train_g,
-    }
-    GNN_runs = {
-        # "local": [GNN_server.joint_train_g, False, False, ""],
-    }
+                os.makedirs(save_path, exist_ok=True)
 
-    # for method in ["flwa", "flga"]:
-    for method in ["flga"]:
-        # GNN_runs[f"{method}"] = [funcs[method], True, False, ""]
-        for structure_type in ["degree", "fedstar", "GDV", "node2vec", "random"]:
-            name = f"{method}_{structure_type}"
-            GNN_runs[name] = [funcs[method], True, True, structure_type]
+                _LOGGER = get_logger(
+                    name=f"average_{now}_{config.dataset.dataset_name}",
+                    log_on_file=True,
+                    save_path=save_path,
+                )
+                _LOGGER2 = get_logger(
+                    name=f"all_{now}_{config.dataset.dataset_name}",
+                    terminal=False,
+                    log_on_file=True,
+                    save_path=save_path,
+                )
+                log_config(_LOGGER, config)
 
-    for propagate_type in ["DGCN", "GNN"]:
-        # for propagate_type in ["DGCN"]:
-        # res = GNN_server.train_local_model(
-        #     epochs=epochs,
-        #     propagate_type=propagate_type,
-        #     log=False,
-        #     plot=False,
-        # )
-        # result[f"server_{propagate_type}"] = res
-        # bar.set_postfix_str(f"server_{propagate_type}: {res['Test Acc']}")
+                bar = tqdm(total=rep)
+                results = []
+                for i in range(rep):
+                    create_clients(
+                        graph,
+                        MLP_server,
+                        GNN_server,
+                        GNN_server2,
+                        FedSage_server,
+                        FedPub_server,
+                        train_ratio=train_ratio,
+                        test_ratio=test_ratio,
+                        num_subgraphs=num_subgraphs,
+                        partitioning=partitioning,
+                    )
+                    model_results = {}
 
-        for name, run in GNN_runs.items():
-            res = run[0](
-                epochs=epochs,
-                propagate_type=propagate_type,
-                FL=run[1],
-                structure=run[2],
-                structure_type=run[3],
-                log=False,
-                plot=False,
-            )
-            result[f"{name}_{propagate_type}"] = res
-            bar.set_postfix_str(
-                f"{name}_{propagate_type}: {res['Average']['Test Acc']}"
-            )
+                    MLP_results = get_MLP_results(
+                        MLP_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(MLP_results)
+                    Fedsage_results = get_Fedsage_results(
+                        FedSage_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(Fedsage_results)
+                    Fedpub_results = get_Fedpub_results(
+                        FedPub_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(Fedpub_results)
+                    Fedsage_ideal_results = get_Fedsage_ideal_reults(
+                        GNN_server2,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(Fedsage_ideal_results)
 
-    return result
+                    graph.abar = true_abar
+                    GNN_result_true = get_GNN_results(
+                        GNN_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
 
+                    GNN_result_true2 = {}
+                    for key, val in GNN_result_true.items():
+                        GNN_result_true2[f"{key}_true"] = val
+                    model_results.update(GNN_result_true2)
 
-def calc_average_results(result, average_result, i):
-    if average_result == None:
-        return deepcopy(result)
+                    graph.abar = prune_abar
+                    GNN_result_prune = get_GNN_results(
+                        GNN_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    GNN_result_prune2 = {}
+                    for key, val in GNN_result_prune.items():
+                        GNN_result_prune2[f"{key}_prune"] = val
+                    model_results.update(GNN_result_prune2)
 
-    for key, val in result.items():
-        if isinstance(val, float):
-            average_result[key] = (average_result[key] * i + val) / (i + 1)
-        else:
-            average_result[key] = calc_average_results(val, average_result[key], i)
+                    _LOGGER2.info(f"Run id: {i}")
+                    _LOGGER2.info(json.dumps(model_results, indent=4))
 
-    return average_result
+                    results.append(model_results)
 
+                    average_result = calc_average_std_result(results)
+                    file_name = f"{save_path}{now}_{config.dataset.dataset_name}.csv"
+                    save_average_result(average_result, file_name)
 
-def calc_average_std_result(results, res_type="Test Acc"):
-    results_dict = lod2dol(results)
+                    bar.update()
 
-    average_result = {}
-    for method, res in results_dict.items():
-        dict_of_clients = lod2dol(res)
-        method_results = {}
-        for client_id, vals in dict_of_clients.items():
-            try:
-                final_vals = lod2dol(vals)[res_type]
-            except:
-                final_vals = vals
-            method_results[client_id] = (
-                f"{np.mean(final_vals):0.5f}\u00B1{np.std(final_vals):0.5f}"
-            )
-            # method_results[client_id] = [np.mean(final_vals), np.std(final_vals)]
+                _LOGGER.info(json.dumps(average_result, indent=4))
 
-        average_result[method] = method_results
-
-    return average_result
-
-
-def save_average_result(average_result, file_name="results.csv", save_path="./"):
-    final_result = {}
-    for key, val in average_result.items():
-        if "Average" in val.keys():
-            final_result[key] = val["Average"]
-        else:
-            final_result[key] = val["Test Acc"]
-
-    df = pd.DataFrame.from_dict(final_result, orient="index")
-    df.to_csv(f"{save_path}{file_name}")
+                _LOGGER.handlers.clear()
+                _LOGGER2.handlers.clear()
