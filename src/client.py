@@ -10,6 +10,7 @@ from src.utils.graph import Graph
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
+now = os.environ.get("now", 0)
 
 
 class Client:
@@ -134,7 +135,8 @@ class Client:
 
         if plot:
             title = f"client {self.id} Local Training {model_type}"
-            plot_metrics(results, title=title, save_path=self.save_path)
+            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_metrics(results, title=title, save_path=plot_path)
 
         test_results = self.get_test_results()
         for key, val in test_results.items():

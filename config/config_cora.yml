@@ -5,7 +5,7 @@ subgraph:
   delta: 20
   train_ratio: 0.1
   test_ratio: 0.8
-  partitioning: metis
+  partitioning: kmeans
   prune: False
 model:
   num_samples: [5, 10]
@@ -30,8 +30,8 @@ structure_model:
   DGCN_layers: 10
   # structure_type: degree
   # structure_type: GDV
-  structure_type: fedstar
-  # structure_type: random
+  # structure_type: fedstar
+  structure_type: random
   # structure_type: node2vec
   num_structural_features: 256
   estimate: False
@@ -65,6 +65,7 @@ fedsage:
   b: 1
   c: 1
 fedpub:
+  epochs: 30
   frac: 1.0
   clsf_mask_one: True
   laye_mask_one: True

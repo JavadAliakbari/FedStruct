@@ -1,7 +1,10 @@
-from datetime import datetime
 import os
 import json
 import random
+from datetime import datetime
+
+now = datetime.now().strftime("%Y%m%d_%H%M%S")
+os.environ["now"] = now
 
 import torch
 import numpy as np
@@ -30,7 +33,6 @@ config = Config(path)
 
 
 def set_up_system(save_path="./"):
-    now = datetime.now().strftime("%Y%m%d_%H%M%S")
     _LOGGER = get_logger(
         name=f"{now}_{config.dataset.dataset_name}",
         log_on_file=True,
@@ -90,23 +92,18 @@ def set_up_system(save_path="./"):
     # results[f"server MLP"] = MLP_server.train_local_model()["Test Acc"]
     # results[f"local MLP"] = MLP_server.joint_train_g(FL=False)["Average"]["Test Acc"]
     # results[f"flga MLP"] = MLP_server.joint_train_g(FL=True)["Average"]["Test Acc"]
-    # results[f"flwa MLP"] = MLP_server.joint_train_w(FL=True)["Average"]["Test Acc"]
 
     _LOGGER.info("GNN")
-    results[f"server GNN"] = GNN_server.train_local_model()["Test Acc"]
+    results[f"server GNN"] = GNN_server.train_local_model(propagate_type="GNN")[
+        "Test Acc"
+    ]
     results[f"local GNN"] = GNN_server.joint_train_g(structure=False, FL=False)[
         "Average"
     ]["Test Acc"]
-    results[f"flga GNN"] = GNN_server.joint_train_g(structure=False, FL=True)[
-        "Average"
-    ]["Test Acc"]
-    results[f"flwa GNN"] = GNN_server.joint_train_w(structure=False, FL=True)[
-        "Average"
-    ]["Test Acc"]
+    results[f"flga GNN"] = GNN_server.joint_train_g(
+        propagate_type="GNN", structure=False, FL=True
+    )["Average"]["Test Acc"]
     results[f"sdga GNN"] = GNN_server.joint_train_g(structure=True, FL=True)["Average"][
-        "Test Acc"
-    ]
-    results[f"sdwa GNN"] = GNN_server.joint_train_w(structure=True, FL=True)["Average"][
         "Test Acc"
     ]
 

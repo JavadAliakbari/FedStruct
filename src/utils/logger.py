@@ -33,8 +33,7 @@ def get_logger(
         logger.addHandler(terminal_handler)
 
     if log_on_file:
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
+        os.makedirs(save_path, exist_ok=True)
 
         filename = f"{save_path}{name}"
         i = ""

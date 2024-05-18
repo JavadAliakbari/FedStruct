@@ -3,8 +3,8 @@ dataset:
 subgraph:
   num_subgraphs: 10
   delta: 20
-  train_ratio: 0.6
-  test_ratio: 0.2
+  train_ratio: 0.1
+  test_ratio: 0.8
   partitioning: random
   prune: False
 model:
@@ -64,6 +64,7 @@ fedsage:
   b: 1
   c: 1
 fedpub:
+  epochs: 30
   frac: 1.0
   clsf_mask_one: True
   laye_mask_one: True

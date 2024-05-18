@@ -9,6 +9,7 @@ from src.fedsage.fedsage_client import FedSAGEClient
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
+now = os.environ.get("now", 0)
 
 
 class FedSAGEServer(GNNServer, FedSAGEClient):
@@ -143,7 +144,8 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
 
         if plot:
             title = f"Average joint Training Neighgen"
-            plot_metrics(average_results, title=title, save_path=self.save_path)
+            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_metrics(average_results, title=title, save_path=plot_path)
 
         test_results = self.test_neighgen_models()
         average_result = calc_average_result2(test_results)

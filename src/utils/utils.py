@@ -109,9 +109,7 @@ def plot_metrics(
     dataset = pd.DataFrame.from_dict(res)
     dataset.set_index("Epoch", inplace=True)
 
-    # save_dir = f"./plot_results/"
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+    os.makedirs(save_path, exist_ok=True)
 
     loss_columns = list(filter(lambda x: x.endswith("Loss"), dataset.columns))
     dataset[loss_columns].plot()

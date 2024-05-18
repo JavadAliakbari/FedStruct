@@ -15,6 +15,7 @@ from src.utils.utils import calc_average_result, calc_average_result2, plot_metr
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
+now = os.environ.get("now", 0)
 
 
 class FedPubServer:
@@ -72,7 +73,7 @@ class FedPubServer:
 
     def start(
         self,
-        iterations=config.model.iterations,
+        iterations=config.fedpub.epochs,
         log=True,
         plot=True,
         model_type="FedPub",
@@ -104,7 +105,8 @@ class FedPubServer:
         # self.LOGGER.info("[main] server done")
         if plot:
             title = f"Average joint Training {model_type}"
-            plot_metrics(average_results, title=title, save_path=self.save_path)
+            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_metrics(average_results, title=title, save_path=plot_path)
 
         # if log:
         #     self.report_server_test()

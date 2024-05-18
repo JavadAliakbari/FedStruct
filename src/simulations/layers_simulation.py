@@ -105,8 +105,7 @@ if __name__ == "__main__":
                         f"{train_ratio}/"
                         f"{DGCN_layers}/"
                     )
-                    if not os.path.exists(save_path):
-                        os.makedirs(save_path)
+                    os.makedirs(save_path, exist_ok=True)
 
                     _LOGGER = get_logger(
                         name=f"average_{config.dataset.dataset_name}_{train_ratio}",

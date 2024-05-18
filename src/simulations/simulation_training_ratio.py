@@ -74,8 +74,8 @@ if __name__ == "__main__":
                     f"{num_subgraphs}/"
                     f"{train_ratio}/"
                 )
-                if not os.path.exists(save_path):
-                    os.makedirs(save_path)
+
+                os.makedirs(save_path, exist_ok=True)
 
                 _LOGGER = get_logger(
                     name=f"average_{config.dataset.dataset_name}_{train_ratio}",

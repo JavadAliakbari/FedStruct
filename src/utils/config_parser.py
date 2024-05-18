@@ -130,6 +130,7 @@ class PubMedConfig:
         self.load_config(fedpub)
 
     def load_config(self, fedpub):
+        self.epochs = fedpub["epochs"]
         self.frac = fedpub["frac"]
         self.clsf_mask_one = fedpub["clsf_mask_one"]
         self.laye_mask_one = fedpub["laye_mask_one"]

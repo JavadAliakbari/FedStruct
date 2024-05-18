@@ -8,6 +8,7 @@ from src.utils.config_parser import Config
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
+now = os.environ.get("now", 0)
 
 
 class Server(Client):
@@ -150,7 +151,8 @@ class Server(Client):
 
         if plot:
             title = f"Average joint Training {model_type}"
-            plot_metrics(average_results, title=title, save_path=self.save_path)
+            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_metrics(average_results, title=title, save_path=plot_path)
 
         if log:
             self.report_server_test()
@@ -210,7 +212,8 @@ class Server(Client):
 
         if plot:
             title = f"Average Joint Training {model_type}"
-            plot_metrics(average_results, title=title, save_path=self.save_path)
+            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_metrics(average_results, title=title, save_path=plot_path)
 
         if log:
             self.report_server_test()

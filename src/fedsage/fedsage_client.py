@@ -8,6 +8,7 @@ from src.fedsage.neighgen import NeighGen
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
+now = os.environ.get("now", 0)
 
 
 class FedSAGEClient(GNNClient):
@@ -195,7 +196,8 @@ class FedSAGEClient(GNNClient):
 
         if plot:
             title = f"client {self.id} Local Training Neighgen"
-            plot_metrics(results, title=title, save_path=self.save_path)
+            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_metrics(results, title=title, save_path=plot_path)
 
         test_results = self.get_neighgen_test_results()
         for key, val in test_results.items():
