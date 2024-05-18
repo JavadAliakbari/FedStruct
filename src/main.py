@@ -93,19 +93,19 @@ def set_up_system(save_path="./"):
     # results[f"local MLP"] = MLP_server.joint_train_g(FL=False)["Average"]["Test Acc"]
     # results[f"flga MLP"] = MLP_server.joint_train_g(FL=True)["Average"]["Test Acc"]
 
-    _LOGGER.info("GNN")
-    results[f"server GNN"] = GNN_server.train_local_model(propagate_type="GNN")[
-        "Test Acc"
-    ]
-    results[f"local GNN"] = GNN_server.joint_train_g(structure=False, FL=False)[
-        "Average"
-    ]["Test Acc"]
-    results[f"flga GNN"] = GNN_server.joint_train_g(
-        propagate_type="GNN", structure=False, FL=True
-    )["Average"]["Test Acc"]
-    results[f"sdga GNN"] = GNN_server.joint_train_g(structure=True, FL=True)["Average"][
-        "Test Acc"
-    ]
+    # _LOGGER.info("GNN")
+    # results[f"server GNN"] = GNN_server.train_local_model(propagate_type="GNN")[
+    #     "Test Acc"
+    # ]
+    # results[f"local GNN"] = GNN_server.joint_train_g(structure=False, FL=False)[
+    #     "Average"
+    # ]["Test Acc"]
+    # results[f"flga GNN"] = GNN_server.joint_train_g(
+    #     propagate_type="GNN", structure=False, FL=True
+    # )["Average"]["Test Acc"]
+    # results[f"sdga GNN"] = GNN_server.joint_train_g(structure=True, FL=True)["Average"][
+    #     "Test Acc"
+    # ]
 
     # res = fedsage_server.train_fedSage_plus()
     # results[f"fedsage WA"] = res["WA"]["Average"]["Test Acc"]

@@ -499,7 +499,9 @@ class MaskedLinear(torch.nn.Module):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         curr_mask = self.set_mask()
         weight = self.weight * self.prune(curr_mask)
-        return F.linear(input, weight, self.bias)
+        aa = input @ weight.T + self.bias
+        return aa
+        # return F.linear(input, weight, self.bias)
 
 
 #####################################################

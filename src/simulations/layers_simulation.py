@@ -16,7 +16,7 @@ from src.utils.config_parser import Config
 from src.utils.graph_partitioning import (
     partition_graph,
 )
-from src.simulations.simulation import (
+from src.simulations.simulation_utils import (
     calc_average_result,
     calc_average_std_result,
     save_average_result,

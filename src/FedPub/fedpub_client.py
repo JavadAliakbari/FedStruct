@@ -14,6 +14,9 @@ from src.utils.graph import Graph
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
 
 class FedPubClient:
     def __init__(
@@ -35,6 +38,7 @@ class FedPubClient:
             graph.num_classes,
             config.fedpub.l1,
         )
+        self.model.to(device)
         self.parameters = list(self.model.parameters())
         self.proxy = proxy
         self.init_state()
@@ -85,7 +89,7 @@ class FedPubClient:
         n_active, n_total = 0, 1
         for mask in self.masks:
             pruned = torch.abs(mask) < config.fedpub.l1
-            mask = torch.ones(mask.shape).masked_fill(pruned, 0)
+            mask = torch.ones(mask.shape, device=device).masked_fill(pruned, 0)
             n_active += torch.sum(mask)
             _n_total = 1
             for s in mask.shape:
@@ -110,21 +114,22 @@ class FedPubClient:
                 y_hat[self.graph.train_mask].argmax(dim=1),
                 self.graph.y[self.graph.train_mask],
             )
-            train_loss = F.cross_entropy(
+            criterion = nn.CrossEntropyLoss()
+            train_loss = criterion(
                 y_hat[self.graph.train_mask], self.graph.y[self.graph.train_mask]
             )
 
             #################################################################
-            for name, param in self.model.state_dict().items():
-                if "mask" in name:
-                    train_loss += torch.norm(param.float(), 1) * config.fedpub.l1
-                elif "conv" in name or "clsif" in name:
-                    if self.curr_rnd == 0:
-                        continue
-                    train_loss += (
-                        torch.norm(param.float() - self.prev_w[name], 2)
-                        * config.fedpub.loc_l2
-                    )
+            # for name, param in self.model.state_dict().items():
+            #     if "mask" in name:
+            #         train_loss += torch.norm(param.float(), 1) * config.fedpub.l1
+            #     elif "conv" in name or "clsif" in name:
+            #         if self.curr_rnd == 0:
+            #             continue
+            #         train_loss += (
+            #             torch.norm(param.float() - self.prev_w[name], 2)
+            #             * config.fedpub.loc_l2
+            #         )
             #################################################################
 
             train_loss.backward()
@@ -166,13 +171,13 @@ class FedPubClient:
             proxy_in = self.proxy
             proxy_out = self.model(proxy_in, is_proxy=True)
             proxy_out = proxy_out.mean(dim=0)
-            proxy_out = proxy_out.clone().detach().cpu().numpy()
+            proxy_out = proxy_out.detach()
         return proxy_out
 
     def transfer_to_server(self):
         res = {
             "model": get_state_dict(self.model),
-            "train_size": sum(self.graph.train_mask),
+            "train_size": torch.sum(self.graph.train_mask).item(),
             "functional_embedding": self.get_functional_embedding(),
         }
 
@@ -208,7 +213,8 @@ class FedPubClient:
         y_hat = self.model(batch)
         if torch.sum(mask).item() == 0:
             return y_hat, 0.0
-        lss = F.cross_entropy(y_hat[mask], batch.y[mask])
+        criterion = nn.CrossEntropyLoss()
+        lss = criterion(y_hat[mask], batch.y[mask])
         return y_hat, lss.item()
 
     def get_test_results(self):

@@ -17,6 +17,9 @@ path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 now = os.environ.get("now", 0)
 
+dev = os.environ.get("device", "cpu")
+device = torch.device(dev)
+
 
 class FedPubServer:
     def __init__(
@@ -35,6 +38,7 @@ class FedPubServer:
             self.graph.num_classes,
             config.fedpub.l1,
         )
+        self.model.to(device)
 
         self.proxy = self.get_proxy_data(self.graph.num_features)
         # self.create_workers(self.proxy)
@@ -67,7 +71,7 @@ class FedPubServer:
             )
         )
         data.x = torch.normal(mean=0, std=1, size=(num_nodes * num_graphs, n_feat))
-        return data
+        return data.to(device)
 
     def create_workers(self, proxy):
         self.clients = []
@@ -140,7 +144,10 @@ class FedPubServer:
             for j in range(n_connected):
                 lfe_i = local_functional_embeddings[i]
                 lfe_j = local_functional_embeddings[j]
-                sim_matrix[i, j] = 1 - cosine(lfe_i, lfe_j)
+                a = torch.nn.functional.cosine_similarity(lfe_i, lfe_j, dim=0).item()
+                sim_matrix[i, j] = a
+                # b = 1 - cosine(lfe_i.cpu().numpy(), lfe_j.cpu().numpy())
+                # print(f"a: {a}, b: {b}")
 
         if config.fedpub.agg_norm == "exp":
             sim_matrix = np.exp(config.fedpub.norm_scale * sim_matrix)

@@ -22,8 +22,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-# elif torch.backends.mps.is_available():
-#     dev = "mps"
+elif torch.backends.mps.is_available():
+    dev = "mps"
 else:
     dev = "cpu"
 os.environ["device"] = dev

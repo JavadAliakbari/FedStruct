@@ -6,7 +6,7 @@ from scipy import sparse
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from sknetwork.clustering import Louvain, Leiden, KCenters, PropagationClustering
+from sknetwork.clustering import Louvain
 from torch_geometric.utils import subgraph
 from torch_geometric.utils.convert import to_scipy_sparse_matrix
 from sklearn.cluster import k_means
