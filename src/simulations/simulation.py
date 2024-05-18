@@ -8,6 +8,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
+from src.FedPub.fedpub_server import FedPubServer
 from src.utils.utils import *
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
@@ -40,6 +41,7 @@ def create_clients(
     GNN_server: GNNServer,
     GNN_server2: GNNServer,
     FedSage_server: FedSAGEServer,
+    FedPub_server: FedPubServer,
     train_ratio=config.subgraph.train_ratio,
     test_ratio=config.subgraph.test_ratio,
     num_subgraphs=config.subgraph.num_subgraphs,
@@ -51,6 +53,7 @@ def create_clients(
     GNN_server.remove_clients()
     GNN_server2.remove_clients()
     FedSage_server.remove_clients()
+    FedPub_server.remove_clients()
 
     subgraphs = partition_graph(graph, num_subgraphs, partitioning)
 
@@ -58,6 +61,7 @@ def create_clients(
         MLP_server.add_client(subgraph)
         GNN_server.add_client(subgraph)
         FedSage_server.add_client(subgraph)
+        FedPub_server.add_client(subgraph)
         mend_graph = create_mend_graph2(subgraph, graph)
         GNN_server2.add_client(mend_graph)
 
@@ -70,7 +74,7 @@ def get_MLP_results(
     result = {}
     MLP_runs = {
         "local_MLP": [MLP_server.joint_train_g, False],
-        "flwa_MLP": [MLP_server.joint_train_w, True],
+        # "flwa_MLP": [MLP_server.joint_train_w, True],
         "flga_MLP": [MLP_server.joint_train_g, True],
     }
     res = MLP_server.train_local_model(epochs=epochs, log=False, plot=False)
@@ -99,6 +103,7 @@ def get_Fedsage_results(
     res = FedSage_server.train_fedSage_plus(
         epochs=epochs,
         propagate_type="GNN",
+        model="both",
         log=False,
         plot=False,
     )
@@ -106,6 +111,23 @@ def get_Fedsage_results(
     bar.set_postfix_str(f"fedsage+_WA: {res['WA']['Average']['Test Acc']}")
     result[f"fedsage+_GA"] = res["GA"]
     bar.set_postfix_str(f"fedsage+_GA: {res['GA']['Average']['Test Acc']}")
+
+    return result
+
+
+def get_Fedpub_results(
+    FedPub_server: FedPubServer,
+    bar: tqdm,
+    epochs=config.model.iterations,
+):
+    result = {}
+    res = FedPub_server.start(
+        iterations=epochs,
+        log=False,
+        plot=False,
+    )
+    result[f"fedpub"] = res
+    bar.set_postfix_str(f"fedpub: {res['Average']['Test Acc']}")
 
     return result
 
@@ -118,7 +140,7 @@ def get_Fedsage_ideal_reults(
     result = {}
 
     GNN_runs = {
-        "fedsage_ideal_w": [GNN_server2.joint_train_w, True, False, ""],
+        # "fedsage_ideal_w": [GNN_server2.joint_train_w, True, False, ""],
         "fedsage_ideal_g": [GNN_server2.joint_train_g, True, False, ""],
     }
 
@@ -159,12 +181,12 @@ def get_GNN_results(
     # for method in ["flwa", "flga"]:
     for method in ["flga"]:
         # GNN_runs[f"{method}"] = [funcs[method], True, False, ""]
-        for structure_type in ["degree", "GDV", "node2vec", "random"]:
+        for structure_type in ["degree", "fedstar", "GDV", "node2vec", "random"]:
             name = f"{method}_{structure_type}"
             GNN_runs[name] = [funcs[method], True, True, structure_type]
 
-    # for propagate_type in ["DGCN", "GNN"]:
-    for propagate_type in ["DGCN"]:
+    for propagate_type in ["DGCN", "GNN"]:
+        # for propagate_type in ["DGCN"]:
         # res = GNN_server.train_local_model(
         #     epochs=epochs,
         #     propagate_type=propagate_type,

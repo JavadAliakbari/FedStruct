@@ -334,6 +334,7 @@ def create_mend_graph(subgraph: Graph, graph: Graph, val=1):
         train_mask=train_mask,
         test_mask=test_mask,
         val_mask=val_mask,
+        num_classes=graph.num_classes,
     )
 
     return mend_graph
@@ -403,6 +404,7 @@ def create_mend_graph2(subgraph: Graph, graph: Graph):
         train_mask=train_mask,
         test_mask=test_mask,
         val_mask=val_mask,
+        num_classes=graph.num_classes,
     )
 
     return mend_graph

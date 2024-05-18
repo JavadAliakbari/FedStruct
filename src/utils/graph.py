@@ -10,7 +10,8 @@ from torch_geometric.typing import OptTensor
 from torch_geometric.utils import degree, add_self_loops, to_scipy_sparse_matrix
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
-from torch_sparse import SparseTensor
+
+# from torch_sparse import SparseTensor
 from scipy import sparse as sp
 
 from src.utils.config_parser import Config

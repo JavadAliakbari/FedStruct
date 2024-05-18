@@ -7,7 +7,8 @@ import torch
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
-from torch_sparse import SparseTensor
+
+# from torch_sparse import SparseTensor
 from torch_geometric.utils import add_self_loops
 from torch_geometric.utils import degree
 from tqdm import tqdm

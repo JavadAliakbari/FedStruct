@@ -1,12 +1,17 @@
 import os
 import random
 import json
+from datetime import datetime
+
+now = datetime.now().strftime("%Y%m%d_%H%M%S")
+os.environ["now"] = now
 
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
+from src.FedPub.fedpub_server import FedPubServer
 from src.utils.utils import *
 from src.utils.define_graph import define_graph
 from src.GNN.GNN_server import GNNServer
@@ -51,6 +56,8 @@ if __name__ == "__main__":
 
     FedSage_server = FedSAGEServer(graph)
 
+    FedPub_server = FedPubServer(graph)
+
     GNN_server2 = GNNServer(graph)
 
     rep = 10
@@ -58,8 +65,8 @@ if __name__ == "__main__":
     # for partitioning in [config.subgraph.partitioning]:
     for partitioning in ["random", "louvain", "kmeans"]:
         # for num_subgraphs in [config.subgraph.num_subgraphs]:
-        for num_subgraphs in [10]:
-            # for num_subgraphs in [5, 10, 20]:
+        # for num_subgraphs in [10]:
+        for num_subgraphs in [5, 10, 20]:
             for train_ratio in [config.subgraph.train_ratio]:
                 # for train_ratio in np.arange(0.1, 0.65, 0.05):
                 test_ratio = config.subgraph.test_ratio
@@ -68,7 +75,7 @@ if __name__ == "__main__":
                 # epochs = int(train_ratio * 100 + 30)
 
                 save_path = (
-                    "./results/Paper Results2/"
+                    "./results/Neurips/"
                     f"{config.dataset.dataset_name}/"
                     f"{partitioning}/"
                     f"{num_subgraphs}/"
@@ -78,12 +85,12 @@ if __name__ == "__main__":
                 os.makedirs(save_path, exist_ok=True)
 
                 _LOGGER = get_logger(
-                    name=f"average_{config.dataset.dataset_name}_{train_ratio}",
+                    name=f"average_{now}_{config.dataset.dataset_name}",
                     log_on_file=True,
                     save_path=save_path,
                 )
                 _LOGGER2 = get_logger(
-                    name=f"all_{config.dataset.dataset_name}_{train_ratio}",
+                    name=f"all_{now}_{config.dataset.dataset_name}",
                     terminal=False,
                     log_on_file=True,
                     save_path=save_path,
@@ -99,6 +106,7 @@ if __name__ == "__main__":
                         GNN_server,
                         GNN_server2,
                         FedSage_server,
+                        FedPub_server,
                         train_ratio=train_ratio,
                         test_ratio=test_ratio,
                         num_subgraphs=num_subgraphs,
@@ -106,24 +114,30 @@ if __name__ == "__main__":
                     )
                     model_results = {}
 
-                    # MLP_results = get_MLP_results(
-                    #     MLP_server,
-                    #     bar=bar,
-                    #     epochs=epochs,
-                    # )
-                    # model_results.update(MLP_results)
-                    # Fedsage_results = get_Fedsage_results(
-                    #     FedSage_server,
-                    #     bar=bar,
-                    #     epochs=epochs,
-                    # )
-                    # model_results.update(Fedsage_results)
-                    # Fedsage_ideal_results = get_Fedsage_ideal_reults(
-                    #     GNN_server2,
-                    #     bar=bar,
-                    #     epochs=epochs,
-                    # )
-                    # model_results.update(Fedsage_ideal_results)
+                    MLP_results = get_MLP_results(
+                        MLP_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(MLP_results)
+                    Fedsage_results = get_Fedsage_results(
+                        FedSage_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(Fedsage_results)
+                    Fedpub_results = get_Fedpub_results(
+                        FedPub_server,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(Fedpub_results)
+                    Fedsage_ideal_results = get_Fedsage_ideal_reults(
+                        GNN_server2,
+                        bar=bar,
+                        epochs=epochs,
+                    )
+                    model_results.update(Fedsage_ideal_results)
 
                     graph.abar = true_abar
                     GNN_result_true = get_GNN_results(
@@ -154,7 +168,7 @@ if __name__ == "__main__":
                     results.append(model_results)
 
                     average_result = calc_average_std_result(results)
-                    file_name = f"{save_path}final_result_{train_ratio}.csv"
+                    file_name = f"{save_path}{now}_{config.dataset.dataset_name}.csv"
                     save_average_result(average_result, file_name)
 
                     bar.update()

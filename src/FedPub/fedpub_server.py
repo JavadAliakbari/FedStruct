@@ -54,6 +54,10 @@ class FedPubServer:
         self.clients.append(client)
         self.num_clients += 1
 
+    def remove_clients(self):
+        self.clients.clear()
+        self.num_clients = 0
+
     def get_proxy_data(self, n_feat):
 
         num_graphs, num_nodes = config.fedpub.n_proxy, 100
@@ -124,12 +128,12 @@ class FedPubServer:
         local_functional_embeddings = []
         local_train_sizes = []
         client: FedPubClient
-        for i in range(config.subgraph.num_subgraphs):
+        for i in range(self.num_clients):
             local_weights.append(clients_data[i]["model"])
             local_functional_embeddings.append(clients_data[i]["functional_embedding"])
             local_train_sizes.append(clients_data[i]["train_size"])
 
-        n_connected = round(config.subgraph.num_subgraphs * config.fedpub.frac)
+        n_connected = round(self.num_clients * config.fedpub.frac)
         assert n_connected == len(local_functional_embeddings)
         sim_matrix = np.empty(shape=(n_connected, n_connected))
         for i in range(n_connected):
