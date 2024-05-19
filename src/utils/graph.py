@@ -17,7 +17,7 @@ from scipy import sparse as sp
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.GDV import GDV
-from src.utils.utils import find_neighbors_, obtain_a, estimate_a
+from src.utils.utils import create_rw, find_neighbors_, obtain_a, estimate_a
 
 dev = os.environ.get("device", "cpu")
 device = torch.device(dev)
@@ -331,69 +331,22 @@ class Graph(Data):
 
     def calc_fedStar(edge_index, num_nodes, type_init="rw_dg"):
         if type_init == "rw":
-            # Geometric diffusion features with Random Walk
-            A = to_scipy_sparse_matrix(edge_index, num_nodes=num_nodes)
-            D = (degree(edge_index[0], num_nodes=num_nodes) ** -1.0).numpy()
-
-            Dinv = sp.diags(D)
-            RW = A * Dinv
-            M = RW
-
-            SE_rw = [torch.from_numpy(M.diagonal()).float()]
-            M_power = M
-            for _ in range(config.DGCN_layers - 1):
-                M_power = M_power * M
-                SE_rw.append(torch.from_numpy(M_power.diagonal()).float())
-            SE_rw = torch.stack(SE_rw, dim=-1)
+            SE_rw = create_rw(edge_index, num_nodes, config.rw_len)
             return SE_rw
-            # g["stc_enc"] = SE_rw
 
         elif type_init == "dg":
-            # for g in gs:
-            # PE_degree
-            g_dg = (
-                (degree(edge_index[0], num_nodes=num_nodes))
-                .numpy()
-                .clip(1, config.num_structural_features)
+            SE_dg = Graph.calc_degree_features(
+                edge_index, num_nodes, config.num_structural_features
             )
-            SE_dg = torch.zeros([num_nodes, config.num_structural_features])
-            for i in range(len(g_dg)):
-                SE_dg[i, int(g_dg[i] - 1)] = 1
-
-                # g["stc_enc"] = SE_dg
-
             return SE_dg
 
         elif type_init == "rw_dg":
-            # for g in gs:
-            # SE_rw
-            A = to_scipy_sparse_matrix(edge_index, num_nodes=num_nodes)
-            D = (degree(edge_index[0], num_nodes=num_nodes) ** -1.0).numpy()
-
-            Dinv = sp.diags(D)
-            RW = A * Dinv
-            M = RW
-
-            SE = [torch.from_numpy(M.diagonal()).float()]
-            M_power = M
-            rw_len = config.rw_len
-            # rw_size = config.DGCN_layers
-            for _ in range(rw_len - 1):
-                M_power = M_power * M
-                SE.append(torch.from_numpy(M_power.diagonal()).float())
-            SE_rw = torch.stack(SE, dim=-1)
-
-            # PE_degree
-            g_dg = (
-                (degree(edge_index[0], num_nodes=num_nodes))
-                .numpy()
-                .clip(1, config.num_structural_features)
+            SE_rw = create_rw(edge_index, num_nodes, config.rw_len)
+            SE_dg = Graph.calc_degree_features(
+                edge_index, num_nodes, config.num_structural_features - config.rw_len
             )
-            SE_dg = torch.zeros([num_nodes, config.num_structural_features - rw_len])
-            for i in range(len(g_dg)):
-                SE_dg[i, int(g_dg[i] - 1)] = 1
-
             SE_rw_dg = torch.cat([SE_rw, SE_dg], dim=1)
+
             return SE_rw_dg
 
         # return gs

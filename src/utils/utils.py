@@ -134,6 +134,35 @@ def sparse_eye(n, vals=None, dev="cpu"):
     return sparse_matrix
 
 
+def create_rw(edge_index, num_nodes, num_layers):
+    local_dev = "cpu"
+
+    abar = sparse_eye(num_nodes, dev=local_dev)
+
+    vals = torch.ones(edge_index.shape[1], dtype=torch.float32, device=local_dev)
+    adj = torch.sparse_coo_tensor(
+        edge_index,
+        vals,
+        (num_nodes, num_nodes),
+        device=local_dev,
+    )
+
+    node_degree = 1 / degree(edge_index[0], num_nodes).long()
+    D = sparse_eye(num_nodes, node_degree, local_dev)
+    adj_hat = torch.matmul(adj, D)
+
+    SE = []
+    for i in range(num_layers):
+        abar = torch.matmul(abar, adj_hat)  # Sparse-dense matrix multiplication
+        SE.append(torch.diag(abar.to_dense()))
+
+    SE_rw = torch.stack(SE, dim=-1)
+
+    if dev != "mps":
+        SE_rw = SE_rw.to(dev)
+    return SE_rw
+
+
 def obtain_a(edge_index, num_nodes, num_layers, pruning=False):
     # if dev == "mps":
     #     local_dev = "cpu"
