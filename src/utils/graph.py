@@ -16,7 +16,7 @@ from scipy import sparse as sp
 
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
-from src.utils.GDV import GDV
+from src.models.GDV import GDV
 from src.utils.utils import create_rw, find_neighbors_, obtain_a, estimate_a
 
 dev = os.environ.get("device", "cpu")
@@ -273,7 +273,7 @@ class Graph(Data):
                 d,
                 iteration=config.num_mp_vectors,
             )
-        elif structure_type == "random":
+        elif structure_type == "hop2vec":
             structural_features = Graph.initialize_random_features(
                 size=(len(node_ids), num_structural_features)
             )
@@ -360,7 +360,7 @@ class Graph(Data):
         )
 
     def reset_parameters(self) -> None:
-        if config.structure_type == "random":
+        if config.structure_type == "hop2vec":
             self.structural_features = Graph.initialize_random_features(
                 size=self.structural_features.shape
             )

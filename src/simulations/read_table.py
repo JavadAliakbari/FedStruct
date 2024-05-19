@@ -10,8 +10,8 @@ if __name__ == "__main__":
         "Photo",
         "Amazon-ratings",
     ]:
-        for partioning in ["louvain", "kmeans", "random"]:
-            if partioning == "random":
+        for partioning in ["louvain", "kmeans", "hop2vec"]:
+            if partioning == "hop2vec":
                 num_subgraphs_list = [5, 10, 20]
             else:
                 num_subgraphs_list = [10]
@@ -31,11 +31,11 @@ if __name__ == "__main__":
                 #     "degree_sdga_DGCN",
                 #     "GDV_sdga_DGCN",
                 #     "node2vec_sdga_DGCN",
-                #     "random_sdga_DGCN",
+                #     "hop2vec_sdga_DGCN",
                 #     "degree_sdga_GNN",
                 #     "GDV_sdga_GNN",
                 #     "node2vec_sdga_GNN",
-                #     "random_sdga_GNN",
+                #     "hop2vec_sdga_GNN",
                 #     "local_GNN",
                 #     "local_mlp",
                 #     # "server_GNN",
@@ -51,11 +51,11 @@ if __name__ == "__main__":
                     "degree_sdga_DGCN",
                     "GDV_sdga_DGCN",
                     "node2vec_sdga_DGCN",
-                    "random_sdga_DGCN",
+                    "hop2vec_sdga_DGCN",
                     # "degree_sdga_GNN",
                     # "GDV_sdga_GNN",
                     # "node2vec_sdga_GNN",
-                    # "random_sdga_GNN",
+                    # "hop2vec_sdga_GNN",
                     "local_GNN",
                     "local_DGCN",
                     # "local_mlp",
@@ -65,11 +65,11 @@ if __name__ == "__main__":
                 #     "flga_degree_DGCN_true",
                 #     "flga_GDV_DGCN_true",
                 #     "flga_node2vec_DGCN_true",
-                #     "flga_random_DGCN_true",
+                #     "flga_hop2vec_DGCN_true",
                 #     "flga_degree_DGCN_prune",
                 #     "flga_GDV_DGCN_prune",
                 #     "flga_node2vec_DGCN_prune",
-                #     "flga_random_DGCN_prune",
+                #     "flga_hop2vec_DGCN_prune",
                 # ]
                 df2 = df.loc[rows, "0"].tolist()
                 data = [x.split("±") for x in df2]

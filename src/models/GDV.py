@@ -78,6 +78,7 @@ class GDV:
         edges,
         n=None,
     ):
+        edges = edges.clone().cpu()
         if n is None:
             n = max(edges.flatten()).item() + 1
         # edges = GDV.make_directed(edges)

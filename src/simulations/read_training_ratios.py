@@ -18,7 +18,7 @@ if __name__ == "__main__":
         # "node2vec_sdga_GNN",
         "degree_sdga_DGCN",
         # "flga_DGCN",
-        # "random_sdga_GNN",
+        # "hop2vec_sdga_GNN",
         "flga_GNN",
         "fedsage+_GA_GNN",
         "local_GNN",

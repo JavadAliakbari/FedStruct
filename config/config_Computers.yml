@@ -30,7 +30,7 @@ structure_model:
   DGCN_layers: 2
   # structure_type: degree
   structure_type: GDV
-  # structure_type: random
+  # structure_type: hop2vec
   # structure_type: node2vec
   num_structural_features: 256
   estimate: False
@@ -64,14 +64,14 @@ fedsage:
   b: 1
   c: 1
 fedpub:
-  epochs: 30
+  epochs: 100
   frac: 1.0
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
   min_lr: 0.0001
   momentum_opt: 0.9
-  lr: 0.01
+  lr: 0.001
   weight_decay: 0.000001
   warmup_epochs: 10
   base_momentum: 0.99

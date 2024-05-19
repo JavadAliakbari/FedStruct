@@ -54,7 +54,8 @@ def remove_if_exist(base_dir, filename):
 
 
 def get_state_dict(model):
-    state_dict = convert_tensor_to_np(model.state_dict())
+    state_dict = model.state_dict()
+    # state_dict = convert_tensor_to_np(model.state_dict())
     return state_dict
 
 
@@ -69,6 +70,9 @@ def convert_tensor_to_np(state_dict):
     return OrderedDict(
         [(k, v.clone().detach().cpu().numpy()) for k, v in state_dict.items()]
     )
+    # return OrderedDict(
+    #     [(k, v.clone().detach().cpu().numpy()) for k, v in state_dict.items()]
+    # )
 
 
 def convert_np_to_tensor(state_dict, skip_stat=False, skip_mask=False, model=None):
@@ -83,10 +87,7 @@ def convert_np_to_tensor(state_dict, skip_stat=False, skip_mask=False, model=Non
                 _state_dict[k] = model[k]
                 continue
 
-        if len(np.shape(v)) == 0:
-            _state_dict[k] = torch.tensor(v)
-        else:
-            _state_dict[k] = torch.tensor(v).requires_grad_()
+        _state_dict[k] = v
     return _state_dict
 
 
@@ -101,15 +102,13 @@ def aggregate(local_weights, ratio=None):
     aggr_theta = OrderedDict([(k, None) for k in local_weights[0].keys()])
     if ratio is not None:
         for name, params in aggr_theta.items():
-            aggr_theta[name] = np.sum(
-                [theta[name] * ratio[j] for j, theta in enumerate(local_weights)], 0
-            )
+            l = [theta[name] * ratio[j] for j, theta in enumerate(local_weights)]
+            aggr_theta[name] = torch.stack(l, dim=0).sum(dim=0)
     else:
         ratio = 1 / len(local_weights)
         for name, params in aggr_theta.items():
-            aggr_theta[name] = np.sum(
-                [theta[name] * ratio for j, theta in enumerate(local_weights)], 0
-            )
+            l = [theta[name] * ratio for j, theta in enumerate(local_weights)]
+            aggr_theta[name] = torch.stack(l, dim=0).sum(dim=0)
     return aggr_theta
 
 

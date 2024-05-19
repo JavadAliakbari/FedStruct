@@ -57,8 +57,8 @@ def run(
 
     result = {}
 
-    # for structure_type in ["random"]:
-    for structure_type in ["degree", "GDV", "node2vec", "random"]:
+    # for structure_type in ["hop2vec"]:
+    for structure_type in ["degree", "GDV", "node2vec", "hop2vec"]:
         for propagate_type in ["DGCN"]:
             res = GNN_server.joint_train_g(
                 epochs=epochs,

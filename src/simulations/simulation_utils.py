@@ -181,7 +181,7 @@ def get_GNN_results(
     # for method in ["flwa", "flga"]:
     for method in ["flga"]:
         # GNN_runs[f"{method}"] = [funcs[method], True, False, ""]
-        for structure_type in ["degree", "fedstar", "GDV", "node2vec", "random"]:
+        for structure_type in ["degree", "fedstar", "GDV", "node2vec", "hop2vec"]:
             name = f"{method}_{structure_type}"
             GNN_runs[name] = [funcs[method], True, True, structure_type]
 

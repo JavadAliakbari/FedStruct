@@ -31,8 +31,8 @@ structure_model:
   # structure_type: degree
   # structure_type: GDV
   # structure_type: fedstar
-  structure_type: random
-  # structure_type: node2vec
+  # structure_type: hop2vec
+  structure_type: node2vec
   num_structural_features: 256
   estimate: False
   num_mp_vectors: 10

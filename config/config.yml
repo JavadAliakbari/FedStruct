@@ -30,7 +30,7 @@ structure_model:
   DGCN_layers: 10
   # structure_type: degree
   # structure_type: GDV
-  structure_type: random
+  structure_type: hop2vec
   # structure_type: node2vec
   num_structural_features: 256
   estimate: False

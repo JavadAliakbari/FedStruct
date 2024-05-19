@@ -120,16 +120,16 @@ class FedPubClient:
             )
 
             #################################################################
-            # for name, param in self.model.state_dict().items():
-            #     if "mask" in name:
-            #         train_loss += torch.norm(param.float(), 1) * config.fedpub.l1
-            #     elif "conv" in name or "clsif" in name:
-            #         if self.curr_rnd == 0:
-            #             continue
-            #         train_loss += (
-            #             torch.norm(param.float() - self.prev_w[name], 2)
-            #             * config.fedpub.loc_l2
-            #         )
+            for name, param in self.model.state_dict().items():
+                if "mask" in name:
+                    train_loss += torch.norm(param.float(), 1) * config.fedpub.l1
+                elif "conv" in name or "clsif" in name:
+                    if self.curr_rnd == 0:
+                        continue
+                    train_loss += (
+                        torch.norm(param.float() - self.prev_w[name], 2)
+                        * config.fedpub.loc_l2
+                    )
             #################################################################
 
             train_loss.backward()
