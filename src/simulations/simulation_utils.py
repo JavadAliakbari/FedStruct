@@ -167,6 +167,7 @@ def get_GNN_results(
     GNN_server: GNNServer,
     bar: tqdm,
     epochs=config.model.iterations,
+    propagate_types=["DGCN", "GNN"],
 ):
     result = {}
 
@@ -185,7 +186,7 @@ def get_GNN_results(
             name = f"{method}_{structure_type}"
             GNN_runs[name] = [funcs[method], True, True, structure_type]
 
-    for propagate_type in ["DGCN", "GNN"]:
+    for propagate_type in propagate_types:
         # for propagate_type in ["DGCN"]:
         # res = GNN_server.train_local_model(
         #     epochs=epochs,
