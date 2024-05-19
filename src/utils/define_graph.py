@@ -72,9 +72,9 @@ def define_graph(dataset_name=config.dataset.dataset_name):
             node_ids=node_ids.to(device),
             keep_sfvs=True,
             dataset_name=dataset_name,
-            train_mask=dataset[0].train_mask,
-            val_mask=dataset[0].val_mask,
-            test_mask=dataset[0].test_mask,
+            train_mask=dataset[0].get("train_mask", None),
+            val_mask=dataset[0].get("val_mask", None),
+            test_mask=dataset[0].get("test_mask", None),
             num_classes=dataset.num_classes,
         )
 
