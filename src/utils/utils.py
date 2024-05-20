@@ -158,8 +158,8 @@ def create_rw(edge_index, num_nodes, num_layers):
 
     SE_rw = torch.stack(SE, dim=-1)
 
-    if dev != "mps":
-        SE_rw = SE_rw.to(dev)
+    # if dev != "mps":
+    SE_rw = SE_rw.to(dev)
     return SE_rw
 
 
