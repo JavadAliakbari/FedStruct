@@ -39,7 +39,6 @@ class FedSAGEClient(GNNClient):
     def initialize(
         self,
         propagate_type=config.model.propagate_type,
-        num_input_features=None,
         **kwargs,
     ) -> None:
         mend_graph = self.neighgen.get_mend_graph()
@@ -58,9 +57,9 @@ class FedSAGEClient(GNNClient):
 
         # self.classifier.set_GNN_FPM(dim_in=num_input_features)
         if propagate_type == "GNN":
-            self.classifier.set_GNN_FPM(dim_in=num_input_features)
+            self.classifier.set_GNN_FPM()
         elif propagate_type == "DGCN":
-            self.classifier.set_DGCN_FPM(dim_in=num_input_features)
+            self.classifier.set_DGCN_FPM()
 
     def initialize_neighgen(self) -> None:
         self.neighgen.prepare_data(self.graph)

@@ -43,32 +43,48 @@ class GNNServer(Server, GNNClient):
         self.clients.append(client)
         self.num_clients += 1
 
+    def initialize(
+        self,
+        propagate_type=config.model.propagate_type,
+        data_type="feature",
+        structure_type=config.structure_model.structure_type,
+        get_structure_embeddings=None,
+    ) -> None:
+        super().initialize(
+            propagate_type=propagate_type,
+            data_type=data_type,
+            structure_type=structure_type,
+            get_structure_embeddings=get_structure_embeddings,
+        )
+
+        if data_type in ["structure", "f+s"]:
+            self.graph.add_structural_features(
+                structure_type=structure_type,
+                num_structural_features=config.structure_model.num_structural_features,
+            )
+            self.set_SFV(self.graph.structural_features)
+
     def initialize_FL(
         self,
         propagate_type=config.model.propagate_type,
-        structure=False,
+        data_type="feature",
         structure_type=config.structure_model.structure_type,
     ) -> None:
         self.initialize(
             propagate_type=propagate_type,
-            structure=structure,
+            data_type=data_type,
             structure_type=structure_type,
         )
         client: GNNClient
         for client in self.clients:
             client.initialize(
                 propagate_type=propagate_type,
-                structure=structure,
+                data_type=data_type,
                 structure_type=structure_type,
                 get_structure_embeddings=self.get_structure_embeddings2,
             )
 
-        if structure:
-            self.graph.add_structural_features(
-                structure_type=structure_type,
-                num_structural_features=config.structure_model.num_structural_features,
-            )
-
+        if data_type in ["structure", "f+s"]:
             if propagate_type == "DGCN":
                 if self.graph.abar is None:
                     abar = self.obtain_a()
@@ -138,9 +154,6 @@ class GNNServer(Server, GNNClient):
 
     def share_SFV(self):
         SFV = self.graph.structural_features
-
-        self.set_SFV(SFV)
-
         client: GNNClient
         for client in self.clients:
             client.set_SFV(SFV)
@@ -150,7 +163,7 @@ class GNNServer(Server, GNNClient):
         epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
         FL=True,
-        structure=False,
+        data_type="feature",
         structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
@@ -158,18 +171,24 @@ class GNNServer(Server, GNNClient):
     ):
         self.initialize_FL(
             propagate_type=propagate_type,
-            structure=structure,
+            data_type=data_type,
             structure_type=structure_type,
         )
 
-        if FL & structure:
-            model_type += "SDGA"
-        elif FL and not structure:
-            model_type += "FLGA GNN"
-        elif not FL and structure:
-            model_type += "LocaL SDGA"
+        if FL:
+            if data_type == "feature":
+                model_type += "FLGA"
+            elif data_type == "structure":
+                model_type += "FLSGA"
+            elif data_type == "f+s":
+                model_type += "SDGA"
         else:
-            model_type += "Local GNN"
+            if data_type == "feature":
+                model_type += "Local"
+            elif data_type == "structure":
+                model_type += "Local_S"
+            elif data_type == "f+s":
+                model_type += "Local_SD"
 
         if propagate_type == "DGCN":
             model_type += "_DGCN"
@@ -187,7 +206,7 @@ class GNNServer(Server, GNNClient):
         epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
         FL=True,
-        structure=False,
+        data_type="feature",
         structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
@@ -195,18 +214,24 @@ class GNNServer(Server, GNNClient):
     ):
         self.initialize_FL(
             propagate_type=propagate_type,
-            structure=structure,
+            data_type=data_type,
             structure_type=structure_type,
         )
 
-        if FL & structure:
-            model_type += "SDWA"
-        elif FL and not structure:
-            model_type += "FLWA GNN"
-        elif not FL and structure:
-            model_type += "LocaL SDWA"
+        if FL:
+            if data_type == "feature":
+                model_type += "FLGA"
+            elif data_type == "structure":
+                model_type += "FLSGA"
+            elif data_type == "f+s":
+                model_type += "SDGA"
         else:
-            model_type += "Local GNN"
+            if data_type == "feature":
+                model_type += "Local"
+            elif data_type == "structure":
+                model_type += "Local_S"
+            elif data_type == "f+s":
+                model_type += "Local_SD"
 
         if propagate_type == "DGCN":
             model_type += "_DGCN"

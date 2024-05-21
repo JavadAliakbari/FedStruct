@@ -40,24 +40,24 @@ class GNNClient(Client):
     def initialize(
         self,
         propagate_type=config.model.propagate_type,
-        num_input_features=None,
-        structure=False,
+        data_type="feature",
         structure_type=config.structure_model.structure_type,
         get_structure_embeddings=None,
     ) -> None:
         self.classifier.restart()
         self.classifier.prepare_data(
             graph=self.graph,
+            data_type=data_type,
             batch_size=config.model.batch_size,
             num_neighbors=config.model.num_samples,
         )
 
         if propagate_type == "GNN":
-            self.classifier.set_GNN_FPM(dim_in=num_input_features)
+            self.classifier.set_GNN_FPM()
         elif propagate_type == "DGCN":
-            self.classifier.set_DGCN_FPM(dim_in=num_input_features)
+            self.classifier.set_DGCN_FPM()
 
-        if structure:
+        if data_type in ["structure", "f+s"]:
             if structure_type != "GDV":
                 dim_in = config.structure_model.num_structural_features
             else:
@@ -75,11 +75,17 @@ class GNNClient(Client):
         self,
         epochs=config.model.iterations,
         propagate_type=config.model.propagate_type,
+        data_type="feature",
+        structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
-        structure=False,
+        **kwargs,
     ):
-        self.initialize(propagate_type=propagate_type, structure=structure)
+        self.initialize(
+            propagate_type=propagate_type,
+            data_type=data_type,
+            structure_type=structure_type,
+        )
         return super().train_local_model(
             epochs=epochs,
             log=log,
