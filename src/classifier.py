@@ -25,7 +25,8 @@ class Classifier:
 
     def state_dict(self):
         weights = {}
-        weights["FPM"] = self.feature_model.state_dict()
+        if self.feature_model is not None:
+            weights["FPM"] = self.feature_model.state_dict()
         if self.structure_model is not None:
             weights["SPM"] = self.structure_model.state_dict()
 
@@ -37,7 +38,8 @@ class Classifier:
         return weights
 
     def load_state_dict(self, weights):
-        self.feature_model.load_state_dict(weights["FPM"])
+        if self.feature_model is not None:
+            self.feature_model.load_state_dict(weights["FPM"])
         if self.structure_model is not None and "SPM" in weights.keys():
             self.structure_model.load_state_dict(weights["SPM"])
 
@@ -47,7 +49,8 @@ class Classifier:
     def get_model_grads(self, just_SFV=False):
         grads = {}
         if not just_SFV:
-            grads["FPM"] = self.feature_model.get_grads()
+            if self.feature_model is not None:
+                grads["FPM"] = self.feature_model.get_grads()
             if self.structure_model is not None:
                 grads["SPM"] = self.structure_model.get_grads()
 
@@ -72,12 +75,14 @@ class Classifier:
     #     self.SFV.grad = grad
 
     def reset_parameters(self):
-        self.feature_model.reset_parameters()
+        if self.feature_model is not None:
+            self.feature_model.reset_parameters()
         if self.structure_model is not None:
             self.structure_model.reset_parameters()
 
     def parameters(self):
-        parameters = self.feature_model.parameters()
+        if self.feature_model is not None:
+            parameters = self.feature_model.parameters()
         if self.structure_model is not None:
             parameters += self.structure_model.parameters()
 
@@ -88,17 +93,20 @@ class Classifier:
         return parameters
 
     def train(self, mode: bool = True):
-        self.feature_model.train(mode)
+        if self.feature_model is not None:
+            self.feature_model.train(mode)
         if self.structure_model is not None:
             self.structure_model.train(mode)
 
     def eval(self):
-        self.feature_model.eval()
+        if self.feature_model is not None:
+            self.feature_model.eval()
         if self.structure_model is not None:
             self.structure_model.eval()
 
     def zero_grad(self, set_to_none=False):
-        self.feature_model.zero_grad(set_to_none=set_to_none)
+        if self.feature_model is not None:
+            self.feature_model.zero_grad(set_to_none=set_to_none)
         if self.structure_model is not None:
             self.structure_model.zero_grad(set_to_none=set_to_none)
 
@@ -107,10 +115,12 @@ class Classifier:
                 self.SFV.grad = None
 
     def update_model(self):
-        self.optimizer.step()
+        if self.optimizer is not None:
+            self.optimizer.step()
 
     def reset(self):
-        self.optimizer.zero_grad()
+        if self.optimizer is not None:
+            self.optimizer.zero_grad()
 
     def restart(self):
         self.feature_model = None

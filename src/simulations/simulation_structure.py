@@ -64,10 +64,8 @@ def get_GNN_results(
     GNN_server: GNNServer,
     bar: tqdm,
     epochs=config.model.iterations,
-    propagate_types=["DGCN", "GNN"],
+    propagate_types=["GNN", "DGCN"],
 ):
-    result = {}
-
     funcs = {
         "server": GNN_server.train_local_model,
         "flwa": GNN_server.joint_train_w,
@@ -77,24 +75,30 @@ def get_GNN_results(
     # for method in ["flwa", "flga"]:
     GNN_runs = {}
     for propagate_type in propagate_types:
-        GNN_runs[f"server_feature"] = [
+        GNN_runs[f"server_feature_{propagate_type}"] = [
             funcs["server"],
             propagate_type,
             False,
             "feature",
             "",
         ]
-        GNN_runs[f"local_feature"] = [
+        GNN_runs[f"local_feature_{propagate_type}"] = [
             funcs["flga"],
             propagate_type,
             False,
             "feature",
             "",
         ]
-        GNN_runs[f"flga_feature"] = [funcs["flga"], propagate_type, True, "feature", ""]
+        GNN_runs[f"flga_feature_{propagate_type}"] = [
+            funcs["flga"],
+            propagate_type,
+            True,
+            "feature",
+            "",
+        ]
         for data_type in ["structure", "f+s"]:
             for structure_type in ["node2vec", "hop2vec"]:
-                GNN_runs[f"server_{data_type}_{structure_type}"] = [
+                GNN_runs[f"server_{data_type}_{structure_type}_{propagate_type}"] = [
                     funcs["server"],
                     propagate_type,
                     False,
@@ -102,14 +106,14 @@ def get_GNN_results(
                     structure_type,
                 ]
 
-                GNN_runs[f"local_{data_type}_{structure_type}"] = [
+                GNN_runs[f"local_{data_type}_{structure_type}_{propagate_type}"] = [
                     funcs["flga"],
                     propagate_type,
                     False,
                     data_type,
                     structure_type,
                 ]
-                GNN_runs[f"flga_{data_type}_{structure_type}"] = [
+                GNN_runs[f"flga_{data_type}_{structure_type}_{propagate_type}"] = [
                     funcs["flga"],
                     propagate_type,
                     True,
@@ -117,23 +121,25 @@ def get_GNN_results(
                     structure_type,
                 ]
 
-        for name, run in GNN_runs.items():
-            res = run[0](
-                epochs=epochs,
-                propagate_type=run[1],
-                FL=run[2],
-                data_type=run[3],
-                structure_type=run[4],
-                log=False,
-                plot=False,
-            )
-            result[f"{name}_{propagate_type}"] = res
-            try:
-                bar.set_postfix_str(
-                    f"{name}_{propagate_type}: {res['Average']['Test Acc']}"
-                )
-            except:
-                bar.set_postfix_str(f"{name}_{propagate_type}: {res['Test Acc']}")
+        result = {}
+
+    for name, run in GNN_runs.items():
+        res = run[0](
+            epochs=epochs,
+            propagate_type=run[1],
+            FL=run[2],
+            data_type=run[3],
+            structure_type=run[4],
+            log=False,
+            plot=False,
+        )
+        if name == "flga_structure_node2vec_GNN":
+            a = 2
+        result[name] = res
+        try:
+            bar.set_postfix_str(f"{name}: {res['Average']['Test Acc']}")
+        except:
+            bar.set_postfix_str(f"{name}: {res['Test Acc']}")
 
     return result
 
@@ -146,6 +152,7 @@ if __name__ == "__main__":
         config.structure_model.DGCN_layers,
         pruning=False,
     )
+    graph.abar = true_abar
 
     GNN_server = GNNServer(graph)
 
@@ -199,17 +206,13 @@ if __name__ == "__main__":
                     )
                     model_results = {}
 
-                    graph.abar = true_abar
                     GNN_result_true = get_GNN_results(
                         GNN_server,
                         bar=bar,
                         epochs=epochs,
                     )
 
-                    GNN_result_true2 = {}
-                    for key, val in GNN_result_true.items():
-                        GNN_result_true2[f"{key}_true"] = val
-                    model_results.update(GNN_result_true2)
+                    model_results.update(GNN_result_true)
 
                     _LOGGER2.info(f"Run id: {i}")
                     _LOGGER2.info(json.dumps(model_results, indent=4))

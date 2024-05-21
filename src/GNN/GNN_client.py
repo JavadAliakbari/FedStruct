@@ -52,10 +52,11 @@ class GNNClient(Client):
             num_neighbors=config.model.num_samples,
         )
 
-        if propagate_type == "GNN":
-            self.classifier.set_GNN_FPM()
-        elif propagate_type == "DGCN":
-            self.classifier.set_DGCN_FPM()
+        if data_type in ["feature", "f+s"]:
+            if propagate_type == "GNN":
+                self.classifier.set_GNN_FPM()
+            elif propagate_type == "DGCN":
+                self.classifier.set_DGCN_FPM()
 
         if data_type in ["structure", "f+s"]:
             if structure_type != "GDV":
@@ -64,10 +65,10 @@ class GNNClient(Client):
                 dim_in = 73
 
             if propagate_type == "GNN":
-                self.classifier.set_GNN_SPM(
-                    dim_in=dim_in,
-                    get_structure_embeddings=get_structure_embeddings,
-                )
+                if self.id == "Server":
+                    self.classifier.set_GNN_SPM(dim_in=dim_in)
+                else:
+                    self.classifier.set_structure_embedding(get_structure_embeddings)
             elif propagate_type == "DGCN":
                 self.classifier.set_DGCN_SPM(dim_in=dim_in)
 

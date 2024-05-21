@@ -135,43 +135,48 @@ class GNNClassifier(Classifier):
     def set_abar(self, abar):
         self.abar = abar
 
-    def set_GNN_SPM(self, dim_in=None, get_structure_embeddings=None):
-        if self.id == "Server":
-            if dim_in is None:
-                dim_in = self.graph.num_structural_features
+    def set_structure_embedding(self, get_structure_embeddings):
+        self.get_structure_embeddings_from_server = get_structure_embeddings
 
-            gnn_layer_sizes = [
-                dim_in
-            ] + config.structure_model.GNN_structure_layers_sizes
-            mlp_layer_sizes = [
-                config.structure_model.GNN_structure_layers_sizes[-1]
-            ] + [self.graph.num_classes]
+    def set_GNN_SPM(self, dim_in=None):
+        # if self.id == "Server":
+        if dim_in is None:
+            dim_in = self.graph.num_structural_features
 
-            model_specs = [
-                ModelSpecs(
-                    type="GNN",
-                    layer_sizes=gnn_layer_sizes,
-                    final_activation_function="linear",
-                    # final_activation_function="relu",
-                    # normalization="layer",
-                    normalization="batch",
-                ),
-                ModelSpecs(
-                    type="MLP",
-                    layer_sizes=mlp_layer_sizes,
-                    final_activation_function="linear",
-                    normalization=None,
-                ),
-            ]
+        gnn_layer_sizes = [dim_in] + config.structure_model.GNN_structure_layers_sizes
+        mlp_layer_sizes = [config.structure_model.GNN_structure_layers_sizes[-1]] + [
+            self.graph.num_classes
+        ]
 
-            self.structure_model: ModelBinder = ModelBinder(model_specs)
-            self.structure_model.to(device)
+        model_specs = [
+            ModelSpecs(
+                type="GNN",
+                layer_sizes=gnn_layer_sizes,
+                final_activation_function="linear",
+                # final_activation_function="relu",
+                # normalization="layer",
+                normalization="batch",
+            ),
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=mlp_layer_sizes,
+                final_activation_function="linear",
+                normalization=None,
+            ),
+        ]
+
+        self.structure_model: ModelBinder = ModelBinder(model_specs)
+        self.structure_model.to(device)
+        if self.optimizer is None:
+            self.optimizer = torch.optim.Adam(
+                self.structure_model.parameters(),
+                lr=config.model.lr,
+                weight_decay=config.model.weight_decay,
+            )
+        else:
             self.optimizer.add_param_group(
                 {"params": self.structure_model.parameters()}
             )
-        else:
-            self.structure_model = None
-            self.get_structure_embeddings_from_server = get_structure_embeddings
 
         self.abar = None
 
@@ -194,7 +199,16 @@ class GNNClassifier(Classifier):
 
         self.structure_model: ModelBinder = ModelBinder(model_specs)
         self.structure_model.to(device)
-        self.optimizer.add_param_group({"params": self.structure_model.parameters()})
+        if self.optimizer is None:
+            self.optimizer = torch.optim.Adam(
+                self.structure_model.parameters(),
+                lr=config.model.lr,
+                weight_decay=config.model.weight_decay,
+            )
+        else:
+            self.optimizer.add_param_group(
+                {"params": self.structure_model.parameters()}
+            )
 
     def get_structure_embeddings2(self, node_ids):
         if self.GNN_structure_embedding is None:
@@ -232,7 +246,14 @@ class GNNClassifier(Classifier):
             device=device,
         )
         if self.SFV.requires_grad:
-            self.optimizer.add_param_group({"params": self.SFV})
+            if self.optimizer is None:
+                self.optimizer = torch.optim.Adam(
+                    [self.SFV],
+                    lr=config.model.lr,
+                    weight_decay=config.model.weight_decay,
+                )
+            else:
+                self.optimizer.add_param_group({"params": self.SFV})
 
     def get_embeddings(model, x, edge_index=None, a=None):
         H = model(x, edge_index)
