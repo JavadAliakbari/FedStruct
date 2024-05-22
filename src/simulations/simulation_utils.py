@@ -62,7 +62,7 @@ def create_clients(
         GNN_server.add_client(subgraph)
         FedSage_server.add_client(subgraph)
         FedPub_server.add_client(subgraph)
-        mend_graph = create_mend_graph2(subgraph, graph)
+        mend_graph = create_mend_graph(subgraph, graph)
         GNN_server2.add_client(mend_graph)
 
 
@@ -141,7 +141,7 @@ def get_Fedsage_ideal_reults(
 
     GNN_runs = {
         # "fedsage_ideal_w": [GNN_server2.joint_train_w, True, False, ""],
-        "fedsage_ideal_g": [GNN_server2.joint_train_g, True, False, ""],
+        "fedsage_ideal_g": [GNN_server2.joint_train_g, True, "feature", ""],
     }
 
     for propagate_type in ["DGCN", "GNN"]:
@@ -150,7 +150,7 @@ def get_Fedsage_ideal_reults(
                 epochs=epochs,
                 propagate_type=propagate_type,
                 FL=run[1],
-                structure=run[2],
+                data_type=run[2],
                 structure_type=run[3],
                 log=False,
                 plot=False,
@@ -176,33 +176,33 @@ def get_GNN_results(
         "flga": GNN_server.joint_train_g,
     }
     GNN_runs = {
-        # "local": [GNN_server.joint_train_g, False, False, ""],
+        "local": [GNN_server.joint_train_g, False, "feature", ""],
     }
 
     # for method in ["flwa", "flga"]:
     for method in ["flga"]:
-        # GNN_runs[f"{method}"] = [funcs[method], True, False, ""]
+        GNN_runs[f"{method}"] = [funcs[method], True, "feature", ""]
         for structure_type in ["degree", "fedstar", "GDV", "node2vec", "hop2vec"]:
             name = f"{method}_{structure_type}"
-            GNN_runs[name] = [funcs[method], True, True, structure_type]
+            GNN_runs[name] = [funcs[method], True, "f+s", structure_type]
 
     for propagate_type in propagate_types:
         # for propagate_type in ["DGCN"]:
-        # res = GNN_server.train_local_model(
-        #     epochs=epochs,
-        #     propagate_type=propagate_type,
-        #     log=False,
-        #     plot=False,
-        # )
-        # result[f"server_{propagate_type}"] = res
-        # bar.set_postfix_str(f"server_{propagate_type}: {res['Test Acc']}")
+        res = GNN_server.train_local_model(
+            epochs=epochs,
+            propagate_type=propagate_type,
+            log=False,
+            plot=False,
+        )
+        result[f"server_{propagate_type}"] = res
+        bar.set_postfix_str(f"server_{propagate_type}: {res['Test Acc']}")
 
         for name, run in GNN_runs.items():
             res = run[0](
                 epochs=epochs,
                 propagate_type=propagate_type,
                 FL=run[1],
-                structure=run[2],
+                data_type=run[2],
                 structure_type=run[3],
                 log=False,
                 plot=False,

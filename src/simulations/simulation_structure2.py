@@ -74,52 +74,34 @@ def get_GNN_results(
 
     # for method in ["flwa", "flga"]:
     GNN_runs = {}
-    for propagate_type in propagate_types:
-        GNN_runs[f"server_feature_{propagate_type}"] = [
-            funcs["server"],
-            propagate_type,
-            False,
-            "feature",
-            "",
-        ]
-        GNN_runs[f"local_feature_{propagate_type}"] = [
-            funcs["flga"],
-            propagate_type,
-            False,
-            "feature",
-            "",
-        ]
-        GNN_runs[f"flga_feature_{propagate_type}"] = [
-            funcs["flga"],
-            propagate_type,
-            True,
-            "feature",
-            "",
-        ]
-        for data_type in ["structure", "f+s"]:
-            for structure_type in ["node2vec", "hop2vec"]:
-                GNN_runs[f"server_{data_type}_{structure_type}_{propagate_type}"] = [
-                    funcs["server"],
-                    propagate_type,
-                    False,
-                    data_type,
-                    structure_type,
-                ]
-
-                GNN_runs[f"local_{data_type}_{structure_type}_{propagate_type}"] = [
-                    funcs["flga"],
-                    propagate_type,
-                    False,
-                    data_type,
-                    structure_type,
-                ]
-                GNN_runs[f"flga_{data_type}_{structure_type}_{propagate_type}"] = [
-                    funcs["flga"],
-                    propagate_type,
-                    True,
-                    data_type,
-                    structure_type,
-                ]
+    GNN_runs[f"server_feature_GNN"] = [
+        funcs["server"],
+        "GNN",
+        False,
+        "feature",
+        "",
+    ]
+    GNN_runs[f"flga_feature_GNN"] = [
+        funcs["flga"],
+        "GNN",
+        True,
+        "feature",
+        "",
+    ]
+    GNN_runs[f"server_structure_node2vec_GNN"] = [
+        funcs["server"],
+        "GNN",
+        False,
+        "structure",
+        "node2vec",
+    ]
+    GNN_runs[f"flga_f+s_node2vec_DGCN"] = [
+        funcs["flga"],
+        "DGCN",
+        True,
+        "f+s",
+        "node2vec",
+    ]
 
     result = {}
     for name, run in GNN_runs.items():
@@ -149,9 +131,6 @@ if __name__ == "__main__":
         config.structure_model.DGCN_layers,
         pruning=False,
     )
-    graph.abar = true_abar
-
-    GNN_server = GNNServer(graph)
 
     rep = 10
 
@@ -193,6 +172,9 @@ if __name__ == "__main__":
                 bar = tqdm(total=rep)
                 results = []
                 for i in range(rep):
+                    graph.abar = deepcopy(true_abar)
+
+                    GNN_server = GNNServer(graph)
                     create_clients(
                         graph,
                         GNN_server,

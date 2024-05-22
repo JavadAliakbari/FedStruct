@@ -5,7 +5,6 @@ from datetime import datetime
 
 now = datetime.now().strftime("%Y%m%d_%H%M%S")
 os.environ["now"] = now
-os.environ["CONFIG_PATH"] = "./config/config_Cora.yml"
 
 import torch
 import numpy as np
@@ -63,17 +62,16 @@ if __name__ == "__main__":
 
     rep = 10
 
-    # for partitioning in [config.subgraph.partitioning]:
     for partitioning in ["random", "louvain", "kmeans"]:
-        # for num_subgraphs in [config.subgraph.num_subgraphs]:
-        # for num_subgraphs in [10]:
-        for num_subgraphs in [5, 10, 20]:
+        if partitioning == "random":
+            num_subgraphs_list = [5, 10, 20]
+        else:
+            num_subgraphs_list = [10]
+
+        for num_subgraphs in num_subgraphs_list:
             for train_ratio in [config.subgraph.train_ratio]:
-                # for train_ratio in np.arange(0.1, 0.65, 0.05):
                 test_ratio = config.subgraph.test_ratio
-                # test_ratio = (1 - train_ratio) / 2
                 epochs = config.model.iterations
-                # epochs = int(train_ratio * 100 + 30)
 
                 save_path = (
                     "./results/Neurips/"

@@ -305,9 +305,8 @@ class GNNClassifier(Classifier):
         s = None
         if self.structure_model is not None:
             s = GNNClassifier.get_embeddings(
-                self.structure_model,
-                self.SFV,
-                self.graph.edge_index,
+                model=self.structure_model,
+                x=self.SFV,
                 a=self.abar,
             )
         elif self.get_structure_embeddings_from_server is not None:
