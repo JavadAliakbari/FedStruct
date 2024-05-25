@@ -97,7 +97,7 @@ class SDGCN(Classifier):
 
         if eval_:
             self.eval()
-            y_pred_val = self.get_prediction(model_use=self.data_type)
+            y_pred_val = self.get_prediction()
             val_loss, val_acc = calc_metrics(y, y_pred_val, val_mask)
 
             return train_loss.item(), train_acc, val_loss.item(), val_acc
