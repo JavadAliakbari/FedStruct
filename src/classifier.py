@@ -5,6 +5,7 @@ import torch
 from src.models.model_binders import ModelBinder
 from src.utils.config_parser import Config
 from src.utils.graph import Data, Graph
+from src.utils.utils import calc_metrics
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -28,9 +29,6 @@ class Classifier:
             lr=config.model.lr,
             weight_decay=config.model.weight_decay,
         )
-
-    def get_embeddings(self):
-        raise NotImplementedError
 
     def state_dict(self):
         weights = {}
@@ -92,5 +90,50 @@ class Classifier:
         self.model = None
         self.optimizer = None
 
+    def get_embeddings(self):
+        raise NotImplementedError
+
     def get_embeddings_func(self):
         return self.get_embeddings
+
+    def __call__(self):
+        return self.get_embeddings()
+
+    def get_prediction(self):
+        H = self.get_embeddings()
+        y_pred = torch.nn.functional.softmax(H, dim=1)
+        return y_pred
+
+    def train_step(self, eval_=True):
+        y_pred = self.get_prediction()
+        y = self.graph.y
+        train_mask, val_mask, _ = self.graph.get_masks()
+
+        train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
+        train_loss.backward(retain_graph=True)
+
+        if eval_:
+            self.eval()
+            y_pred_val = self.get_prediction()
+            val_loss, val_acc = calc_metrics(y, y_pred_val, val_mask)
+
+            return train_loss.item(), train_acc, val_loss.item(), val_acc
+        else:
+            return train_loss.item(), train_acc
+
+    @torch.no_grad()
+    def calc_test_accuracy(self, metric="acc"):
+        self.eval()
+
+        y = self.graph.y
+        test_mask = self.graph.test_mask
+        y_pred = self.get_prediction()
+
+        test_loss, test_acc = calc_metrics(y, y_pred, test_mask)
+
+        if metric == "acc":
+            return (test_acc,)
+        # elif metric == "f1":
+        #     return test_f1_score
+        else:
+            return (test_loss.item(),)

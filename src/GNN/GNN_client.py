@@ -2,8 +2,7 @@ import os
 
 from torch_sparse import SparseTensor
 
-from src.GNN.SDGCN import SDGCN
-from src.GNN.fDGCN import FDGCN
+from src.GNN.DGCN import DGCN, SDGCN
 from src.GNN.fGNN import FGNN
 from src.GNN.sGNN import SGNNMaster, SGNNSlave
 from src.classifier import Classifier
@@ -114,7 +113,7 @@ class GNNClient(Client):
                 self.classifier = FGNN(self.graph)
             if propagate_type == "DGCN":
                 graph = self.create_FDGCN_data()
-                self.classifier = FDGCN(graph)
+                self.classifier = DGCN(graph)
         elif data_type == "structure":
             if propagate_type == "GNN":
                 if self.id == "Server":

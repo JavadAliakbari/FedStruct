@@ -3,8 +3,7 @@ import os
 import torch
 from torch_geometric.loader import NeighborLoader
 
-from src.GNN.SDGCN import SDGCN
-from src.GNN.fDGCN import FDGCN
+from src.GNN.DGCN import DGCN, SDGCN
 from src.GNN.fGNN import FGNN
 from src.GNN.sGNN import SGNNMaster, SGNNSlave
 from src.utils.utils import *
@@ -228,5 +227,5 @@ class FedDGCN(FedClassifier):
         self.create_model(fgraph, sgraph)
 
     def create_model(self, fgraph: AGraph, sgraph: AGraph):
-        self.f_model = FDGCN(fgraph)
+        self.f_model = DGCN(fgraph)
         self.s_model = SDGCN(sgraph)
