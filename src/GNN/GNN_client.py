@@ -55,6 +55,7 @@ class GNNClient(Client):
             abar=abar,
             x=self.graph.x,
             y=self.graph.y,
+            node_ids=self.graph.node_ids,
             train_mask=self.graph.train_mask,
             val_mask=self.graph.val_mask,
             test_mask=self.graph.test_mask,
@@ -94,6 +95,7 @@ class GNNClient(Client):
             abar=abar_i,
             x=SFV_,
             y=self.graph.y,
+            node_ids=self.graph.node_ids,
             train_mask=self.graph.train_mask,
             val_mask=self.graph.val_mask,
             test_mask=self.graph.test_mask,
@@ -166,6 +168,7 @@ class GNNClient(Client):
         plot=True,
         **kwargs,
     ):
+        model_type = f"Server {data_type} {propagate_type}"
         self.initialize(
             propagate_type=propagate_type,
             data_type=data_type,
@@ -175,5 +178,5 @@ class GNNClient(Client):
             epochs=epochs,
             log=log,
             plot=plot,
-            model_type="GNN",
+            model_type=model_type,
         )

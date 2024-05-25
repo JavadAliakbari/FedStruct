@@ -104,7 +104,7 @@ class FedClassifier(Classifier):
         train_mask, val_mask, _ = self.graph.get_masks()
 
         train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
-        train_loss.backward(retain_graph=False)
+        train_loss.backward(retain_graph=True)
 
         if eval_:
             self.eval()

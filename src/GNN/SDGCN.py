@@ -74,9 +74,6 @@ class SDGCN(Classifier):
             S = self.graph.abar.matmul(S.cpu()).to(device)
         else:
             S = torch.matmul(self.graph.abar, S)
-            # S = torch.sparse.mm(self.graph.abar, S, "sum")
-            # S = torch.sparse.einsum("ij,jk->ik", self.graph.abar, S)
-            # S = torch.mm(self.graph.abar, S)
         return S
 
     def __call__(self):

@@ -29,10 +29,12 @@ class Data:
         self,
         x: torch.Tensor = None,
         y: torch.Tensor = None,
+        node_ids: torch.Tensor | None = None,
         **kwargs,
     ) -> None:
         self.x = x
         self.y = y
+        self.node_ids = node_ids
         self.num_nodes = x.shape[0]
         self.num_features = x.shape[1]
 
@@ -71,9 +73,10 @@ class AGraph(Data):
         abar: torch.Tensor | SparseTensor,
         x: torch.Tensor | SparseTensor | None = None,
         y: torch.Tensor | None = None,
+        node_ids: torch.Tensor | None = None,
         **kwargs,
     ) -> None:
-        super().__init__(x, y, **kwargs)
+        super().__init__(x, y, node_ids, **kwargs)
         self.abar = abar
 
 

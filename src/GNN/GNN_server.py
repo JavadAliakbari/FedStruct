@@ -48,6 +48,10 @@ class GNNServer(Server, GNNClient):
         data_type="feature",
         **kwargs,
     ) -> None:
+        if data_type in ["structure", "f+s"]:
+            if propagate_type == "DGCN":
+                self.graph.obtain_a()
+
         SFV = None
         if data_type in ["structure", "f+s"]:
             structure_type = kwargs.get(
@@ -67,6 +71,7 @@ class GNNServer(Server, GNNClient):
             propagate_type=propagate_type,
             data_type=data_type,
             SFV=SFV,
+            abar=self.graph.abar,
             **kwargs,
         )
 
@@ -76,14 +81,9 @@ class GNNServer(Server, GNNClient):
         data_type="feature",
         **kwargs,
     ) -> None:
-        if data_type in ["structure", "f+s"]:
-            if propagate_type == "DGCN":
-                self.graph.obtain_a()
-
         self.initialize(
             propagate_type=propagate_type,
             data_type=data_type,
-            abar=self.graph.abar,
             **kwargs,
         )
         client: GNNClient
@@ -113,24 +113,10 @@ class GNNServer(Server, GNNClient):
             data_type=data_type,
             **kwargs,
         )
-
         if FL:
-            if data_type == "feature":
-                model_type += "FLGA"
-            elif data_type == "structure":
-                model_type += "FLSGA"
-            elif data_type == "f+s":
-                model_type += "SDGA"
+            model_type = f"FL {data_type} {propagate_type} GA"
         else:
-            if data_type == "feature":
-                model_type += "Local"
-            elif data_type == "structure":
-                model_type += "Local_S"
-            elif data_type == "f+s":
-                model_type += "Local_SD"
-
-        if propagate_type == "DGCN":
-            model_type += "_DGCN"
+            model_type = f"Local {data_type} {propagate_type} GA"
 
         return super().joint_train_g(
             epochs=epochs,
@@ -156,24 +142,10 @@ class GNNServer(Server, GNNClient):
             data_type=data_type,
             **kwargs,
         )
-
         if FL:
-            if data_type == "feature":
-                model_type += "FLGA"
-            elif data_type == "structure":
-                model_type += "FLSGA"
-            elif data_type == "f+s":
-                model_type += "SDGA"
+            model_type = f"FL {data_type} {propagate_type} WA"
         else:
-            if data_type == "feature":
-                model_type += "Local"
-            elif data_type == "structure":
-                model_type += "Local_S"
-            elif data_type == "f+s":
-                model_type += "Local_SD"
-
-        if propagate_type == "DGCN":
-            model_type += "_DGCN"
+            model_type = f"Local {data_type} {propagate_type} WA"
 
         return super().joint_train_w(
             epochs=epochs,

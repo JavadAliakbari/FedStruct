@@ -21,6 +21,8 @@ class Classifier:
 
     def create_optimizer(self):
         parameters = self.parameters()
+        if len(parameters) == 0:
+            return
         self.optimizer = torch.optim.Adam(
             parameters,
             lr=config.model.lr,

@@ -25,9 +25,6 @@ class SGNNSlave(Classifier):
         self.graph = graph
         self.__set_embedding_func(server_embedding_func)
 
-    def create_optimizer(self):
-        pass
-
     def __set_embedding_func(self, server_embedding_func):
         self.get_embeddings_ = server_embedding_func
 
