@@ -1,6 +1,5 @@
+from ast import List
 import os
-from copy import deepcopy
-from statistics import mean
 import numpy as np
 
 import torch
@@ -22,8 +21,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-elif torch.backends.mps.is_available():
-    dev = "mps"
+# elif torch.backends.mps.is_available():
+#     dev = "mps"
 else:
     dev = "cpu"
 os.environ["device"] = dev
@@ -125,6 +124,15 @@ def plot_metrics(
     plt.savefig(f"{save_path}{plot_title}.png")
 
 
+def obtain_a(edge_index, num_nodes, num_layers, estimate=False, pruning=False):
+    if estimate:
+        abar = estimate_a(edge_index, num_nodes, num_layers)
+    else:
+        abar = calc_a(edge_index, num_nodes, num_layers, pruning)
+
+    return abar
+
+
 def sparse_eye(n, vals=None, dev="cpu"):
     if vals is None:
         vals = torch.ones(n, dtype=torch.float32, device=dev)
@@ -163,7 +171,7 @@ def create_rw(edge_index, num_nodes, num_layers):
     return SE_rw
 
 
-def obtain_a(edge_index, num_nodes, num_layers, pruning=False):
+def calc_a(edge_index, num_nodes, num_layers, pruning=False):
     # if dev == "mps":
     #     local_dev = "cpu"
     # else:
@@ -271,60 +279,23 @@ def calc_metrics(y, y_pred, mask):
 
 
 def lod2dol(list_of_dicts):
+    # convert list of dicts to dict of lists
     if len(list_of_dicts) == 0:
         return {}
-    # convert list of dicts to dict of lists
     keys = list_of_dicts[0].keys()
     dict_of_lists = {key: [d[key] for d in list_of_dicts] for key in keys}
 
     return dict_of_lists
 
 
-def sum_dictofdicts(dictofdicts):
-    sums_per_key = {}
-    # Iterate through the outer dictionary
-    for outer_key, inner_dict in dictofdicts.items():
-        # Iterate through the inner dictionary
-        for inner_key, value in inner_dict.items():
-            # Add the value to the sum for the inner key
-            sums_per_key[inner_key] = sums_per_key.get(inner_key, 0) + value
+def lol2lol(list_of_lists):
+    # convert list of lists to list of lists
+    if len(list_of_lists) == 0:
+        return []
+    keys = range(len(list_of_lists[0]))
+    res = [[d[key] for d in list_of_lists] for key in keys]
 
-    return sums_per_key
-
-
-def add_weights(sum_weights, weights):
-    if sum_weights is None:
-        sum_weights = deepcopy(weights)
-    else:
-        for key, val in weights.items():
-            if isinstance(val, torch.Tensor):
-                sum_weights[key] += val
-            else:
-                add_weights(sum_weights[key], val)
-
-    return sum_weights
-
-
-def calc_mean_weights(sum_weights, count):
-    for key, val in sum_weights.items():
-        if isinstance(val, torch.Tensor):
-            sum_weights[key] = val / count
-        else:
-            calc_mean_weights(sum_weights[key], count)
-
-    return sum_weights
-
-
-def sum_weights(clients):
-    sum_weights = None
-
-    for client in clients:
-        client_weight = client.state_dict()
-        sum_weights = add_weights(sum_weights, client_weight)
-
-    mean_weights = calc_mean_weights(sum_weights, len(clients))
-
-    return mean_weights
+    return res
 
 
 def get_grads(clients, just_SFV=False):
@@ -336,44 +307,32 @@ def get_grads(clients, just_SFV=False):
     return clients_grads
 
 
-def sum_grads(clients_grads, coef):
-    new_grads = lod2dol(clients_grads)
-    grads = {}
-    for key, val in new_grads.items():
-        model_grads = []
-        for client_grads in zip(*val):
-            try:
-                weighted_client_grads = [
-                    weight * tensor for weight, tensor in zip(coef, client_grads)
-                ]
-                model_grads.append(sum(weighted_client_grads))
+def state_dict(clients):
+    clients_weights = []
+    for client in clients:
+        grads = client.state_dict()
+        clients_weights.append(grads)
 
-            except:
-                model_grads.append(None)
-
-        grads[key] = model_grads
-
-    return grads
+    return clients_weights
 
 
-def calc_average_result(results):
-    results_dict = lod2dol(results)
-
-    average_result = {}
-    for key, val in results_dict.items():
-        average_result[key] = mean(val)
-
-    return average_result
-
-
-def calc_average_result2(test_results):
-    sum = sum_dictofdicts(test_results)
-
-    average_result = {}
-    for key, val in sum.items():
-        average_result[key] = round(val / len(test_results), 4)
-
-    return average_result
+def sum_lod(x: List, coef=None):
+    if len(x) == 0:
+        return x
+    if coef is None:
+        coef = len(x) * [1 / len(x)]
+    if isinstance(x[0], dict):
+        z = lod2dol(x)
+        for key, val in z.items():
+            z[key] = sum_lod(val, coef)
+        return z
+    elif isinstance(x[0], list):
+        z = lol2lol(x)
+        for key, val in enumerate(z):
+            z[key] = sum_lod(val, coef)
+        return z
+    else:
+        return sum([weight * val for weight, val in zip(coef, x)])
 
 
 def log_config(_LOGGER, config):

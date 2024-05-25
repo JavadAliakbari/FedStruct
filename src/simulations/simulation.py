@@ -37,13 +37,13 @@ config = Config(path)
 
 if __name__ == "__main__":
     graph = define_graph(config.dataset.dataset_name)
-    true_abar = obtain_a(
+    true_abar = calc_a(
         graph.edge_index,
         graph.num_nodes,
         config.structure_model.DGCN_layers,
         pruning=False,
     )
-    prune_abar = obtain_a(
+    prune_abar = calc_a(
         graph.edge_index,
         graph.num_nodes,
         config.structure_model.DGCN_layers,

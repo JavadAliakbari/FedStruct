@@ -11,7 +11,6 @@ from src.utils.config_parser import Config
 from src.server import Server
 
 dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -47,116 +46,56 @@ class GNNServer(Server, GNNClient):
         self,
         propagate_type=config.model.propagate_type,
         data_type="feature",
-        structure_type=config.structure_model.structure_type,
-        get_structure_embeddings=None,
+        **kwargs,
     ) -> None:
+        SFV = None
+        if data_type in ["structure", "f+s"]:
+            structure_type = kwargs.get(
+                "structure_type", config.structure_model.structure_type
+            )
+            num_structural_features = kwargs.get(
+                "num_structural_features",
+                config.structure_model.num_structural_features,
+            )
+            self.graph.add_structural_features(
+                structure_type=structure_type,
+                num_structural_features=num_structural_features,
+            )
+            SFV = self.graph.structural_features
+
         super().initialize(
             propagate_type=propagate_type,
             data_type=data_type,
-            structure_type=structure_type,
-            get_structure_embeddings=get_structure_embeddings,
+            SFV=SFV,
+            **kwargs,
         )
-
-        if data_type in ["structure", "f+s"]:
-            self.graph.add_structural_features(
-                structure_type=structure_type,
-                num_structural_features=config.structure_model.num_structural_features,
-            )
-            self.set_SFV(self.graph.structural_features)
 
     def initialize_FL(
         self,
         propagate_type=config.model.propagate_type,
         data_type="feature",
-        structure_type=config.structure_model.structure_type,
+        **kwargs,
     ) -> None:
+        if data_type in ["structure", "f+s"]:
+            if propagate_type == "DGCN":
+                self.graph.obtain_a()
+
         self.initialize(
             propagate_type=propagate_type,
             data_type=data_type,
-            structure_type=structure_type,
+            abar=self.graph.abar,
+            **kwargs,
         )
         client: GNNClient
         for client in self.clients:
             client.initialize(
                 propagate_type=propagate_type,
                 data_type=data_type,
-                structure_type=structure_type,
-                get_structure_embeddings=self.get_structure_embeddings2,
+                abar=self.graph.abar,
+                SFV=self.graph.structural_features,
+                server_embedding_func=self.classifier.get_embeddings_func(),
+                **kwargs,
             )
-
-        if data_type in ["structure", "f+s"]:
-            if propagate_type == "DGCN":
-                if self.graph.abar is None:
-                    abar = self.obtain_a()
-                else:
-                    abar = self.graph.abar
-
-                self.share_abar(abar)
-
-            self.share_SFV()
-
-        self.initialized = True
-
-    def obtain_a(self):
-        if config.structure_model.estimate:
-            abar = estimate_a(
-                self.graph.edge_index,
-                self.graph.num_nodes,
-                config.structure_model.DGCN_layers,
-            )
-        else:
-            abar = obtain_a(
-                self.graph.edge_index,
-                self.graph.num_nodes,
-                config.structure_model.DGCN_layers,
-            )
-
-        # abar_ = abar.to_dense().numpy()
-        # abar1_ = abar1.to_dense().numpy()
-        # e = np.mean(np.abs(abar_ - abar1_) ** 2)
-        # print(e)
-
-        return abar
-
-    def share_abar(self, abar):
-        if abar is None:
-            for client in self.clients:
-                client.set_abar(None)
-
-            return
-
-        if dev == "mps":
-            local_dev = "cpu"
-        else:
-            local_dev = dev
-
-        num_nodes = self.graph.num_nodes
-
-        client: GNNClient
-        for client in self.clients:
-            nodes = client.get_nodes().to(local_dev)
-            num_nodes_i = client.num_nodes()
-            indices = torch.arange(num_nodes_i, dtype=torch.long, device=local_dev)
-            vals = torch.ones(num_nodes_i, dtype=torch.float32, device=local_dev)
-            P = torch.sparse_coo_tensor(
-                torch.vstack([indices, nodes]),
-                vals,
-                (num_nodes_i, num_nodes),
-                device=local_dev,
-            )
-            abar_i = torch.matmul(P, abar)
-            if dev != "cuda:0":
-                abar_i = abar_i.to_dense().to(device)
-
-            client.set_abar(abar_i)
-
-        self.set_abar(abar)
-
-    def share_SFV(self):
-        SFV = self.graph.structural_features
-        client: GNNClient
-        for client in self.clients:
-            client.set_SFV(SFV)
 
     def joint_train_g(
         self,
@@ -164,15 +103,15 @@ class GNNServer(Server, GNNClient):
         propagate_type=config.model.propagate_type,
         FL=True,
         data_type="feature",
-        structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
         model_type="",
+        **kwargs,
     ):
         self.initialize_FL(
             propagate_type=propagate_type,
             data_type=data_type,
-            structure_type=structure_type,
+            **kwargs,
         )
 
         if FL:
@@ -207,15 +146,15 @@ class GNNServer(Server, GNNClient):
         propagate_type=config.model.propagate_type,
         FL=True,
         data_type="feature",
-        structure_type=config.structure_model.structure_type,
         log=True,
         plot=True,
         model_type="",
+        **kwargs,
     ):
         self.initialize_FL(
             propagate_type=propagate_type,
             data_type=data_type,
-            structure_type=structure_type,
+            **kwargs,
         )
 
         if FL:

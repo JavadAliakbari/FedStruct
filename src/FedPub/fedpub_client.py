@@ -237,3 +237,6 @@ class FedPubClient:
             f"client_{self.id}.json",
             {"log": self.log},
         )
+
+    def num_nodes(self):
+        return self.graph.num_nodes

@@ -403,4 +403,4 @@ class NeighGen:
             val_mask,
         )
 
-        return train_loss, val_acc_label, val_acc_missing
+        return train_loss.item(), val_acc_label, val_acc_missing

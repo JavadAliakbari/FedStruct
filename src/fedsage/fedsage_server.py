@@ -38,15 +38,11 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         self.clients.append(client)
         self.num_clients += 1
 
-    def initialize_FL(
-        self,
-        propagate_type=config.model.propagate_type,
-        **kwargs,
-    ) -> None:
-        self.initialize(propagate_type)
+    def initialize_FL(self, **kwargs) -> None:
+        self.initialize()
         client: FedSAGEClient
         for client in self.clients:
-            client.initialize(propagate_type)
+            client.initialize()
 
     def initialize_neighgens(self) -> None:
         # self.initialize_neighgen()
@@ -98,12 +94,12 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         return results
 
     def test_neighgen_models(self):
-        results = {}
+        results = []
 
         client: FedSAGEClient
         for client in self.clients:
             result = client.get_neighgen_test_results()
-            results[f"Client{client.id}"] = result
+            results.append(result)
 
         return results
 
@@ -120,6 +116,8 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         if log:
             bar = tqdm(total=epochs, position=0)
 
+        coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
+
         average_results = []
         for epoch in range(epochs):
             self.reset_neighgen_trainings()
@@ -129,7 +127,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
                 inter_client_features_creators,
                 predict=predict,
             )
-            average_result = calc_average_result(results)
+            average_result = sum_lod(results, coef)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
@@ -148,12 +146,15 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
             plot_metrics(average_results, title=title, save_path=plot_path)
 
         test_results = self.test_neighgen_models()
-        average_result = calc_average_result2(test_results)
-        test_results["Average"] = average_result
+        average_result = sum_lod(test_results, coef)
+        final_results = {}
+        for cleint, test_result in zip(self.clients, test_results):
+            final_results[f"Client{cleint.id}"] = test_result
+        final_results["Average"] = average_result
         if log:
-            self.report_test_results(test_results)
+            self.report_test_results(final_results)
 
-        return test_results
+        return final_results
 
     def train_locsages(
         self,
@@ -230,7 +231,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
     def train_fedSage_plus(
         self,
         epochs=config.model.iterations,
-        propagate_type=config.model.propagate_type,
+        # propagate_type=config.model.propagate_type,
         model="both",
         predict=True,
         log=True,
@@ -245,7 +246,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         if model == "WA" or model == "both":
             res1 = self.joint_train_w(
                 epochs=epochs,
-                propagate_type=propagate_type,
+                # propagate_type="GNN",
                 log=log,
                 plot=plot,
                 model_type="Neighgen",
@@ -255,7 +256,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         if model == "GA" or model == "both":
             res2 = self.joint_train_g(
                 epochs=epochs,
-                propagate_type=propagate_type,
+                # propagate_type="GNN",
                 log=log,
                 plot=plot,
                 model_type="Neighgen",

@@ -27,7 +27,7 @@ class Server(Client):
         self.clients = None
         self.num_clients = 0
 
-        self.LOGGER.info(f"Number of features: {self.graph.num_features}")
+        # self.LOGGER.info(f"Number of features: {self.graph.num_features}")
 
     def remove_clients(self):
         self.clients.clear()
@@ -39,11 +39,6 @@ class Server(Client):
         client: Client
         for client in self.clients:
             client.load_state_dict(server_weights)
-
-    def report_results(self, results, framework=""):
-        client: Client
-        for client, result in zip(self.clients, results):
-            client.report_result(result, framework)
 
     def share_grads(self, grads):
         client: Client
@@ -70,28 +65,27 @@ class Server(Client):
         return results
 
     def test_clients(self):
-        results = {}
-
+        results = []
         client: Client
         for client in self.clients:
             result = client.get_test_results()
-            results[f"Client{client.id}"] = result
+            results.append(result)
 
         return results
+
+    def report_results(self, results, framework=""):
+        client: Client
+        for client, result in zip(self.clients, results):
+            client.report_result(result, framework)
 
     def report_test_results(self, test_results):
         for client_id, result in test_results.items():
             for key, val in result.items():
                 self.LOGGER.info(f"{client_id} {key}: {val:0.4f}")
 
-    def report_average_results(self, average_result):
-        sum = sum_dictofdicts(average_result)
-        for key, val in sum.items():
-            self.LOGGER.info(f"Average {key}: {val / len(average_result):0.4f}")
-
     def report_server_test(self):
-        test_acc, test_acc_f, test_acc_s = self.test_classifier()
-        self.LOGGER.info(f"Server test: {test_acc:0.4f}")
+        res = self.test_classifier()
+        self.LOGGER.info(f"Server test: {res[0]:0.4f}")
 
     def update_models(self):
         client: Client
@@ -122,22 +116,20 @@ class Server(Client):
         if log:
             bar = tqdm(total=epochs, position=0)
 
+        coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
         average_results = []
         for epoch in range(epochs):
             self.reset_trainings()
 
             self.set_train_mode()
             results = self.train_clients(eval_=log)
-            average_result = calc_average_result(results)
+            average_result = sum_lod(results, coef)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
             if FL:
                 clients_grads = get_grads(self.clients)
-                coef = [
-                    client.num_nodes() / self.num_nodes() for client in self.clients
-                ]
-                grads = sum_grads(clients_grads, coef)
+                grads = sum_lod(clients_grads, coef)
                 self.share_grads(grads)
 
             self.update_models()
@@ -157,12 +149,15 @@ class Server(Client):
         if log:
             self.report_server_test()
         test_results = self.test_clients()
-        average_result = calc_average_result2(test_results)
-        test_results["Average"] = average_result
+        average_result = sum_lod(test_results, coef)
+        final_results = {}
+        for cleint, test_result in zip(self.clients, test_results):
+            final_results[f"Client{cleint.id}"] = test_result
+        final_results["Average"] = average_result
         if log:
-            self.report_test_results(test_results)
+            self.report_test_results(final_results)
 
-        return test_results
+        return final_results
 
     def joint_train_w(
         self,
@@ -177,6 +172,7 @@ class Server(Client):
         if log:
             bar = tqdm(total=epochs, position=0)
 
+        coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
         average_results = []
         for epoch in range(epochs):
             if FL:
@@ -185,22 +181,20 @@ class Server(Client):
 
             self.set_train_mode()
             results = self.train_clients(eval_=log)
-            average_result = calc_average_result(results)
+            average_result = sum_lod(results, coef)
             average_result["Epoch"] = epoch + 1
             average_results.append(average_result)
 
             if FL:
                 clients_grads = get_grads(self.clients, True)
-                coef = [
-                    client.num_nodes() / self.num_nodes() for client in self.clients
-                ]
-                grads = sum_grads(clients_grads, coef)
+                grads = sum_lod(clients_grads, coef)
                 self.share_grads(grads)
 
             self.update_models()
 
             if FL:
-                mean_weights = sum_weights(self.clients)
+                clients_weights = state_dict(self.clients)
+                mean_weights = sum_lod(clients_weights, coef)
                 self.load_state_dict(mean_weights)
 
             if log:
@@ -218,9 +212,12 @@ class Server(Client):
         if log:
             self.report_server_test()
         test_results = self.test_clients()
-        average_result = calc_average_result2(test_results)
-        test_results["Average"] = average_result
+        average_result = sum_lod(test_results, coef)
+        final_results = {}
+        for cleint, test_result in zip(self.clients, test_results):
+            final_results[f"Client{cleint.id}"] = test_result
+        final_results["Average"] = average_result
         if log:
-            self.report_test_results(test_results)
+            self.report_test_results(final_results)
 
-        return test_results
+        return final_results

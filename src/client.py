@@ -65,37 +65,32 @@ class Client:
         return self.classifier.calc_test_accuracy(metric)
 
     def get_train_results(self, eval_=True):
-        (
-            train_loss,
-            train_acc,
-            val_loss,
-            val_acc,
-            val_acc_f,
-            val_acc_s,
-        ) = self.train_step(eval_=eval_)
+        res = self.train_step(eval_=eval_)
 
-        result = {
-            "Train Loss": round(train_loss.item(), 4),
-            "Train Acc": round(train_acc, 4),
-            "Val Loss": round(val_loss.item(), 4),
-            "Val Acc": round(val_acc, 4),
-            "Val F Acc": round(val_acc_f, 4),
-            "Val S Acc": round(val_acc_s, 4),
-        }
+        metrics = [
+            "Train Loss",
+            "Train Acc",
+            "Val Loss",
+            "Val Acc",
+            "Val F Acc",
+            "Val S Acc",
+        ]
+        result = {}
+        for metric, val in zip(metrics, res):
+            result[metric] = round(val, 4)
 
         return result
 
     def get_test_results(self):
-        test_acc, test_acc_f, test_acc_s = self.test_classifier()
-
-        if test_acc_s is not None:
-            result = {
-                "Test Acc": round(test_acc, 4),
-                "Test Acc F": round(test_acc_f, 4),
-                "Test Acc S": round(test_acc_s, 4),
-            }
-        else:
-            result = {"Test Acc": round(test_acc, 4)}
+        res = self.test_classifier()
+        metrics = [
+            "Test Acc",
+            "Test Acc F",
+            "Test Acc S",
+        ]
+        result = {}
+        for metric, val in zip(metrics, res):
+            result[metric] = val
 
         return result
 
@@ -145,10 +140,10 @@ class Client:
         return test_results
 
     def get_grads(self, just_SFV=False):
-        return self.classifier.get_model_grads(just_SFV)
+        return self.classifier.get_grads(just_SFV)
 
     def set_grads(self, grads):
-        self.classifier.set_model_grads(grads)
+        self.classifier.set_grads(grads)
 
     def update_model(self):
         self.classifier.update_model()

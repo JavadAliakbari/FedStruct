@@ -6,18 +6,15 @@ import torch
 import numpy as np
 from sklearn import model_selection
 import torch.nn.functional as F
-from torch_geometric.typing import OptTensor
 from torch_geometric.utils import degree, add_self_loops, to_scipy_sparse_matrix
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
-
-# from torch_sparse import SparseTensor
-from scipy import sparse as sp
+from torch_sparse import SparseTensor
 
 from src.utils.config_parser import Config
 from src.models.Node2Vec import find_node2vect_embedings
 from src.models.GDV import GDV
-from src.utils.utils import create_rw, find_neighbors_, obtain_a, estimate_a
+from src.utils.utils import create_rw, find_neighbors_, calc_a, estimate_a, obtain_a
 
 dev = os.environ.get("device", "cpu")
 device = torch.device(dev)
@@ -30,26 +27,20 @@ config = Config(path).structure_model
 class Data:
     def __init__(
         self,
-        x: OptTensor = None,
-        y: OptTensor = None,
-        dataset_name=None,
+        x: torch.Tensor = None,
+        y: torch.Tensor = None,
         **kwargs,
     ) -> None:
-        # super().__init__(
-        #     x=x,
-        #     y=y,
-        #     **kwargs,
-        # )
         self.x = x
         self.y = y
         self.num_nodes = x.shape[0]
         self.num_features = x.shape[1]
-        self.dataset_name = dataset_name
 
         self.train_mask = kwargs.get("train_mask", None)
         self.test_mask = kwargs.get("test_mask", None)
         self.val_mask = kwargs.get("val_mask", None)
         self.num_classes = kwargs.get("num_classes", None)
+        self.dataset_name = kwargs.get("dataset_name", None)
 
     def get_masks(self):
         return (self.train_mask, self.val_mask, self.test_mask)
@@ -74,14 +65,26 @@ class Data:
         self.val_mask = ~(self.test_mask | self.train_mask)
 
 
+class AGraph(Data):
+    def __init__(
+        self,
+        abar: torch.Tensor | SparseTensor,
+        x: torch.Tensor | SparseTensor | None = None,
+        y: torch.Tensor | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(x, y, **kwargs)
+        self.abar = abar
+
+
 class Graph(Data):
     def __init__(
         self,
-        edge_index: OptTensor,
-        x: OptTensor = None,
-        edge_attr: OptTensor = None,
-        y: OptTensor = None,
-        pos: OptTensor = None,
+        edge_index: torch.Tensor | None = None,
+        x: torch.Tensor | SparseTensor | None = None,
+        edge_attr: torch.Tensor | SparseTensor | None = None,
+        y: torch.Tensor | None = None,
+        pos: torch.Tensor | None = None,
         node_ids=None,
         keep_sfvs=False,
         dataset_name=None,
@@ -118,6 +121,7 @@ class Graph(Data):
             self.sfvs = {}
 
         self.abar = None
+        self.structural_features = None
 
     def get_edges(self):
         return self.original_edge_index
@@ -140,11 +144,16 @@ class Graph(Data):
 
         return node_map, new_edges
 
-    def obtain_a(self, num_layers, estimate=False, pruning=False):
-        if estimate:
-            self.abar = estimate_a(self.edge_index, self.num_nodes, num_layers)
-        else:
-            self.abar = obtain_a(self.edge_index, self.num_nodes, num_layers, pruning)
+    def obtain_a(
+        self,
+        num_layers=config.DGCN_layers,
+        estimate=False,
+        pruning=False,
+    ):
+        if self.abar is None:
+            self.abar = obtain_a(
+                self.edge_index, self.num_nodes, num_layers, estimate, pruning
+            )
 
     def add_structural_features(
         self,

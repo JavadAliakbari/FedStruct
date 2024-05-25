@@ -1,118 +1,81 @@
-import logging
-from typing import Union
+import os
 
 import torch
 
 from src.models.model_binders import ModelBinder
+from src.utils.config_parser import Config
+from src.utils.graph import Data, Graph
+
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 class Classifier:
-    def __init__(
-        self,
-        id,
-        save_path="./",
-        logger=None,
-    ):
-        self.id = id
-        self.save_path = save_path
-
-        self.LOGGER = logger or logging
-
-        self.feature_model: Union[None, ModelBinder] = None
-        self.structure_model: Union[None, ModelBinder] = None
-        self.SFV: Union[None, torch.Tensor] = None
+    def __init__(self):
+        self.graph: Graph | Data | None = None
+        self.model: ModelBinder | None = None
         self.optimizer = None
+
+    def create_model(self):
+        raise NotImplementedError
+
+    def create_optimizer(self):
+        parameters = self.parameters()
+        self.optimizer = torch.optim.Adam(
+            parameters,
+            lr=config.model.lr,
+            weight_decay=config.model.weight_decay,
+        )
+
+    def get_embeddings(self):
+        raise NotImplementedError
 
     def state_dict(self):
         weights = {}
-        if self.feature_model is not None:
-            weights["FPM"] = self.feature_model.state_dict()
-        if self.structure_model is not None:
-            weights["SPM"] = self.structure_model.state_dict()
-
-        # if self.SFV is not None:
-        #     if self.SFV.requires_grad:
-        #         self.SFV.grad = None
-        #         weights["SFV"] = self.SFV
+        if self.model is not None:
+            weights["model"] = self.model.state_dict()
 
         return weights
 
     def load_state_dict(self, weights):
-        if self.feature_model is not None:
-            self.feature_model.load_state_dict(weights["FPM"])
-        if self.structure_model is not None and "SPM" in weights.keys():
-            self.structure_model.load_state_dict(weights["SPM"])
+        if self.model is not None:
+            self.model.load_state_dict(weights["model"])
 
-        # if "SFV" in weights.keys():
-        #     self.SFV = deepcopy(weights["SFV"])
-
-    def get_model_grads(self, just_SFV=False):
+    def get_grads(self, just_SFV=False):
+        if just_SFV:
+            return {}
         grads = {}
-        if not just_SFV:
-            if self.feature_model is not None:
-                grads["FPM"] = self.feature_model.get_grads()
-            if self.structure_model is not None:
-                grads["SPM"] = self.structure_model.get_grads()
-
-        if self.SFV is not None:
-            if self.SFV.requires_grad:
-                grads["SFV"] = [self.SFV.grad]
+        if self.model is not None:
+            grads["model"] = self.model.get_grads()
 
         return grads
 
-    def set_model_grads(self, grads):
-        if "FPM" in grads.keys():
-            self.feature_model.set_grads(grads["FPM"])
-        if "SPM" in grads.keys():
-            self.structure_model.set_grads(grads["SPM"])
-        if "SFV" in grads.keys():
-            self.SFV.grad = grads["SFV"][0]
-
-    # def get_SFV_grad(self):
-    #     return self.SFV.grad
-
-    # def set_SFV_grad(self, grad):
-    #     self.SFV.grad = grad
+    def set_grads(self, grads):
+        if "model" in grads.keys():
+            self.model.set_grads(grads["model"])
 
     def reset_parameters(self):
-        if self.feature_model is not None:
-            self.feature_model.reset_parameters()
-        if self.structure_model is not None:
-            self.structure_model.reset_parameters()
+        if self.model is not None:
+            self.model.reset_parameters()
 
     def parameters(self):
-        if self.feature_model is not None:
-            parameters = self.feature_model.parameters()
-        if self.structure_model is not None:
-            parameters += self.structure_model.parameters()
-
-        if self.SFV is not None:
-            if self.SFV.requires_grad:
-                parameters += [self.SFV]
+        parameters = []
+        if self.model is not None:
+            parameters += self.model.parameters()
 
         return parameters
 
     def train(self, mode: bool = True):
-        if self.feature_model is not None:
-            self.feature_model.train(mode)
-        if self.structure_model is not None:
-            self.structure_model.train(mode)
+        if self.model is not None:
+            self.model.train(mode)
 
     def eval(self):
-        if self.feature_model is not None:
-            self.feature_model.eval()
-        if self.structure_model is not None:
-            self.structure_model.eval()
+        if self.model is not None:
+            self.model.eval()
 
     def zero_grad(self, set_to_none=False):
-        if self.feature_model is not None:
-            self.feature_model.zero_grad(set_to_none=set_to_none)
-        if self.structure_model is not None:
-            self.structure_model.zero_grad(set_to_none=set_to_none)
-
-        if self.SFV is not None:
-            if self.SFV.requires_grad:
-                self.SFV.grad = None
+        if self.model is not None:
+            self.model.zero_grad(set_to_none=set_to_none)
 
     def update_model(self):
         if self.optimizer is not None:
@@ -123,7 +86,9 @@ class Classifier:
             self.optimizer.zero_grad()
 
     def restart(self):
-        self.feature_model = None
-        self.structure_model = None
-        self.SFV = None
+        self.graph = None
+        self.model = None
         self.optimizer = None
+
+    def get_embeddings_func(self):
+        return self.get_embeddings

@@ -1,13 +1,26 @@
 import os
 
+from torch_sparse import SparseTensor
+
+from src.GNN.SDGCN import SDGCN
+from src.GNN.fDGCN import FDGCN
+from src.GNN.fGNN import FGNN
+from src.GNN.sGNN import SGNNMaster, SGNNSlave
+from src.classifier import Classifier
 from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.client import Client
-from src.utils.graph import Graph
-from src.GNN.GNN_classifier import GNNClassifier
+from src.utils.graph import AGraph, Graph
+from src.GNN.GNN_classifier import FedDGCN, FedGNNMaster, FedGNNSlave
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
+
+dev = os.environ.get("device", "cpu")
+if dev == "mps":
+    local_dev = "cpu"
+else:
+    local_dev = dev
 
 
 class GNNClient(Client):
@@ -25,52 +38,123 @@ class GNNClient(Client):
             save_path=save_path,
             logger=logger,
         )
-
         # self.LOGGER.info(f"Number of edges: {self.graph.num_edges}")
+        self.classifier: Classifier | None = None
 
-        self.classifier: GNNClassifier = GNNClassifier(
-            id=self.id,
-            save_path=self.save_path,
-            logger=self.LOGGER,
+    def create_FDGCN_data(self) -> AGraph:
+        if self.id == "Server":
+            abar = self.graph.abar
+        else:
+            abar = calc_a(
+                self.graph.edge_index,
+                self.graph.num_nodes,
+                config.feature_model.DGCN_layers,
+            )
+
+        graph = AGraph(
+            abar=abar,
+            x=self.graph.x,
+            y=self.graph.y,
+            train_mask=self.graph.train_mask,
+            val_mask=self.graph.val_mask,
+            test_mask=self.graph.test_mask,
+            num_classes=self.graph.num_classes,
         )
+        return graph
 
-    def get_structure_embeddings2(self, node_ids):
-        return self.classifier.get_structure_embeddings2(node_ids)
+    def create_SGNN_master_data(self, **kwargs) -> Graph:
+        SFV = kwargs.get("SFV", None)
+        SFV_ = torch.tensor(
+            SFV.detach().cpu().numpy(),
+            requires_grad=SFV.requires_grad,
+            device=dev,
+        )
+        graph = Graph(
+            edge_index=self.graph.edge_index,
+            x=SFV_,
+            y=self.graph.y,
+            train_mask=self.graph.train_mask,
+            val_mask=self.graph.val_mask,
+            test_mask=self.graph.test_mask,
+            num_classes=self.graph.num_classes,
+        )
+        return graph
+
+    def create_SDGCN_data(self, **kwargs) -> AGraph:
+        abar = kwargs.get("abar", None)
+        abar_i = self.split_abar(abar)
+
+        SFV = kwargs.get("SFV", None)
+        SFV_ = torch.tensor(
+            SFV.detach().cpu().numpy(),
+            requires_grad=SFV.requires_grad,
+            device=dev,
+        )
+        graph = AGraph(
+            abar=abar_i,
+            x=SFV_,
+            y=self.graph.y,
+            train_mask=self.graph.train_mask,
+            val_mask=self.graph.val_mask,
+            test_mask=self.graph.test_mask,
+            num_classes=self.graph.num_classes,
+        )
+        return graph
 
     def initialize(
         self,
         propagate_type=config.model.propagate_type,
         data_type="feature",
-        structure_type=config.structure_model.structure_type,
-        get_structure_embeddings=None,
+        **kwargs,
     ) -> None:
-        self.classifier.restart()
-        self.classifier.prepare_data(
-            graph=self.graph,
-            data_type=data_type,
-            batch_size=config.model.batch_size,
-            num_neighbors=config.model.num_samples,
-        )
-
-        if data_type in ["feature", "f+s"]:
+        if data_type == "feature":
             if propagate_type == "GNN":
-                self.classifier.set_GNN_FPM()
-            elif propagate_type == "DGCN":
-                self.classifier.set_DGCN_FPM()
-
-        if data_type in ["structure", "f+s"]:
-            if structure_type != "GDV":
-                dim_in = config.structure_model.num_structural_features
-            else:
-                dim_in = 73
-
+                self.classifier = FGNN(self.graph)
+            if propagate_type == "DGCN":
+                graph = self.create_FDGCN_data()
+                self.classifier = FDGCN(graph)
+        elif data_type == "structure":
             if propagate_type == "GNN":
                 if self.id == "Server":
-                    self.classifier.set_GNN_SPM(dim_in=dim_in)
+                    graph = self.create_SGNN_master_data(**kwargs)
+                    self.classifier = SGNNMaster(graph)
                 else:
-                    self.classifier.set_structure_embedding(get_structure_embeddings)
+                    server_embedding_func = kwargs.get("server_embedding_func", None)
+                    self.classifier = SGNNSlave(self.graph, server_embedding_func)
             elif propagate_type == "DGCN":
-                self.classifier.set_DGCN_SPM(dim_in=dim_in)
+                graph = self.create_SDGCN_data(**kwargs)
+                self.classifier = SDGCN(graph)
+        elif data_type == "f+s":
+            if propagate_type == "GNN":
+                if self.id == "Server":
+                    sgraph = self.create_SGNN_master_data(**kwargs)
+                    self.classifier = FedGNNMaster(self.graph, sgraph)
+                else:
+                    server_embedding_func = kwargs.get("server_embedding_func", None)
+                    self.classifier = FedGNNSlave(self.graph, server_embedding_func)
+            elif propagate_type == "DGCN":
+                fgraph = self.create_FDGCN_data()
+                sgraph = self.create_SDGCN_data(**kwargs)
+                self.classifier = FedDGCN(fgraph, sgraph)
+
+        self.classifier.create_optimizer()
+
+    def split_abar(self, abar: SparseTensor):
+        num_nodes = abar.size()[0]
+        nodes = self.get_nodes().to(local_dev)
+        num_nodes_i = self.num_nodes()
+        indices = torch.arange(num_nodes_i, dtype=torch.long, device=local_dev)
+        vals = torch.ones(num_nodes_i, dtype=torch.float32, device=local_dev)
+        P = torch.sparse_coo_tensor(
+            torch.vstack([indices, nodes]),
+            vals,
+            (num_nodes_i, num_nodes),
+            device=local_dev,
+        )
+        abar_i = torch.matmul(P, abar)
+        if dev != "cuda:0":
+            abar_i = abar_i.to_dense().to(dev)
+        return abar_i
 
     def train_local_model(
         self,
@@ -93,9 +177,3 @@ class GNNClient(Client):
             plot=plot,
             model_type="GNN",
         )
-
-    def set_abar(self, abar):
-        self.classifier.set_abar(abar)
-
-    def set_SFV(self, SFV):
-        self.classifier.set_SFV(SFV)

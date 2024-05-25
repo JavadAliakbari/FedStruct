@@ -12,24 +12,24 @@ dependencies:
   # - jupyter
   - scipy
   - pandas
-  - pandas-datareader
+  # - pandas-datareader
   - matplotlib
-  - pillow
-  - tqdm
-  - requests
-  - h5py
+  # - pillow
+  # - tqdm
+  # - requests
+  # - h5py
   - pyyaml
   # - flask
-  - boto3
+  # - boto3
   # - ipykernel
   - pip:
-      - bayesian-optimization
-      - gym
-      - kaggle
+      # - bayesian-optimization
+      # - gym
+      # - kaggle
       - torch-scatter -f https://data.pyg.org/whl/torch-1.11.0+${cpu}.html
       - torch-sparse -f https://data.pyg.org/whl/torch-1.11.0+${cpu}.html
       - torch-cluster
       - torch_geometric
-      - dill
-      - louvain
+      # - dill
+      # - louvain
       - scikit-network

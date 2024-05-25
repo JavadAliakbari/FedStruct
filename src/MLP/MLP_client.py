@@ -25,22 +25,9 @@ class MLPClient(Client):
             logger=logger,
         )
 
-        self.classifier: MLPClassifier = MLPClassifier(
-            id=self.id,
-            save_path=self.save_path,
-            logger=self.LOGGER,
-        )
-
-    def initialize(
-        self,
-        dim_in=None,
-    ):
-        self.classifier.restart()
-        self.classifier.prepare_data(
-            data=self.graph,
-            batch_size=config.model.batch_size,
-        )
-        self.classifier.set_classifiers(dim_in=dim_in)
+    def initialize(self):
+        self.classifier = MLPClassifier(self.graph)
+        self.classifier.create_optimizer()
 
     def train_local_model(
         self,

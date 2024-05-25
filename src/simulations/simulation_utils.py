@@ -215,19 +215,6 @@ def get_GNN_results(
     return result
 
 
-def calc_average_results(result, average_result, i):
-    if average_result == None:
-        return deepcopy(result)
-
-    for key, val in result.items():
-        if isinstance(val, float):
-            average_result[key] = (average_result[key] * i + val) / (i + 1)
-        else:
-            average_result[key] = calc_average_results(val, average_result[key], i)
-
-    return average_result
-
-
 def calc_average_std_result(results, res_type="Test Acc"):
     results_dict = lod2dol(results)
 

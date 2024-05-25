@@ -19,7 +19,6 @@ from src.utils.config_parser import Config
 from src.utils.define_graph import define_graph
 from src.utils.graph_partitioning import (
     create_mend_graph,
-    create_mend_graph2,
     partition_graph,
 )
 
@@ -89,27 +88,34 @@ def set_up_system(save_path="./"):
     results = {}
 
     _LOGGER.info("MLP")
-    results[f"server MLP"] = MLP_server.train_local_model()["Test Acc"]
-    results[f"local MLP"] = MLP_server.joint_train_g(FL=False)["Average"]["Test Acc"]
-    results[f"flga MLP"] = MLP_server.joint_train_g(FL=True)["Average"]["Test Acc"]
+    res = MLP_server.train_local_model()
+    results[f"server MLP"] = round(res["Test Acc"], 4)
+
+    res = MLP_server.joint_train_g(FL=False)
+    results[f"local MLP"] = round(res["Average"]["Test Acc"], 4)
+
+    res = MLP_server.joint_train_g(FL=True)
+    results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
 
     _LOGGER.info("GNN")
-    results[f"server GNN"] = GNN_server.train_local_model(propagate_type="GNN")[
-        "Test Acc"
-    ]
-    results[f"local GNN"] = GNN_server.joint_train_g(FL=False)["Average"]["Test Acc"]
-    results[f"flga GNN"] = GNN_server.joint_train_g(propagate_type="GNN", FL=True)[
-        "Average"
-    ]["Test Acc"]
-    results[f"sdga GNN"] = GNN_server.joint_train_g(data_type="f+s", FL=True)[
-        "Average"
-    ]["Test Acc"]
+    res = GNN_server.train_local_model(propagate_type="GNN")
+    results[f"server GNN"] = round(res["Test Acc"], 4)
 
-    # res = fedsage_server.train_fedSage_plus()
-    # results[f"fedsage WA"] = res["WA"]["Average"]["Test Acc"]
-    # results[f"fedsage GA"] = res["GA"]["Average"]["Test Acc"]
+    res = GNN_server.joint_train_g(FL=False)
+    results[f"local GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    # results[f"fedpub"] = fedpub_server.start()["Average"]["Test Acc"]
+    res = GNN_server.joint_train_g(propagate_type="GNN", FL=True)
+    results[f"flga GNN"] = round(res["Average"]["Test Acc"], 4)
+
+    res = GNN_server.joint_train_g(data_type="f+s", FL=True)
+    results[f"sdga GNN"] = round(res["Average"]["Test Acc"], 4)
+
+    res = fedsage_server.train_fedSage_plus()
+    results[f"fedsage WA"] = round(res["WA"]["Average"]["Test Acc"], 4)
+    results[f"fedsage GA"] = round(res["GA"]["Average"]["Test Acc"], 4)
+
+    res = fedpub_server.start()
+    results[f"fedpub"] = round(res["Average"]["Test Acc"], 4)
 
     _LOGGER.info(json.dumps(results, indent=4))
 

@@ -11,7 +11,10 @@ from src.FedPub.nets import *
 from src.FedPub.fedpub_client import FedPubClient
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
-from src.utils.utils import calc_average_result, calc_average_result2, plot_metrics
+from src.utils.utils import (
+    plot_metrics,
+    sum_lod,
+)
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -79,6 +82,9 @@ class FedPubServer:
             client: FedPubClient = FedPubClient(client_id, proxy)
             self.clients.append(client)
 
+    def num_nodes(self):
+        return self.graph.num_nodes
+
     def start(
         self,
         iterations=config.fedpub.epochs,
@@ -91,11 +97,13 @@ class FedPubServer:
         if log:
             bar = tqdm(total=iterations, position=0)
 
+        coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
+
         average_results = []
         for curr_rnd in range(iterations):
             ##################################################
             clients_data, results = self.train_clients(curr_rnd)
-            average_result = calc_average_result(results)
+            average_result = sum_lod(results)
             average_result["Epoch"] = curr_rnd + 1
             average_results.append(average_result)
             # self.LOGGER.info(f"all clients have been uploaded ({time.time()-st:.2f}s)")
@@ -119,12 +127,15 @@ class FedPubServer:
         # if log:
         #     self.report_server_test()
         test_results = self.test_clients()
-        average_result = calc_average_result2(test_results)
-        test_results["Average"] = average_result
+        average_result = sum_lod(test_results, coef)
+        final_results = {}
+        for cleint, test_result in zip(self.clients, test_results):
+            final_results[f"Client{cleint.id}"] = test_result
+        final_results["Average"] = average_result
         if log:
-            self.report_test_results(test_results)
+            self.report_test_results(final_results)
 
-        return test_results
+        return final_results
 
     def update(self, clients_data):
         # st = time.time()
@@ -198,12 +209,11 @@ class FedPubServer:
     #     self.LOGGER.info(f"Server test: {test_acc:0.4f}")
 
     def test_clients(self):
-        results = {}
-
+        results = []
         client: FedPubClient
         for client in self.clients:
             result = client.get_test_results()
-            results[f"Client{client.id}"] = result
+            results.append(result)
 
         return results
 

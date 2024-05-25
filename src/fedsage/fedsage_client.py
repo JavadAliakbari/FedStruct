@@ -1,6 +1,7 @@
 import os
 
 from src.GNN.GNN_client import GNNClient
+from src.GNN.fGNN import FGNN
 from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
@@ -36,30 +37,15 @@ class FedSAGEClient(GNNClient):
             x=self.x,
         )
 
-    def initialize(
-        self,
-        propagate_type=config.model.propagate_type,
-        **kwargs,
-    ) -> None:
+    def initialize(self, **kwargs) -> None:
         mend_graph = self.neighgen.get_mend_graph()
         if mend_graph is not None:
-            self.classifier.prepare_data(
-                graph=mend_graph,
-                batch_size=config.model.batch_size,
-                num_neighbors=config.model.num_samples,
-            )
+            graph = mend_graph
         else:
-            self.classifier.prepare_data(
-                graph=self.graph,
-                batch_size=config.model.batch_size,
-                num_neighbors=config.model.num_samples,
-            )
+            graph = self.graph
 
-        # self.classifier.set_GNN_FPM(dim_in=num_input_features)
-        if propagate_type == "GNN":
-            self.classifier.set_GNN_FPM()
-        elif propagate_type == "DGCN":
-            self.classifier.set_DGCN_FPM()
+        self.classifier = FGNN(graph)
+        self.classifier.create_optimizer()
 
     def initialize_neighgen(self) -> None:
         self.neighgen.prepare_data(self.graph)
@@ -137,7 +123,7 @@ class FedSAGEClient(GNNClient):
         ) = self.neighgen.train_step(inter_client_features_creators, predict=predict)
 
         result = {
-            "Train Loss": round(train_loss.item(), 4),
+            "Train Loss": round(train_loss, 4),
             "Val Acc": round(val_acc_label, 4),
             "Val Missing Acc": round(val_acc_missing, 4),
             # "Val Features Loss": round(val_loss_feat.item(), 4),
