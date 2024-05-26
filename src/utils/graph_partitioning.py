@@ -10,7 +10,6 @@ from torch_geometric.utils import subgraph
 
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
-from src.utils.utils import find_neighbors_
 
 dev = os.environ.get("device", "cpu")
 device = torch.device(dev)

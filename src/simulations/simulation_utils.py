@@ -1,5 +1,4 @@
 import os
-from copy import deepcopy
 import random
 
 import torch
@@ -17,7 +16,6 @@ from src.utils.graph import Graph
 from src.utils.config_parser import Config
 from src.utils.graph_partitioning import (
     create_mend_graph,
-    create_mend_graph2,
     partition_graph,
 )
 

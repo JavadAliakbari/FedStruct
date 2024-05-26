@@ -1,18 +1,18 @@
 from ast import List
+import itertools
 import os
 import numpy as np
 
 import torch
 import pandas as pd
+import networkx as nx
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
 
-# from torch_sparse import SparseTensor
 from torch_geometric.utils import add_self_loops
 from torch_geometric.utils import degree
 from tqdm import tqdm
-from sknetwork.clustering import Louvain
-from torch_geometric.utils.convert import to_scipy_sparse_matrix
+
 
 plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
@@ -21,8 +21,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-# elif torch.backends.mps.is_available():
-#     dev = "mps"
+elif torch.backends.mps.is_available():
+    dev = "mps"
 else:
     dev = "cpu"
 os.environ["device"] = dev
@@ -233,10 +233,14 @@ def plot_abar(abar, edge_index):
     dense_abar = abar.to_dense().numpy()
     dense_abar = np.power(dense_abar, 0.25)
 
-    adjacency = to_scipy_sparse_matrix(edge_index)
-    louvain = Louvain()
-    community_map = louvain.fit_predict(adjacency)
-    community_based_node_order = np.argsort(community_map)
+    G = nx.Graph(edge_index.T.tolist())
+    community = nx.community.louvain_communities(G)
+
+    sorted_community_groups = sorted(
+        community, key=lambda item: len(item), reverse=True
+    )
+    community_based_node_order = itertools.chain.from_iterable(sorted_community_groups)
+
     dense_abar = dense_abar[:, community_based_node_order]
     dense_abar = dense_abar[community_based_node_order, :]
 
