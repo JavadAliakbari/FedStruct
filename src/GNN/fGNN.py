@@ -3,7 +3,6 @@ import os
 import torch
 from torch_geometric.loader import NeighborLoader
 
-from src.utils.utils import *
 from src.utils.graph import Graph
 from src.classifier import Classifier
 from src.utils.config_parser import Config

@@ -2,7 +2,7 @@ import os
 
 from torch_sparse import SparseTensor
 
-from src.GNN.DGCN import DGCN, SDGCN
+from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
 from src.GNN.fGNN import FGNN
 from src.GNN.sGNN import SGNNMaster, SGNNSlave
 from src.classifier import Classifier
@@ -10,7 +10,13 @@ from src.utils.utils import *
 from src.utils.config_parser import Config
 from src.client import Client
 from src.utils.graph import AGraph, Graph
-from src.GNN.GNN_classifier import FedDGCN, FedGNNMaster, FedGNNSlave
+from src.GNN.GNN_classifier import (
+    FedDGCN,
+    FedDGCNMaster,
+    FedDGCNSlave,
+    FedGNNMaster,
+    FedGNNSlave,
+)
 
 path = os.environ.get("CONFIG_PATH")
 config = Config(path)
@@ -125,6 +131,13 @@ class GNNClient(Client):
             elif propagate_type == "DGCN":
                 graph = self.create_SDGCN_data(**kwargs)
                 self.classifier = SDGCN(graph)
+                # if self.id == "Server":
+                #     graph = self.create_SDGCN_data(**kwargs)
+                #     self.classifier = SDGCNMaster(graph)
+                # else:
+                #     server_embedding_func = kwargs.get("server_embedding_func", None)
+                #     self.classifier = SGNNSlave(self.graph, server_embedding_func)
+
         elif data_type == "f+s":
             if propagate_type == "GNN":
                 if self.id == "Server":
@@ -137,6 +150,12 @@ class GNNClient(Client):
                 fgraph = self.create_FDGCN_data()
                 sgraph = self.create_SDGCN_data(**kwargs)
                 self.classifier = FedDGCN(fgraph, sgraph)
+                # if self.id == "Server":
+                #     sgraph = self.create_SDGCN_data(**kwargs)
+                #     self.classifier = FedDGCNMaster(fgraph, sgraph)
+                # else:
+                #     server_embedding_func = kwargs.get("server_embedding_func", None)
+                #     self.classifier = FedDGCNSlave(fgraph, server_embedding_func)
 
         self.classifier.create_optimizer()
 

@@ -3,7 +3,7 @@ import os
 import torch
 from torch_geometric.loader import NeighborLoader
 
-from src.GNN.DGCN import DGCN, SDGCN
+from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
 from src.GNN.fGNN import FGNN
 from src.GNN.sGNN import SGNNMaster, SGNNSlave
 from src.utils.utils import *
@@ -89,91 +89,19 @@ class FedClassifier(Classifier):
         O = H + S
         return O
 
-    def __call__(self):
-        return self.get_embeddings()
-
-    def get_prediction(self):
-        O = self.get_embeddings()
-        y_pred = torch.nn.functional.softmax(O, dim=1)
-        return y_pred
-
     def train_step(self, eval_=True):
-        y_pred = self.get_prediction()
-        y = self.graph.y
-        train_mask, val_mask, _ = self.graph.get_masks()
-
-        train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
-        train_loss.backward(retain_graph=True)
+        res = super().train_step(eval_=eval_)
 
         if eval_:
-            self.eval()
-            y_pred_val = self.get_prediction()
-            val_loss, val_acc = calc_metrics(y, y_pred_val, val_mask)
+            y = self.graph.y
+            _, val_mask, _ = self.graph.get_masks()
 
-            y_pred_f = self.f_model()
-            y_pred_s = self.s_model()
-            _, val_acc_f = calc_metrics(y, y_pred_f, val_mask)
-            _, val_acc_s = calc_metrics(y, y_pred_s, val_mask)
+            val_acc_f = Classifier.calc_metrics(self.f_model, y, val_mask, "acc")
+            val_acc_s = Classifier.calc_metrics(self.s_model, y, val_mask, "acc")
 
-            return (
-                train_loss.item(),
-                train_acc,
-                val_loss.item(),
-                val_acc,
-                val_acc_f,
-                val_acc_s,
-            )
+            return (res[0], res[1], res[2], res[3], val_acc_f[0], val_acc_s[0])
         else:
-            return train_loss.item(), train_acc
-
-    @torch.no_grad()
-    def calc_test_accuracy(self, metric="acc"):
-        self.eval()
-
-        y = self.graph.y
-        test_mask = self.graph.test_mask
-
-        y_pred = self.get_prediction()
-        test_loss, test_acc = calc_metrics(y, y_pred, test_mask)
-
-        if metric == "acc":
-            return (test_acc,)
-        # elif metric == "f1":
-        #     return test_f1_score
-        else:
-            return (test_loss.item(),)
-
-    def calc_test_accuracy_f(self, metric="acc"):
-        self.eval()
-
-        y = self.graph.y
-        test_mask = self.graph.test_mask
-
-        y_pred_f = self.f_model.get_prediction()
-        test_loss_f, test_acc_f = calc_metrics(y, y_pred_f, test_mask)
-
-        if metric == "acc":
-            return test_acc_f
-        # elif metric == "f1":
-        #     return test_f1_score
-        else:
-            return test_loss_f
-
-    def calc_test_accuracy_s(self, metric="acc"):
-        self.eval()
-
-        y = self.graph.y
-        test_mask = self.graph.test_mask
-
-        y_pred_s = self.s_model.get_prediction()
-        test_loss_s, test_acc_s = calc_metrics(y, y_pred_s, test_mask)
-
-        if metric == "acc":
-            return test_acc_s
-        # elif metric == "f1":
-        #     return test_f1_score
-        else:
-            return test_loss_s.item()
+            return res
 
 
 class FedGNNSlave(FedClassifier):
@@ -229,3 +157,15 @@ class FedDGCN(FedClassifier):
     def create_model(self, fgraph: AGraph, sgraph: AGraph):
         self.f_model = DGCN(fgraph)
         self.s_model = SDGCN(sgraph)
+
+
+class FedDGCNSlave(FedGNNSlave):
+    def create_model(self, graph: AGraph, server_embedding_func):
+        self.f_model = DGCN(graph)
+        self.s_model = SGNNSlave(graph, server_embedding_func)
+
+
+class FedDGCNMaster(FedGNNMaster):
+    def create_model(self, fgraph: AGraph, sgraph: AGraph):
+        self.f_model = DGCN(fgraph)
+        self.s_model = SDGCNMaster(sgraph)

@@ -113,27 +113,25 @@ class Classifier:
         train_loss.backward(retain_graph=True)
 
         if eval_:
-            self.eval()
-            y_pred_val = self.get_prediction()
-            val_loss, val_acc = calc_metrics(y, y_pred_val, val_mask)
-
+            val_loss, val_acc = Classifier.calc_metrics(self, y, val_mask)
             return train_loss.item(), train_acc, val_loss.item(), val_acc
         else:
             return train_loss.item(), train_acc
 
-    @torch.no_grad()
     def calc_test_accuracy(self, metric="acc"):
-        self.eval()
+        return Classifier.calc_metrics(self, self.graph.y, self.graph.test_mask, metric)
 
-        y = self.graph.y
-        test_mask = self.graph.test_mask
-        y_pred = self.get_prediction()
-
-        test_loss, test_acc = calc_metrics(y, y_pred, test_mask)
+    @torch.no_grad()
+    def calc_metrics(model, y, mask, metric=""):
+        model.eval()
+        y_pred = model.get_prediction()
+        loss, acc = calc_metrics(y, y_pred, mask)
 
         if metric == "acc":
-            return (test_acc,)
+            return (acc,)
         # elif metric == "f1":
-        #     return test_f1_score
+        #     return f1_score
+        elif metric == "loss":
+            return (loss.item(),)
         else:
-            return (test_loss.item(),)
+            return loss, acc

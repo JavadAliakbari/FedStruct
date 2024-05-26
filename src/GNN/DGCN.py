@@ -3,7 +3,7 @@ import os
 import torch
 from torch_geometric.loader import NeighborLoader
 
-from src.utils.utils import *
+from src.GNN.sGNN import SGNNMaster
 from src.utils.graph import AGraph
 from src.classifier import Classifier
 from src.utils.config_parser import Config
@@ -86,3 +86,42 @@ class SDGCN(DGCN):
         super().zero_grad(set_to_none)
         if self.graph.x.requires_grad:
             self.graph.x.grad = None
+
+
+class SDGCNMaster(SGNNMaster):
+    def __init__(
+        self,
+        graph: AGraph,
+        hidden_layer_size=config.structure_model.DGCN_structure_layers_sizes,
+    ):
+        super().__init__(graph)
+        self.GNN_structure_embedding = None
+        self.create_model(hidden_layer_size)
+
+    def create_model(self, hidden_layer_size=[]):
+        layer_sizes = (
+            [self.graph.num_features] + hidden_layer_size + [self.graph.num_classes]
+        )
+
+        model_specs = [
+            ModelSpecs(
+                type="MLP",
+                layer_sizes=layer_sizes,
+                final_activation_function="linear",
+                normalization="layer",
+            ),
+        ]
+
+        self.model: ModelBinder = ModelBinder(model_specs)
+        self.model.to(device)
+
+    def get_embeddings(self, node_ids):
+        if self.GNN_structure_embedding is None:
+            H = self.model(self.graph.x)
+            if self.graph.abar.is_sparse and H.device.type == "mps":
+                self.GNN_structure_embedding = self.graph.abar.matmul(H.cpu()).to(
+                    device
+                )
+            else:
+                self.GNN_structure_embedding = torch.matmul(self.graph.abar, H)
+        return self.GNN_structure_embedding[node_ids]

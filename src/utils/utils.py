@@ -266,14 +266,14 @@ def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
 
 
 def calc_metrics(y, y_pred, mask):
-    criterion = torch.nn.CrossEntropyLoss()
     y_masked = y[mask]
     y_pred_masked = y_pred[mask]
 
+    criterion = torch.nn.CrossEntropyLoss()
     loss = criterion(y_pred_masked, y_masked)
 
     acc = calc_accuracy(y_pred_masked.argmax(dim=1), y_masked)
-    # f1_score = calc_f1_score(y_pred[mask].argmax(dim=1), y[mask])
+    # f1_score_ = calc_f1_score(y_pred_masked.argmax(dim=1), y_masked)
 
     return loss, acc
 
