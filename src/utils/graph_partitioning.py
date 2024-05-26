@@ -2,19 +2,14 @@ import os
 from itertools import cycle
 from collections import defaultdict
 
-from scipy import sparse
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
-from sknetwork.clustering import Louvain
-from torch_geometric.utils import subgraph
-from torch_geometric.utils.convert import to_scipy_sparse_matrix
-from sklearn.cluster import k_means
 import networkx as nx
+from sklearn.cluster import k_means
+from torch_geometric.utils import subgraph
 
 from src.utils.config_parser import Config
 from src.utils.graph import Graph
-from src.utils.plot_graph import plot_graph
 from src.utils.utils import find_neighbors_
 
 dev = os.environ.get("device", "cpu")
@@ -24,52 +19,9 @@ path = os.environ.get("CONFIG_PATH")
 config = Config(path)
 
 
-def plot_communities(graph, community):
-    subgraphs = create_subgraps(graph, community)
-    for s in subgraphs:
-        plot_graph(s)
-        plt.show()
-
-
-def plot_subgraphs(graph, subgraphs):
-    nodes_list = []
-    for subgraph in subgraphs:
-        nodes = np.unique(subgraph.edge_index.numpy()[:])
-        nodes_list.append(nodes)
-
-    node_color = []
-    rate = 1 / (config.subgraph.num_subgraphs - 1)
-    for node in range(graph.num_nodes):
-        node_color.append(0.25)
-        for i in range(config.subgraph.num_subgraphs):
-            if node in nodes_list[i]:
-                node_color[-1] = i * rate
-
-    # plt.figure()
-    # plot_graph(subgraphs[0])
-    # plt.figure()
-    # plot_graph(subgraphs[1])
-    # plt.figure()
-    # plot_graph(subgraphs[2])
-    # plt.figure()
-    # plot_graph(subgraphs[3])
-    # plt.figure()
-    # plot_graph(subgraphs[4])
-    plot_graph(graph.edge_index, node_color)
-    plt.show()
-
-
 def find_community(edge_index):
-    adjacency = to_scipy_sparse_matrix(edge_index)
-    # louvain = Leiden(resolution=1, modularity="Potts", shuffle_nodes=False)
-    # louvain = PropagationClustering()
-
-    # adjacency = sparse.csr_matrix(adjacency)
-    # louvain = KCenters(n_clusters=2, directed=True)
-
-    # louvain = Louvain(resolution=1, modularity="dugue", shuffle_nodes=True)
-    louvain = Louvain()
-    community = louvain.fit_predict(adjacency)
+    G = nx.Graph(edge_index.T.tolist())
+    community = nx.community.louvain_communities(G)
 
     return community
 
@@ -90,14 +42,13 @@ def create_community_groups(community_map, node_map=None) -> dict:
 def make_groups_smaller_than_max(community_groups, group_len_max) -> dict:
     ind = 0
     while ind < len(community_groups):
-        key = list(community_groups.keys())[ind]
-        if len(community_groups[key]) > group_len_max:
+        if len(community_groups[ind]) > group_len_max:
             l1, l2 = (
-                community_groups[key][:group_len_max],
-                community_groups[key][group_len_max:],
+                community_groups[ind][:group_len_max],
+                community_groups[ind][group_len_max:],
             )
 
-            community_groups[key] = l1
+            community_groups[ind] = l1
             community_groups[len(community_groups)] = l2
 
         ind += 1
@@ -208,31 +159,29 @@ def create_subgraps(graph: Graph, subgraph_node_ids: dict):
     return subgraphs
 
 
-def louvain_graph_cut(graph: Graph, num_subgraphs):
-    community_map = find_community(graph.edge_index)
+def louvain_cut(edge_index, num_nodes, num_subgraphs):
+    community_groups = find_community(edge_index)
 
-    community_groups = create_community_groups(community_map=community_map)
-
-    group_len_max = graph.num_nodes // num_subgraphs + config.subgraph.delta
+    group_len_max = num_nodes // num_subgraphs + config.subgraph.delta
 
     community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
 
     sorted_community_groups = {
         k: v
         for k, v in sorted(
-            community_groups.items(), key=lambda item: len(item[1]), reverse=True
+            enumerate(community_groups), key=lambda item: len(item[1]), reverse=True
         )
     }
 
     subgraph_node_ids = assign_nodes_to_subgraphs(
-        sorted_community_groups, graph.num_nodes, num_subgraphs
+        sorted_community_groups, num_nodes, num_subgraphs
     )
 
     return subgraph_node_ids
 
 
-def random_assign(graph: Graph, num_subgraphs):
-    subgraph_id = np.random.choice(num_subgraphs, graph.num_nodes, replace=True)
+def random_assign(num_nodes, num_subgraphs):
+    subgraph_id = np.random.choice(num_subgraphs, num_nodes, replace=True)
     subgraph_node_ids = {
         value: np.where(subgraph_id == value)[0] for value in range(num_subgraphs)
     }
@@ -240,15 +189,12 @@ def random_assign(graph: Graph, num_subgraphs):
     return subgraph_node_ids
 
 
-def Kmeans_cut(graph: Graph, num_subgraphs):
-    X = graph.x
+def kmeans_cut(X, num_subgraphs):
+    num_nodes = X.shape[0]
     _, subgraph_id, _ = k_means(X.cpu(), num_subgraphs, n_init="auto")
-    community_groups = {
-        value: np.where(subgraph_id == value)[0].tolist()
-        for value in range(num_subgraphs)
-    }
+    community_groups = create_community_groups(subgraph_id)
 
-    group_len_max = graph.num_nodes // num_subgraphs + config.subgraph.delta
+    group_len_max = num_nodes // num_subgraphs + config.subgraph.delta
 
     community_groups = make_groups_smaller_than_max(community_groups, group_len_max)
 
@@ -260,34 +206,23 @@ def Kmeans_cut(graph: Graph, num_subgraphs):
     }
 
     subgraph_node_ids = assign_nodes_to_subgraphs(
-        sorted_community_groups, graph.num_nodes, num_subgraphs
+        sorted_community_groups, num_nodes, num_subgraphs
     )
 
     return subgraph_node_ids
 
 
-def Metis_cut(graph: Graph, num_subgraphs):
+def metis_cut(edge_index, num_nodes, num_subgraphs):
     import metis
 
-    edges = graph.edge_index.T.tolist()
+    edges = edge_index.T.tolist()
     nx_graph = nx.Graph()
-    nx_graph.add_nodes_from(range(graph.num_nodes))
+    nx_graph.add_nodes_from(range(num_nodes))
     nx_graph.add_edges_from(edges)
     (edgecuts, community_map) = metis.part_graph(nx_graph, num_subgraphs)
     community_groups = create_community_groups(community_map=community_map)
 
-    sorted_community_groups = {
-        k: v
-        for k, v in sorted(
-            community_groups.items(), key=lambda item: len(item[1]), reverse=True
-        )
-    }
-
-    subgraph_node_ids = assign_nodes_to_subgraphs(
-        sorted_community_groups, graph.num_nodes, num_subgraphs
-    )
-
-    return subgraph_node_ids
+    return community_groups
 
 
 def create_mend_graph(subgraph: Graph, graph: Graph, val=1):
@@ -340,85 +275,17 @@ def create_mend_graph(subgraph: Graph, graph: Graph, val=1):
     return mend_graph
 
 
-def create_mend_graph2(subgraph: Graph, graph: Graph):
-    new_node_id = graph.num_nodes
-    new_edges0 = []
-    new_edges1 = []
-    new_x = []
-    for node_id in subgraph.node_ids:
-        # edge_mask = subgraph.inter_edges.unsqueeze(2).eq(node_id).any(2).any(0)
-
-        external_nodes = find_neighbors_(node_id, subgraph.inter_edges)
-        num_neighbors = external_nodes.shape[0]
-        # num_neighbors = min(external_nodes.shape[0], config.fedsage.num_pred)
-        # external_nodes = external_nodes[:num_neighbors]
-
-        new_x.append(0 * graph.x[external_nodes])
-
-        l0 = num_neighbors * [node_id.item()]
-        l1 = list(range(new_node_id, new_node_id + num_neighbors))
-        new_edges0 += l0 + l1
-        new_edges1 += l1 + l0
-        new_node_id += num_neighbors
-
-    concatenated_x = torch.cat([subgraph.x, *new_x], dim=0)
-    new_edges = np.array([new_edges0, new_edges1], dtype=int)
-    new_edges = torch.tensor(new_edges, device=device)
-    edges = torch.hstack((subgraph.original_edge_index, new_edges))
-
-    max_node_id = graph.num_nodes
-    new_added_nodes = concatenated_x.shape[0] - subgraph.x.shape[0]
-    new_node_id = max_node_id + new_added_nodes
-    new_node_ids = torch.arange(
-        max_node_id, new_node_id, device=subgraph.node_ids.device
-    )
-    node_ids = torch.hstack((subgraph.node_ids, new_node_ids))
-
-    train_mask = torch.hstack(
-        (
-            subgraph.train_mask,
-            torch.zeros(new_added_nodes, dtype=torch.bool, device=dev),
-        )
-    )
-    test_mask = torch.hstack(
-        (subgraph.test_mask, torch.zeros(new_added_nodes, dtype=torch.bool, device=dev))
-    )
-    val_mask = torch.hstack(
-        (subgraph.val_mask, torch.zeros(new_added_nodes, dtype=torch.bool, device=dev))
-    )
-
-    y_shape = list(subgraph.y.shape)
-    y_shape[0] = new_added_nodes
-    y = torch.hstack(
-        (
-            subgraph.y,
-            torch.zeros(y_shape, dtype=subgraph.y.dtype, device=subgraph.y.device),
-        )
-    )
-
-    mend_graph = Graph(
-        x=concatenated_x,
-        y=y,
-        edge_index=edges,
-        node_ids=node_ids,
-        train_mask=train_mask,
-        test_mask=test_mask,
-        val_mask=val_mask,
-        num_classes=graph.num_classes,
-    )
-
-    return mend_graph
-
-
 def partition_graph(graph: Graph, num_subgraphs, method="random"):
     if method == "louvain":
-        subgraph_node_ids = louvain_graph_cut(graph, num_subgraphs)
+        subgraph_node_ids = louvain_cut(
+            graph.edge_index, graph.num_nodes, num_subgraphs
+        )
     elif method == "random":
-        subgraph_node_ids = random_assign(graph, num_subgraphs)
+        subgraph_node_ids = random_assign(graph.num_nodes, num_subgraphs)
     elif method == "kmeans":
-        subgraph_node_ids = Kmeans_cut(graph, num_subgraphs)
+        subgraph_node_ids = kmeans_cut(graph.x, num_subgraphs)
     elif method == "metis":
-        subgraph_node_ids = Metis_cut(graph, num_subgraphs)
+        subgraph_node_ids = metis_cut(graph.edge_index, graph.num_nodes, num_subgraphs)
 
     subgraphs = create_subgraps(graph, subgraph_node_ids)
 

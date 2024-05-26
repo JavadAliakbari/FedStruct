@@ -98,24 +98,39 @@ def set_up_system(save_path="./"):
     results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
 
     _LOGGER.info("GNN")
-    res = GNN_server.train_local_model(propagate_type="GNN")
-    results[f"server GNN"] = round(res["Test Acc"], 4)
+    res = GNN_server.train_local_model(data_type="feature")
+    results[f"Server F GNN"] = round(res["Test Acc"], 4)
 
-    res = GNN_server.joint_train_g(FL=False)
-    results[f"local GNN"] = round(res["Average"]["Test Acc"], 4)
+    res = GNN_server.train_local_model(data_type="structure")
+    results[f"Server S GNN"] = round(res["Test Acc"], 4)
 
-    res = GNN_server.joint_train_g(propagate_type="GNN", FL=True)
-    results[f"flga GNN"] = round(res["Average"]["Test Acc"], 4)
+    res = GNN_server.train_local_model(data_type="f+s")
+    results[f"Server F+S GNN"] = round(res["Test Acc"], 4)
+
+    res = GNN_server.joint_train_g(data_type="feature", FL=False)
+    results[f"Local F GNN"] = round(res["Average"]["Test Acc"], 4)
+
+    res = GNN_server.joint_train_g(data_type="structure", FL=False)
+    results[f"Local S GNN"] = round(res["Average"]["Test Acc"], 4)
+
+    res = GNN_server.joint_train_g(data_type="f+s", FL=False)
+    results[f"Local F+S GNN"] = round(res["Average"]["Test Acc"], 4)
+
+    res = GNN_server.joint_train_g(data_type="feature", FL=True)
+    results[f"FL F GNN"] = round(res["Average"]["Test Acc"], 4)
+
+    res = GNN_server.joint_train_g(data_type="structure", FL=True)
+    results[f"FL S GNN"] = round(res["Average"]["Test Acc"], 4)
 
     res = GNN_server.joint_train_g(data_type="f+s", FL=True)
-    results[f"sdga GNN"] = round(res["Average"]["Test Acc"], 4)
+    results[f"FL F+S GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    res = fedsage_server.train_fedSage_plus()
-    results[f"fedsage WA"] = round(res["WA"]["Average"]["Test Acc"], 4)
-    results[f"fedsage GA"] = round(res["GA"]["Average"]["Test Acc"], 4)
+    # res = fedsage_server.train_fedSage_plus()
+    # results[f"fedsage WA"] = round(res["WA"]["Average"]["Test Acc"], 4)
+    # results[f"fedsage GA"] = round(res["GA"]["Average"]["Test Acc"], 4)
 
-    res = fedpub_server.start()
-    results[f"fedpub"] = round(res["Average"]["Test Acc"], 4)
+    # res = fedpub_server.start()
+    # results[f"fedpub"] = round(res["Average"]["Test Acc"], 4)
 
     _LOGGER.info(json.dumps(results, indent=4))
 

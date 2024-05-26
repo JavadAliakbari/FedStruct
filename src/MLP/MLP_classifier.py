@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from src.models.model_binders import ModelBinder, ModelSpecs
-from src.utils.graph import Data
+from src.utils.data import Data
 from src.classifier import Classifier
 from src.utils.config_parser import Config
 from src.utils.utils import calc_metrics, calc_accuracy, calc_f1_score

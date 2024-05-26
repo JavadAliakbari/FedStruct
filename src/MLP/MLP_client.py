@@ -1,7 +1,7 @@
 import os
 
 from src.utils.config_parser import Config
-from src.utils.graph import Data
+from src.utils.data import Data
 from src.client import Client
 from src.MLP.MLP_classifier import MLPClassifier
 

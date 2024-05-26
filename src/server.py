@@ -142,7 +142,7 @@ class Server(Client):
                     self.report_results(results, "Joint Training")
 
         if plot:
-            title = f"Average joint Training {model_type}"
+            title = f"{model_type}"
             plot_path = f"{self.save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
 
@@ -205,7 +205,7 @@ class Server(Client):
                     self.report_results(results, "Joint Training")
 
         if plot:
-            title = f"Average Joint Training {model_type}"
+            title = f"{model_type}"
             plot_path = f"{self.save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
 

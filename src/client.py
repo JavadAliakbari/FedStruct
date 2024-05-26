@@ -129,7 +129,7 @@ class Client:
                     self.report_result(result, "Local Training")
 
         if plot:
-            title = f"client {self.id} Local Training {model_type}"
+            title = f"{model_type}"
             plot_path = f"{self.save_path}/plots/{now}/"
             plot_metrics(results, title=title, save_path=plot_path)
 

@@ -7,7 +7,8 @@ from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
 from src.GNN.fGNN import FGNN
 from src.GNN.sGNN import SGNNMaster, SGNNSlave
 from src.utils.utils import *
-from src.utils.graph import AGraph, Data, Graph
+from src.utils.graph import AGraph, Graph
+from src.utils.data import Data
 from src.classifier import Classifier
 from src.utils.config_parser import Config
 

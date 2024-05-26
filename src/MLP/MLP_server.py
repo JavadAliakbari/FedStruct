@@ -1,7 +1,7 @@
 import os
 from ast import List
 
-from src.utils.graph import Graph
+from src.utils.data import Data
 from src.utils.config_parser import Config
 from src.server import Server
 from src.MLP.MLP_client import MLPClient
@@ -13,7 +13,7 @@ config = Config(path)
 class MLPServer(Server, MLPClient):
     def __init__(
         self,
-        graph: Graph,
+        graph: Data,
         save_path="./",
         logger=None,
     ):
