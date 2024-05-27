@@ -74,7 +74,7 @@ if __name__ == "__main__":
                 epochs = config.model.iterations
 
                 save_path = (
-                    "./results/Neurips/"
+                    "./results/Simulation/"
                     f"{config.dataset.dataset_name}/"
                     f"{partitioning}/"
                     f"{num_subgraphs}/"

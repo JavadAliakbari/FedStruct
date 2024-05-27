@@ -1,0 +1,21 @@
+name: FedStruct2
+channels:
+  - defaults
+  - pytorch-nightly
+  - conda-forge
+  - apple
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pip:
+    - torch-sparse -f https://data.pyg.org/whl/torch-2.0.0+cpu.html
+    - torch-scatter -f https://data.pyg.org/whl/torch-2.0.0+cpu.html
+    - torch-cluster -f https://data.pyg.org/whl/torch-2.0.0+cpu.html
+    # - torch-spline-conv --find-links https://data.pyg.org/whl/torch-2.0.0+cpu.html
+    - torch-geometric -f https://data.pyg.org/whl/torch-2.0.0+cpu.html
+    - pandas
+    - matplotlib
+    - pyyaml

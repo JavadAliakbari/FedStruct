@@ -9,11 +9,11 @@ os.environ["now"] = now
 import torch
 import numpy as np
 
-from src.FedPub.fedpub_server import FedPubServer
 from src.utils.utils import log_config
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
 from src.fedsage.fedsage_server import FedSAGEServer
+from src.FedPub.fedpub_server import FedPubServer
 from src.utils.logger import get_logger
 from src.utils.config_parser import Config
 from src.utils.define_graph import define_graph

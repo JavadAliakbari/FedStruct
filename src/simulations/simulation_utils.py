@@ -72,7 +72,7 @@ def get_MLP_results(
     result = {}
     MLP_runs = {
         "local_MLP": [MLP_server.joint_train_g, False],
-        # "flwa_MLP": [MLP_server.joint_train_w, True],
+        "flwa_MLP": [MLP_server.joint_train_w, True],
         "flga_MLP": [MLP_server.joint_train_g, True],
     }
     res = MLP_server.train_local_model(epochs=epochs, log=False, plot=False)
@@ -100,7 +100,7 @@ def get_Fedsage_results(
     result = {}
     res = FedSage_server.train_fedSage_plus(
         epochs=epochs,
-        propagate_type="GNN",
+        # propagate_type="GNN",
         model="both",
         log=False,
         plot=False,
