@@ -13,6 +13,8 @@ from torch_geometric.utils import add_self_loops
 from torch_geometric.utils import degree
 from tqdm import tqdm
 
+from src.utils.config_parser import Config
+
 
 plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
@@ -21,23 +23,14 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-elif torch.backends.mps.is_available():
-    dev = "mps"
+# elif torch.backends.mps.is_available():
+#     dev = "mps"
 else:
     dev = "cpu"
 os.environ["device"] = dev
 
-
-class bcolors:
-    HEADER = "\033[95m"
-    OKBLUE = "\033[94m"
-    OKCYAN = "\033[96m"
-    OKGREEN = "\033[92m"
-    WARNING = "\033[93m"
-    FAIL = "\033[91m"
-    ENDC = "\033[0m"
-    BOLD = "\033[1m"
-    UNDERLINE = "\033[4m"
+path = os.environ.get("CONFIG_PATH")
+config = Config(path)
 
 
 @torch.no_grad()
@@ -196,7 +189,7 @@ def calc_a(edge_index, num_nodes, num_layers, pruning=False):
 
     # abar = sparse_matrix_pow2(adj_hat, num_layers, num_nodes)
 
-    th = 30
+    th = config.subgraph.pruning_th
     for i in range(num_layers):
         abar = torch.matmul(adj_hat, abar)  # Sparse-dense matrix multiplication
         if pruning:

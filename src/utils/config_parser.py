@@ -40,6 +40,7 @@ class SubgraphConfig:
         self.test_ratio = subgraph["test_ratio"]
         self.partitioning = subgraph["partitioning"]
         self.prune = subgraph["prune"]
+        self.pruning_th = subgraph["pruning_th"]
 
 
 class ModelConfig:

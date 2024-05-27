@@ -7,6 +7,7 @@ subgraph:
   test_ratio: 0.8
   partitioning: random
   prune: False
+  pruning_th: 30
 model:
   num_samples: [5, 10]
   batch: False
@@ -31,8 +32,9 @@ structure_model:
   # structure_type: degree
   # structure_type: GDV
   # structure_type: fedstar
-  # structure_type: hop2vec
-  structure_type: node2vec
+  # structure_type: mp
+  structure_type: hop2vec
+  # structure_type: node2vec
   num_structural_features: 256
   estimate: False
   num_mp_vectors: 10

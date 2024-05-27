@@ -7,6 +7,7 @@ subgraph:
   test_ratio: 0.8
   partitioning: random
   prune: False
+  pruning_th: 30
 model:
   num_samples: [5, 10]
   batch: False
