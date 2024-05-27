@@ -49,26 +49,6 @@ class FedPubClient:
             lr=config.fedpub.lr,
             weight_decay=config.fedpub.weight_decay,
         )
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_path = f"{self.save_path}/logs/{now}"
-        os.makedirs(self.log_path, exist_ok=True)
-        self.reset_log()
-
-    def reset_log(self):
-        self.log = {
-            "lr": [],
-            "train_lss": [],
-            "ep_local_val_lss": [],
-            "ep_local_val_acc": [],
-            "rnd_local_val_lss": [],
-            "rnd_local_val_acc": [],
-            "ep_local_test_lss": [],
-            "ep_local_test_acc": [],
-            "rnd_local_test_lss": [],
-            "rnd_local_test_acc": [],
-            "rnd_sparsity": [],
-            "ep_sparsity": [],
-        }
 
     def update(self, state_dict):
         self.prev_w = convert_np_to_tensor(state_dict)
@@ -142,18 +122,6 @@ class FedPubClient:
             #     f"[c: {self.client_id}], rnd:{self.curr_rnd+1}, ep:{ep}, "
             #     + f"val_local_loss: {val_local_lss.item():.4f}, val_local_acc: {val_local_acc:.4f}, lr: {self.get_lr()} ({time.time()-st:.2f}s)"
             # )
-            self.log["train_lss"].append(train_loss.item())
-            self.log["ep_local_val_acc"].append(val_acc)
-            self.log["ep_local_val_lss"].append(val_loss)
-            # self.log["ep_local_test_acc"].append(test_acc)
-            # self.log["ep_local_test_lss"].append(test_loss)
-            self.log["ep_sparsity"].append(sparsity)
-        self.log["rnd_local_val_acc"].append(val_acc)
-        self.log["rnd_local_val_lss"].append(val_loss)
-        # self.log["rnd_local_test_acc"].append(test_acc)
-        # self.log["rnd_local_test_lss"].append(test_loss)
-        self.log["rnd_sparsity"].append(sparsity)
-        self.save_log()
 
         result = {
             "Train Loss": round(train_loss.item(), 4),
@@ -230,13 +198,6 @@ class FedPubClient:
 
     def get_lr(self):
         return self.optimizer.param_groups[0]["lr"]
-
-    def save_log(self):
-        save(
-            self.log_path,
-            f"client_{self.id}.json",
-            {"log": self.log},
-        )
 
     def num_nodes(self):
         return self.graph.num_nodes
