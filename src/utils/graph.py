@@ -141,7 +141,6 @@ class Graph(Data):
         num_nodes=None,
         structure_type="degree",
         num_structural_features=100,
-        dataset_name=None,
         save=False,
     ):
         if num_nodes is None:
