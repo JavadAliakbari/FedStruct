@@ -116,7 +116,8 @@ class Server(Client):
         if log:
             bar = tqdm(total=epochs, position=0)
 
-        coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
+        num_nodes = sum([client.num_nodes() for client in self.clients])
+        coef = [client.num_nodes() / num_nodes for client in self.clients]
         average_results = []
         for epoch in range(epochs):
             self.reset_trainings()
@@ -172,7 +173,8 @@ class Server(Client):
         if log:
             bar = tqdm(total=epochs, position=0)
 
-        coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
+        num_nodes = sum([client.num_nodes() for client in self.clients])
+        coef = [client.num_nodes() / num_nodes for client in self.clients]
         average_results = []
         for epoch in range(epochs):
             if FL:
