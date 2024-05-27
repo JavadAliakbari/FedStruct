@@ -1,4 +1,4 @@
-name: FedStruct2
+name: FedStruct
 channels:
   - defaults
   - pytorch-nightly
