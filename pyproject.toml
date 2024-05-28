@@ -1,5 +1,5 @@
 [project]
-name = "mypackage"
+name = "FedStruct"
 version = "0.0.1"
 [tool.setuptools.packages.find]
 where = ["", "."]
