@@ -1,16 +1,9 @@
-import os
+from src import *
 
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch_geometric.nn.models import Node2Vec
-
-from src.utils.config_parser import Config
-
-dev = os.environ.get("device", "cpu")
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path).node2vec
 
 
 def train(model: Node2Vec, loader, optimizer: torch.optim.SparseAdam):
@@ -43,26 +36,26 @@ def test(model, graph):
 
 def find_node2vect_embedings(
     edge_index,
-    epochs=config.epochs,
+    epochs=config.node2vec.epochs,
     embedding_dim=64,
-    show_bar=config.show_bar,
+    show_bar=config.node2vec.show_bar,
     plot=False,
 ):
     model = Node2Vec(
         edge_index,
         embedding_dim=embedding_dim,
-        walk_length=config.walk_length,
-        context_size=config.context_size,
-        walks_per_node=config.walks_per_node,
-        num_negative_samples=config.num_negative_samples,
-        p=config.p,
-        q=config.q,
+        walk_length=config.node2vec.walk_length,
+        context_size=config.node2vec.context_size,
+        walks_per_node=config.node2vec.walks_per_node,
+        num_negative_samples=config.node2vec.num_negative_samples,
+        p=config.node2vec.p,
+        q=config.node2vec.q,
         sparse=True,
     )
     # model.to(device=dev)
 
-    loader = model.loader(batch_size=config.batch_size, shuffle=True)
-    optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=config.lr)
+    loader = model.loader(batch_size=config.node2vec.batch_size, shuffle=True)
+    optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=config.node2vec.lr)
 
     if show_bar:
         bar = tqdm(total=epochs)

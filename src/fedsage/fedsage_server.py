@@ -1,15 +1,9 @@
-import os
 from ast import List
 
-from src.utils.utils import *
+from src import *
 from src.utils.graph import Graph
-from src.utils.config_parser import Config
 from src.GNN.GNN_server import GNNServer
 from src.fedsage.fedsage_client import FedSAGEClient
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-now = os.environ.get("now", 0)
 
 
 class FedSAGEServer(GNNServer, FedSAGEClient):

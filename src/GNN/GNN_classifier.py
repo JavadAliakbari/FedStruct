@@ -1,22 +1,12 @@
-import os
-
-import torch
 from torch_geometric.loader import NeighborLoader
 
+from src import *
 from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
 from src.GNN.fGNN import FGNN
 from src.GNN.sGNN import SGNNMaster, SGNNSlave
-from src.utils.utils import *
 from src.utils.graph import AGraph, Graph
 from src.utils.data import Data
 from src.classifier import Classifier
-from src.utils.config_parser import Config
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 class FedClassifier(Classifier):

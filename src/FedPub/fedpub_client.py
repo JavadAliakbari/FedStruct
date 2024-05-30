@@ -1,21 +1,11 @@
-from datetime import datetime
 import logging
-import time
 
 import torch
-import torch.nn.functional as F
 
-from src.utils.utils import calc_accuracy
+from src import *
 from src.FedPub.utils import *
 from src.FedPub.nets import *
-from src.utils.config_parser import Config
 from src.utils.graph import Graph
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
 
 
 class FedPubClient:

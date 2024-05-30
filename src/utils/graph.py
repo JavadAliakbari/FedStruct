@@ -10,20 +10,13 @@ from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
 from torch_sparse import SparseTensor
 
-from src.utils.data import Data
-from src.utils.config_parser import Config
-from src.models.Node2Vec import find_node2vect_embedings
+from src import *
 from src.models.GDV import GDV
+from src.utils.data import Data
+from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.utils import create_rw, find_neighbors_, obtain_a
 
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 dataset_name = config.dataset.dataset_name
-config = config.structure_model
 
 
 class AGraph(Data):
@@ -102,7 +95,7 @@ class Graph(Data):
 
     def obtain_a(
         self,
-        num_layers=config.DGCN_layers,
+        num_layers=config.structure_model.DGCN_layers,
         estimate=False,
         pruning=False,
     ):
@@ -167,7 +160,7 @@ class Graph(Data):
                 edge_index,
                 num_nodes,
                 num_structural_features,
-                iteration=config.num_mp_vectors,
+                iteration=config.structure_model.num_mp_vectors,
             )
         elif structure_type == "hop2vec":
             structural_features = Graph.initialize_random_features(
@@ -220,8 +213,10 @@ class Graph(Data):
         return mp
 
     def calc_fedStar(edge_index, num_nodes, size=100):
-        SE_rw = create_rw(edge_index, num_nodes, config.rw_len)
-        SE_dg = Graph.calc_degree_features(edge_index, num_nodes, size - config.rw_len)
+        SE_rw = create_rw(edge_index, num_nodes, config.structure_model.rw_len)
+        SE_dg = Graph.calc_degree_features(
+            edge_index, num_nodes, size - config.structure_model.rw_len
+        )
         SE_rw_dg = torch.cat([SE_rw, SE_dg], dim=1)
 
         return SE_rw_dg
@@ -235,7 +230,7 @@ class Graph(Data):
         )
 
     def reset_parameters(self) -> None:
-        if config.structure_type == "hop2vec":
+        if config.structure_model.structure_type == "hop2vec":
             self.structural_features = Graph.initialize_random_features(
                 size=self.structural_features.shape
             )

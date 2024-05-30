@@ -1,34 +1,23 @@
 import os
+import sys
 import json
-import random
-from datetime import datetime
 
-now = datetime.now().strftime("%Y%m%d_%H%M%S")
-os.environ["now"] = now
+pythonpath = os.getcwd()
+if pythonpath not in sys.path:
+    sys.path.append(pythonpath)
 
-import torch
-import numpy as np
 
-from src.utils.utils import log_config
+from src import *
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
 from src.fedsage.fedsage_server import FedSAGEServer
 from src.FedPub.fedpub_server import FedPubServer
 from src.utils.logger import get_logger
-from src.utils.config_parser import Config
 from src.utils.define_graph import define_graph
 from src.utils.graph_partitioning import (
     create_mend_graph,
     partition_graph,
 )
-
-seed = 65
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def set_up_system(save_path="./"):
@@ -87,34 +76,34 @@ def set_up_system(save_path="./"):
 
     results = {}
 
-    _LOGGER.info("MLP")
-    res = MLP_server.train_local_model()
-    results[f"server MLP"] = round(res["Test Acc"], 4)
+    # _LOGGER.info("MLP")
+    # res = MLP_server.train_local_model()
+    # results[f"server MLP"] = round(res["Test Acc"], 4)
 
-    res = MLP_server.joint_train_g(FL=False)
-    results[f"local MLP"] = round(res["Average"]["Test Acc"], 4)
+    # res = MLP_server.joint_train_g(FL=False)
+    # results[f"local MLP"] = round(res["Average"]["Test Acc"], 4)
 
-    res = MLP_server.joint_train_g(FL=True)
-    results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
+    # res = MLP_server.joint_train_g(FL=True)
+    # results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
 
-    _LOGGER.info("GNN")
-    res = GNN_server.train_local_model(data_type="feature")
-    results[f"Server F GNN"] = round(res["Test Acc"], 4)
+    # _LOGGER.info("GNN")
+    # res = GNN_server.train_local_model(data_type="feature")
+    # results[f"Server F GNN"] = round(res["Test Acc"], 4)
 
-    res = GNN_server.train_local_model(data_type="structure")
-    results[f"Server S GNN"] = round(res["Test Acc"], 4)
+    # res = GNN_server.train_local_model(data_type="structure")
+    # results[f"Server S GNN"] = round(res["Test Acc"], 4)
 
-    res = GNN_server.train_local_model(data_type="f+s")
-    results[f"Server F+S GNN"] = round(res["Test Acc"], 4)
+    # res = GNN_server.train_local_model(data_type="f+s")
+    # results[f"Server F+S GNN"] = round(res["Test Acc"], 4)
 
-    res = GNN_server.joint_train_g(data_type="feature", FL=False)
-    results[f"Local F GNN"] = round(res["Average"]["Test Acc"], 4)
+    # res = GNN_server.joint_train_g(data_type="feature", FL=False)
+    # results[f"Local F GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    res = GNN_server.joint_train_g(data_type="structure", FL=False)
-    results[f"Local S GNN"] = round(res["Average"]["Test Acc"], 4)
+    # res = GNN_server.joint_train_g(data_type="structure", FL=False)
+    # results[f"Local S GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    res = GNN_server.joint_train_g(data_type="f+s", FL=False)
-    results[f"Local F+S GNN"] = round(res["Average"]["Test Acc"], 4)
+    # res = GNN_server.joint_train_g(data_type="f+s", FL=False)
+    # results[f"Local F+S GNN"] = round(res["Average"]["Test Acc"], 4)
 
     res = GNN_server.joint_train_g(data_type="feature", FL=True)
     results[f"FL F GNN"] = round(res["Average"]["Test Acc"], 4)

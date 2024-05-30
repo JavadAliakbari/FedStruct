@@ -1,18 +1,10 @@
-import os
-
 import torch
 import numpy as np
 import torch.nn as nn
 
+from src import *
 from src.models.model_binders import GNN, MLP
-from src.utils.config_parser import Config
 from src.utils.graph import Graph
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 class Sampling(nn.Module):

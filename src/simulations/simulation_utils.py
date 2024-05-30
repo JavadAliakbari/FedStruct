@@ -1,36 +1,17 @@
-import os
-import random
-
-import torch
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from src.FedPub.fedpub_server import FedPubServer
-from src.utils.utils import *
+from src import *
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
+from src.FedPub.fedpub_server import FedPubServer
 from src.fedsage.fedsage_server import FedSAGEServer
 from src.utils.graph import Graph
-from src.utils.config_parser import Config
 from src.utils.graph_partitioning import (
     create_mend_graph,
     partition_graph,
 )
-
-# Change plot canvas size
-plt.rcParams["figure.figsize"] = [24, 16]
-plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
-plt.rcParams.update({"figure.max_open_warning": 0})
-
-seed = 4
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def create_clients(

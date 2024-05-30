@@ -1,39 +1,21 @@
 import os
-import random
+import sys
 import json
-from datetime import datetime
 
-now = datetime.now().strftime("%Y%m%d_%H%M%S")
-os.environ["now"] = now
+pythonpath = os.getcwd()
+if pythonpath not in sys.path:
+    sys.path.append(pythonpath)
 
-import torch
-import numpy as np
-from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from src.FedPub.fedpub_server import FedPubServer
-from src.utils.utils import *
+from src import *
+from src.simulations.simulation_utils import *
 from src.utils.define_graph import define_graph
+from src.utils.logger import get_logger
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
+from src.FedPub.fedpub_server import FedPubServer
 from src.fedsage.fedsage_server import FedSAGEServer
-from src.utils.logger import get_logger
-from src.utils.config_parser import Config
-from src.simulations.simulation_utils import *
-
-# Change plot canvas size
-plt.rcParams["figure.figsize"] = [24, 16]
-plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
-plt.rcParams.update({"figure.max_open_warning": 0})
-
-seed = 119
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-
 
 if __name__ == "__main__":
     graph = define_graph(config.dataset.dataset_name)

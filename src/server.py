@@ -1,14 +1,8 @@
-import os
 from tqdm import tqdm
 
-from src.utils.utils import *
+from src import *
 from src.client import Client
 from src.utils.graph import Graph
-from src.utils.config_parser import Config
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-now = os.environ.get("now", 0)
 
 
 class Server(Client):

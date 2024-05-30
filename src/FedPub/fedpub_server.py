@@ -1,27 +1,14 @@
 import logging
-import time
 
 import numpy as np
 import networkx as nx
-from scipy.spatial.distance import cosine
 from tqdm import tqdm
 
+from src import *
 from src.FedPub.utils import *
 from src.FedPub.nets import *
 from src.FedPub.fedpub_client import FedPubClient
-from src.utils.config_parser import Config
 from src.utils.graph import Graph
-from src.utils.utils import (
-    plot_metrics,
-    sum_lod,
-)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-now = os.environ.get("now", 0)
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
 
 
 class FedPubServer:

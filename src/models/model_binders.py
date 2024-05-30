@@ -1,14 +1,8 @@
-import os
-
 import torch.nn as nn
 
-from src.GNN.GNN_models import GNN, DGCN
+from src import *
 from src.MLP.MLP_model import MLP
-from src.utils.utils import *
-from src.utils.config_parser import Config
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
+from src.GNN.GNN_models import GNN, DGCN
 
 
 class ModelSpecs:

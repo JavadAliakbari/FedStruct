@@ -1,15 +1,12 @@
 from datetime import datetime
 
+from src import *
 from src.FedPub.utils import *
 from src.FedPub.fedpub_server import FedPubServer
-from src.utils.config_parser import Config
 from src.utils.define_graph import define_graph
 from src.utils.graph_partitioning import partition_graph
 from src.utils.logger import get_logger
 from src.utils.utils import log_config
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def main(save_path="./"):

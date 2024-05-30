@@ -14,11 +14,8 @@ from torch_geometric.typing import Adj, OptTensor, PairTensor
 from torch_geometric.utils import add_remaining_self_loops
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 
+from src import *
 from src.FedPub.utils import *
-from src.utils.config_parser import Config
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 @torch.jit._overload

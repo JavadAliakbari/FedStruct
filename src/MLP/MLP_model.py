@@ -1,14 +1,8 @@
-import os
-
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 
-from src.utils.utils import calc_accuracy, calc_f1_score
-from src.utils.config_parser import Config
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
+from src import *
 
 
 class MLP(nn.Module):

@@ -1,14 +1,4 @@
-import os
-
 import torch
-
-from src.utils.config_parser import Config
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def greedy_loss(pred_feats, true_feats):

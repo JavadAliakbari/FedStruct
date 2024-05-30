@@ -10,15 +10,9 @@ from torch_geometric.datasets import (
 )
 from torch_geometric.utils import to_undirected, remove_self_loops
 
+from src import *
 from src.utils.graph import Graph
-from src.utils.config_parser import Config
 from src.utils.create_graph import create_homophilic_graph2, create_heterophilic_graph2
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def define_graph(dataset_name=config.dataset.dataset_name):

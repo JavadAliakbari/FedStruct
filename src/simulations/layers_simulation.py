@@ -1,18 +1,13 @@
 import os
-import random
 import json
 
-import torch
-import numpy as np
-from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from src.utils.utils import *
+from src import *
+from src.utils.graph import Graph
 from src.utils.define_graph import define_graph
 from src.GNN.GNN_server import GNNServer
-from src.utils.graph import Graph
 from src.utils.logger import get_logger
-from src.utils.config_parser import Config
 from src.utils.graph_partitioning import (
     partition_graph,
 )
@@ -20,19 +15,6 @@ from src.simulations.simulation_utils import (
     calc_average_std_result,
     save_average_result,
 )
-
-# Change plot canvas size
-plt.rcParams["figure.figsize"] = [24, 16]
-plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
-plt.rcParams.update({"figure.max_open_warning": 0})
-
-seed = 4
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def run(

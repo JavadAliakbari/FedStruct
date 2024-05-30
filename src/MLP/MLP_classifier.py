@@ -1,21 +1,11 @@
-import os
-
 import torch
 from torch.utils.data import DataLoader
 
-from src.models.model_binders import ModelBinder, ModelSpecs
+from src import *
 from src.utils.data import Data
 from src.classifier import Classifier
-from src.utils.config_parser import Config
+from src.models.model_binders import ModelBinder, ModelSpecs
 from src.utils.utils import calc_metrics, calc_accuracy, calc_f1_score
-from src.MLP.MLP_model import MLP
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-cpu_device = torch.device("cpu")
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 class MLPClassifier(Classifier):

@@ -1,15 +1,9 @@
-import os
-
 import torch
 
+from src import *
 from src.models.model_binders import ModelBinder
-from src.utils.config_parser import Config
 from src.utils.graph import Graph
 from src.utils.data import Data
-from src.utils.utils import calc_metrics
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 class Classifier:

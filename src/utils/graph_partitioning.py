@@ -1,4 +1,3 @@
-import os
 from itertools import cycle
 from collections import defaultdict
 
@@ -8,14 +7,8 @@ import networkx as nx
 from sklearn.cluster import k_means
 from torch_geometric.utils import subgraph
 
-from src.utils.config_parser import Config
+from src import *
 from src.utils.graph import Graph
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def find_community(edge_index):

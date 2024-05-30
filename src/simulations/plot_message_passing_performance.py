@@ -15,19 +15,12 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, remove_self_loops, to_undirected
 from sklearn.preprocessing import StandardScaler
 
+# from src.utils.utils import *
 from src.models.model_binders import MLP
 from src.models.Node2Vec import find_node2vect_embedings
-from src.server import Server
-from src.utils.config_parser import Config
 from src.utils.create_graph import create_heterophilic_graph2, create_homophilic_graph2
 from src.utils.graph import Graph
 from src.utils.logger import get_logger
-
-config = Config()
-
-random.seed(5)
-np.random.seed(5)
-torch.manual_seed(5)
 
 
 def plot(x, round=0):

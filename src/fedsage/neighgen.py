@@ -1,5 +1,4 @@
 from operator import itemgetter
-import os
 import logging
 from itertools import compress
 
@@ -10,18 +9,11 @@ from torch import optim
 import torch.nn.functional as F
 from torch_geometric.utils import subgraph
 
-from src.utils.utils import *
-from src.utils.config_parser import Config
+from src import *
 from src.utils.graph import Graph
 from src.fedsage.fedsage_models import MendGraph
 from src.fedsage.fedsage_models import LocalSage_Plus
 from src.fedsage.feature_loss import greedy_loss
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 class NeighGen:

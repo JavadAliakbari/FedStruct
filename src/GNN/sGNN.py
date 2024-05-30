@@ -1,21 +1,13 @@
-import os
-
 import torch
 from torch_geometric.loader import NeighborLoader
 
+from src import *
 from src.utils.graph import Graph
 from src.classifier import Classifier
-from src.utils.config_parser import Config
 from src.models.model_binders import (
     ModelBinder,
     ModelSpecs,
 )
-
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 class SGNNSlave(Classifier):

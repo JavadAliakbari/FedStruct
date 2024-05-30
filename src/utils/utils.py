@@ -1,20 +1,24 @@
-from ast import List
-import itertools
 import os
-import numpy as np
+import random
+import itertools
+from ast import List
+from datetime import datetime
 
 import torch
+import numpy as np
 import pandas as pd
 import networkx as nx
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
-
-from torch_geometric.utils import add_self_loops
-from torch_geometric.utils import degree
-from tqdm import tqdm
+from torch_geometric.utils import degree, add_self_loops
+from dotenv import load_dotenv
 
 from src.utils.config_parser import Config
 
+load_dotenv()
+path = os.environ.get("CONFIGPATH")
+config = Config(path)
 
 plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
@@ -27,10 +31,20 @@ elif torch.backends.mps.is_available():
     dev = "mps"
 else:
     dev = "cpu"
-os.environ["device"] = dev
+device = torch.device(dev)
 
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
+if dev == "mps":
+    local_dev = "cpu"
+else:
+    local_dev = dev
+
+
+seed = 65
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+
+now = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 @torch.no_grad()

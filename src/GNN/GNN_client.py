@@ -1,15 +1,12 @@
-import os
-
 from torch_sparse import SparseTensor
 
-from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
-from src.GNN.fGNN import FGNN
-from src.GNN.sGNN import SGNNMaster, SGNNSlave
-from src.classifier import Classifier
-from src.utils.utils import *
-from src.utils.config_parser import Config
+from src import *
 from src.client import Client
+from src.classifier import Classifier
 from src.utils.graph import AGraph, Graph
+from src.GNN.fGNN import FGNN
+from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
+from src.GNN.sGNN import SGNNMaster, SGNNSlave
 from src.GNN.GNN_classifier import (
     FedDGCN,
     FedDGCNMaster,
@@ -17,15 +14,6 @@ from src.GNN.GNN_classifier import (
     FedGNNMaster,
     FedGNNSlave,
 )
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-
-dev = os.environ.get("device", "cpu")
-if dev == "mps":
-    local_dev = "cpu"
-else:
-    local_dev = dev
 
 
 class GNNClient(Client):

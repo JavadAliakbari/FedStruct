@@ -1,10 +1,7 @@
-import os
-
 import torch
 from sklearn import model_selection
 
-dev = os.environ.get("device", "cpu")
-device = torch.device(dev)
+from src import *
 
 
 class Data:

@@ -1,15 +1,8 @@
-import os
-
-from src.GNN.GNN_client import GNNClient
-from src.GNN.fGNN import FGNN
-from src.utils.utils import *
-from src.utils.config_parser import Config
+from src import *
 from src.utils.graph import Graph
+from src.GNN.fGNN import FGNN
+from src.GNN.GNN_client import GNNClient
 from src.fedsage.neighgen import NeighGen
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-now = os.environ.get("now", 0)
 
 
 class FedSAGEClient(GNNClient):

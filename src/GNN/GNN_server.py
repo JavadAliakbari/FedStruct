@@ -1,19 +1,10 @@
-from operator import itemgetter
-import os
 from ast import List
 
-import torch
 from src.GNN.GNN_client import GNNClient
 
-from src.utils.utils import *
+from src import *
 from src.utils.graph import Graph
-from src.utils.config_parser import Config
 from src.server import Server
-
-dev = os.environ.get("device", "cpu")
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 class GNNServer(Server, GNNClient):

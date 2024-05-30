@@ -1,23 +1,13 @@
 import os
-import random
 import json
 from copy import deepcopy
-from datetime import datetime
 
-
-now = datetime.now().strftime("%Y%m%d_%H%M%S")
-os.environ["now"] = now
-
-import torch
-import numpy as np
-from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from src.utils.utils import *
+from src import *
 from src.utils.define_graph import define_graph
 from src.GNN.GNN_server import GNNServer
 from src.utils.logger import get_logger
-from src.utils.config_parser import Config
 from src.utils.graph_partitioning import (
     partition_graph,
 )
@@ -26,21 +16,6 @@ from src.simulations.simulation_utils import (
     save_average_result,
 )
 from src.utils.graph import Graph
-
-# from src.simulations.simulation_utils import *
-
-# Change plot canvas size
-plt.rcParams["figure.figsize"] = [24, 16]
-plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
-plt.rcParams.update({"figure.max_open_warning": 0})
-
-seed = 119
-random.seed(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
 
 
 def create_clients(

@@ -1,16 +1,10 @@
-import os
 import logging
 
 from tqdm import tqdm
-from src.classifier import Classifier
 
-from src.utils.utils import *
-from src.utils.config_parser import Config
+from src import *
 from src.utils.graph import Graph
-
-path = os.environ.get("CONFIG_PATH")
-config = Config(path)
-now = os.environ.get("now", 0)
+from src.classifier import Classifier
 
 
 class Client:
