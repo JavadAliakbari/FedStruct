@@ -69,34 +69,34 @@ def set_up_system():
 
     results = {}
 
-    # LOGGER.info("MLP")
-    # res = MLP_server.train_local_model()
-    # results[f"server MLP"] = round(res["Test Acc"], 4)
+    LOGGER.info("MLP")
+    res = MLP_server.train_local_model()
+    results[f"server MLP"] = round(res["Test Acc"], 4)
 
-    # res = MLP_server.joint_train_g(FL=False)
-    # results[f"local MLP"] = round(res["Average"]["Test Acc"], 4)
+    res = MLP_server.joint_train_g(FL=False)
+    results[f"local MLP"] = round(res["Average"]["Test Acc"], 4)
 
-    # res = MLP_server.joint_train_g(FL=True)
-    # results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
+    res = MLP_server.joint_train_g(FL=True)
+    results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
 
-    # LOGGER.info("GNN")
-    # res = GNN_server.train_local_model(data_type="feature")
-    # results[f"Server F GNN"] = round(res["Test Acc"], 4)
+    LOGGER.info("GNN")
+    res = GNN_server.train_local_model(data_type="feature")
+    results[f"Server F GNN"] = round(res["Test Acc"], 4)
 
-    # res = GNN_server.train_local_model(data_type="structure")
-    # results[f"Server S GNN"] = round(res["Test Acc"], 4)
+    res = GNN_server.train_local_model(data_type="structure")
+    results[f"Server S GNN"] = round(res["Test Acc"], 4)
 
-    # res = GNN_server.train_local_model(data_type="f+s")
-    # results[f"Server F+S GNN"] = round(res["Test Acc"], 4)
+    res = GNN_server.train_local_model(data_type="f+s")
+    results[f"Server F+S GNN"] = round(res["Test Acc"], 4)
 
-    # res = GNN_server.joint_train_g(data_type="feature", FL=False)
-    # results[f"Local F GNN"] = round(res["Average"]["Test Acc"], 4)
+    res = GNN_server.joint_train_g(data_type="feature", FL=False)
+    results[f"Local F GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    # res = GNN_server.joint_train_g(data_type="structure", FL=False)
-    # results[f"Local S GNN"] = round(res["Average"]["Test Acc"], 4)
+    res = GNN_server.joint_train_g(data_type="structure", FL=False)
+    results[f"Local S GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    # res = GNN_server.joint_train_g(data_type="f+s", FL=False)
-    # results[f"Local F+S GNN"] = round(res["Average"]["Test Acc"], 4)
+    res = GNN_server.joint_train_g(data_type="f+s", FL=False)
+    results[f"Local F+S GNN"] = round(res["Average"]["Test Acc"], 4)
 
     res = GNN_server.joint_train_g(data_type="feature", FL=True)
     results[f"FL F GNN"] = round(res["Average"]["Test Acc"], 4)

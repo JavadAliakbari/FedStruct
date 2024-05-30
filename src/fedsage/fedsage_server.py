@@ -91,9 +91,8 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         log=True,
         plot=True,
     ):
-        LOGGER.info(f"Neighgen starts!")
-
         if log:
+            LOGGER.info(f"Neighgen starts!")
             bar = tqdm(total=epochs, position=0)
 
         coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
