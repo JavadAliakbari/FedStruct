@@ -7,7 +7,7 @@ from src import *
 from src.utils.graph import Graph
 from src.utils.define_graph import define_graph
 from src.GNN.GNN_server import GNNServer
-from src.utils.logger import get_logger
+from src.utils.logger import getLOGGER
 from src.utils.graph_partitioning import (
     partition_graph,
 )
@@ -88,18 +88,18 @@ if __name__ == "__main__":
                     )
                     os.makedirs(save_path, exist_ok=True)
 
-                    _LOGGER = get_logger(
+                    LOGGER = getLOGGER(
                         name=f"average_{config.dataset.dataset_name}_{train_ratio}",
                         log_on_file=True,
                         save_path=save_path,
                     )
-                    _LOGGER2 = get_logger(
+                    LOGGER2 = getLOGGER(
                         name=f"all_{config.dataset.dataset_name}_{train_ratio}",
                         terminal=False,
                         log_on_file=True,
                         save_path=save_path,
                     )
-                    log_config(_LOGGER, config)
+                    LOGGER.info(json.dumps(config.config, indent=4))
 
                     bar = tqdm(total=rep)
                     results = []
@@ -114,8 +114,8 @@ if __name__ == "__main__":
                             num_subgraphs=num_subgraphs,
                             partitioning=partitioning,
                         )
-                        _LOGGER2.info(f"Run id: {i}")
-                        _LOGGER2.info(json.dumps(result, indent=4))
+                        LOGGER2.info(f"Run id: {i}")
+                        LOGGER2.info(json.dumps(result, indent=4))
 
                         results.append(result)
 
@@ -134,12 +134,12 @@ if __name__ == "__main__":
                         save_average_result(average_result_s, file_name_s)
 
                         bar.update()
-                    _LOGGER.info("Test")
-                    _LOGGER.info(json.dumps(average_result, indent=4))
-                    _LOGGER.info("Test F")
-                    _LOGGER.info(json.dumps(average_result_f, indent=4))
-                    _LOGGER.info("Test S")
-                    _LOGGER.info(json.dumps(average_result_s, indent=4))
+                    LOGGER.info("Test")
+                    LOGGER.info(json.dumps(average_result, indent=4))
+                    LOGGER.info("Test F")
+                    LOGGER.info(json.dumps(average_result_f, indent=4))
+                    LOGGER.info("Test S")
+                    LOGGER.info(json.dumps(average_result_s, indent=4))
 
-                    _LOGGER.handlers.clear()
-                    _LOGGER2.handlers.clear()
+                    LOGGER.handlers.clear()
+                    LOGGER2.handlers.clear()

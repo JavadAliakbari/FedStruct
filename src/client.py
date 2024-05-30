@@ -1,5 +1,3 @@
-import logging
-
 from tqdm import tqdm
 
 from src import *
@@ -13,18 +11,13 @@ class Client:
         graph: Graph,
         id: int = 0,
         classifier_type="GNN",
-        save_path="./",
-        logger=None,
     ):
         self.id = id
         self.graph = graph
         self.classifier_type = classifier_type
-        self.save_path = save_path
 
-        self.LOGGER = logger or logging
-
-        # self.LOGGER.info(f"Client{self.id} statistics:")
-        # self.LOGGER.info(f"Number of nodes: {self.graph.num_nodes}")
+        # LOGGER.info(f"Client{self.id} statistics:")
+        # LOGGER.info(f"Number of nodes: {self.graph.num_nodes}")
 
         self.classifier: Classifier = None
 
@@ -89,8 +82,8 @@ class Client:
         return result
 
     def report_result(self, result, framework=""):
-        self.LOGGER.info(f"{framework} results for client{self.id}:")
-        self.LOGGER.info(f"{result}")
+        LOGGER.info(f"{framework} results for client{self.id}:")
+        LOGGER.info(f"{result}")
 
     def train_local_model(
         self,
@@ -99,7 +92,8 @@ class Client:
         plot=True,
         model_type="GNN",
     ):
-        self.LOGGER.info("local training starts!")
+        if log:
+            LOGGER.info("local training starts!")
 
         if log:
             bar = tqdm(total=epochs, position=0)
@@ -124,12 +118,13 @@ class Client:
 
         if plot:
             title = f"{model_type}"
-            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(results, title=title, save_path=plot_path)
 
         test_results = self.get_test_results()
-        for key, val in test_results.items():
-            self.LOGGER.info(f"Client {self.id} {key}: {val:0.4f}")
+        if log:
+            for key, val in test_results.items():
+                LOGGER.info(f"Client {self.id} {key}: {val:0.4f}")
 
         return test_results
 

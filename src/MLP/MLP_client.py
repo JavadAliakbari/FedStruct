@@ -5,20 +5,8 @@ from src.MLP.MLP_classifier import MLPClassifier
 
 
 class MLPClient(Client):
-    def __init__(
-        self,
-        graph: Data,
-        id: int = 0,
-        save_path="./",
-        logger=None,
-    ):
-        super().__init__(
-            graph=graph,
-            id=id,
-            classifier_type="MLP",
-            save_path=save_path,
-            logger=logger,
-        )
+    def __init__(self, graph: Data, id: int = 0):
+        super().__init__(graph=graph, id=id, classifier_type="MLP")
 
     def initialize(self):
         self.classifier = MLPClassifier(self.graph)

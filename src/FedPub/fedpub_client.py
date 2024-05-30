@@ -9,18 +9,9 @@ from src.utils.graph import Graph
 
 
 class FedPubClient:
-    def __init__(
-        self,
-        graph: Graph,
-        id,
-        proxy,
-        save_path="./",
-        logger=None,
-    ):
+    def __init__(self, graph: Graph, id, proxy):
         self.graph = graph
         self.id = id
-        self.save_path = save_path
-        self.LOGGER = logger or logging
         # self.loader = PubDataLoader(self.graph)
         self.model = MaskedGCN(
             graph.num_features,
@@ -52,8 +43,8 @@ class FedPubClient:
         return data, results
 
     def report_result(self, result, framework=""):
-        self.LOGGER.info(f"{framework} results for client{self.id}:")
-        self.LOGGER.info(f"{result}")
+        LOGGER.info(f"{framework} results for client{self.id}:")
+        LOGGER.info(f"{result}")
 
     def get_sparsity(self):
         n_active, n_total = 0, 1
@@ -108,7 +99,7 @@ class FedPubClient:
             sparsity = self.get_sparsity()
             val_acc, val_loss = self.validate(mode="valid")
             # test_acc, test_loss = self.validate(mode="test")
-            # self.LOGGER.info(
+            # LOGGER.info(
             #     f"[c: {self.client_id}], rnd:{self.curr_rnd+1}, ep:{ep}, "
             #     + f"val_local_loss: {val_local_lss.item():.4f}, val_local_acc: {val_local_acc:.4f}, lr: {self.get_lr()} ({time.time()-st:.2f}s)"
             # )

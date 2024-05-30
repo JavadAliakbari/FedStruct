@@ -8,17 +8,8 @@ from src.server import Server
 
 
 class GNNServer(Server, GNNClient):
-    def __init__(
-        self,
-        graph: Graph,
-        save_path="./",
-        logger=None,
-    ):
-        super().__init__(
-            graph=graph,
-            save_path=save_path,
-            logger=logger,
-        )
+    def __init__(self, graph: Graph):
+        super().__init__(graph=graph)
 
         self.clients: List[GNNClient] = []
 
@@ -26,8 +17,6 @@ class GNNServer(Server, GNNClient):
         client = GNNClient(
             graph=subgraph,
             id=self.num_clients,
-            save_path=self.save_path,
-            logger=self.LOGGER,
         )
 
         self.clients.append(client)

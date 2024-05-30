@@ -50,7 +50,7 @@ def define_graph(dataset_name=config.dataset.dataset_name):
             graph = create_homophilic_graph2(num_patterns, use_random_features=True)
 
     except:
-        # _LOGGER.info("dataset name does not exist!")
+        # LOGGER.info("dataset name does not exist!")
         return None, 0
 
     if dataset is not None:

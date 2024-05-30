@@ -6,22 +6,12 @@ from src.utils.graph import Graph
 
 
 class Server(Client):
-    def __init__(
-        self,
-        graph: Graph,
-        save_path="./",
-        logger=None,
-    ):
-        super().__init__(
-            graph=graph,
-            id="Server",
-            save_path=save_path,
-            logger=logger,
-        )
+    def __init__(self, graph: Graph):
+        super().__init__(graph=graph, id="Server")
         self.clients = None
         self.num_clients = 0
 
-        # self.LOGGER.info(f"Number of features: {self.graph.num_features}")
+        # LOGGER.info(f"Number of features: {self.graph.num_features}")
 
     def remove_clients(self):
         self.clients.clear()
@@ -75,11 +65,11 @@ class Server(Client):
     def report_test_results(self, test_results):
         for client_id, result in test_results.items():
             for key, val in result.items():
-                self.LOGGER.info(f"{client_id} {key}: {val:0.4f}")
+                LOGGER.info(f"{client_id} {key}: {val:0.4f}")
 
     def report_server_test(self):
         res = self.test_classifier()
-        self.LOGGER.info(f"Server test: {res[0]:0.4f}")
+        LOGGER.info(f"Server test: {res[0]:0.4f}")
 
     def update_models(self):
         client: Client
@@ -102,7 +92,8 @@ class Server(Client):
         plot=True,
         model_type="GNN",
     ):
-        self.LOGGER.info(f"{model_type} starts!")
+        if log:
+            LOGGER.info(f"{model_type} starts!")
 
         if FL:
             self.share_weights()
@@ -138,7 +129,7 @@ class Server(Client):
 
         if plot:
             title = f"{model_type}"
-            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
 
         if log:
@@ -162,9 +153,8 @@ class Server(Client):
         FL=True,
         model_type="GNN",
     ):
-        self.LOGGER.info(f"{model_type} starts!")
-
         if log:
+            LOGGER.info(f"{model_type} starts!")
             bar = tqdm(total=epochs, position=0)
 
         num_nodes = sum([client.num_nodes() for client in self.clients])
@@ -202,7 +192,7 @@ class Server(Client):
 
         if plot:
             title = f"{model_type}"
-            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
 
         if log:

@@ -21,13 +21,9 @@ class NeighGen:
         self,
         id,
         x,
-        save_path="./",
-        logger=None,
     ):
         self.num_pred = config.fedsage.num_pred
         self.id = id
-        self.save_path = save_path
-        self.LOGGER = logger or logging
 
         self.x = x
 

@@ -6,29 +6,13 @@ from src.fedsage.neighgen import NeighGen
 
 
 class FedSAGEClient(GNNClient):
-    def __init__(
-        self,
-        graph: Graph,
-        id: int = 0,
-        save_path="./",
-        logger=None,
-    ):
-        super().__init__(
-            graph=graph,
-            id=id,
-            save_path=save_path,
-            logger=logger,
-        )
+    def __init__(self, graph: Graph, id: int = 0):
+        super().__init__(graph=graph, id=id)
 
         self.edges = self.graph.edge_index.to("cpu")
         self.x = self.graph.x.to("cpu")
 
-        self.neighgen = NeighGen(
-            id=self.id,
-            save_path=self.save_path,
-            logger=self.LOGGER,
-            x=self.x,
-        )
+        self.neighgen = NeighGen(id=self.id, x=self.x)
 
     def initialize(self, **kwargs) -> None:
         mend_graph = self.neighgen.get_mend_graph()
@@ -149,9 +133,8 @@ class FedSAGEClient(GNNClient):
         log=True,
         plot=True,
     ):
-        self.LOGGER.info("Neighgen training starts!")
-
         if log:
+            LOGGER.info("Neighgen training starts!")
             bar = tqdm(total=epochs, position=0)
 
         results = []
@@ -174,11 +157,12 @@ class FedSAGEClient(GNNClient):
 
         if plot:
             title = f"client {self.id} Local Training Neighgen"
-            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(results, title=title, save_path=plot_path)
 
         test_results = self.get_neighgen_test_results()
-        for key, val in test_results.items():
-            self.LOGGER.info(f"Client {self.id} {key}: {val:0.4f}")
+        if log:
+            for key, val in test_results.items():
+                LOGGER.info(f"Client {self.id} {key}: {val:0.4f}")
 
         return test_results

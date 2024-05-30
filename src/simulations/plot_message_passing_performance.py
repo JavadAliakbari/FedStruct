@@ -20,7 +20,7 @@ from src.models.model_binders import MLP
 from src.models.Node2Vec import find_node2vect_embedings
 from src.utils.create_graph import create_heterophilic_graph2, create_homophilic_graph2
 from src.utils.graph import Graph
-from src.utils.logger import get_logger
+from src.utils.logger import getLOGGER
 
 
 def plot(x, round=0):
@@ -49,19 +49,19 @@ def plot(x, round=0):
 
 
 def log_config():
-    _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
-    _LOGGER.info(f"learning rate: {config.model.lr}")
-    _LOGGER.info(f"weight decay: {config.model.weight_decay}")
-    _LOGGER.info(f"dropout: {config.model.dropout}")
-    _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
-    _LOGGER.info(
+    LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
+    LOGGER.info(f"learning rate: {config.model.lr}")
+    LOGGER.info(f"weight decay: {config.model.weight_decay}")
+    LOGGER.info(f"dropout: {config.model.dropout}")
+    LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
+    LOGGER.info(
         f"num structural features: {config.structure_model.num_structural_features}"
     )
 
 
 if __name__ == "__main__":
     save_path = f"./results/{config.dataset.dataset_name}/message passing/"
-    _LOGGER = get_logger(
+    LOGGER = getLOGGER(
         name=f"SD_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
         log_on_file=True,
         save_path=save_path,
@@ -104,7 +104,7 @@ if __name__ == "__main__":
             graph = create_homophilic_graph2(num_patterns, use_random_features=False)
 
     except:
-        _LOGGER.info("dataset name does not exist!")
+        LOGGER.info("dataset name does not exist!")
 
     if dataset is not None:
         node_ids = torch.arange(dataset[0].num_nodes)
@@ -183,7 +183,7 @@ if __name__ == "__main__":
             )
             test_acc = cls.test(x_test, y_test)
 
-            _LOGGER.info(f"epoch: {i} test accuracy: {test_acc}")
+            LOGGER.info(f"epoch: {i} test accuracy: {test_acc}")
             test_acc_list[sd].append(test_acc)
             x = message_passing.propagate(edge_index, x=x)
             plt.show()

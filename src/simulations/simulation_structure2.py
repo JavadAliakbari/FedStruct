@@ -1,13 +1,18 @@
 import os
+import sys
 import json
 from copy import deepcopy
+
+pythonpath = os.getcwd()
+if pythonpath not in sys.path:
+    sys.path.append(pythonpath)
 
 from tqdm import tqdm
 
 from src import *
 from src.utils.define_graph import define_graph
 from src.GNN.GNN_server import GNNServer
-from src.utils.logger import get_logger
+from src.utils.logger import getLOGGER
 from src.utils.graph_partitioning import (
     partition_graph,
 )
@@ -132,18 +137,18 @@ if __name__ == "__main__":
 
                 os.makedirs(save_path, exist_ok=True)
 
-                _LOGGER = get_logger(
+                LOGGER = getLOGGER(
                     name=f"average_{now}_{config.dataset.dataset_name}",
                     log_on_file=True,
                     save_path=save_path,
                 )
-                _LOGGER2 = get_logger(
+                LOGGER2 = getLOGGER(
                     name=f"all_{now}_{config.dataset.dataset_name}",
                     terminal=False,
                     log_on_file=True,
                     save_path=save_path,
                 )
-                log_config(_LOGGER, config)
+                LOGGER.info(json.dumps(config.config, indent=4))
 
                 bar = tqdm(total=rep)
                 results = []
@@ -169,8 +174,8 @@ if __name__ == "__main__":
 
                     model_results.update(GNN_result_true)
 
-                    _LOGGER2.info(f"Run id: {i}")
-                    _LOGGER2.info(json.dumps(model_results, indent=4))
+                    LOGGER2.info(f"Run id: {i}")
+                    LOGGER2.info(json.dumps(model_results, indent=4))
 
                     results.append(model_results)
 
@@ -180,7 +185,7 @@ if __name__ == "__main__":
 
                     bar.update()
 
-                _LOGGER.info(json.dumps(average_result, indent=4))
+                LOGGER.info(json.dumps(average_result, indent=4))
 
-                _LOGGER.handlers.clear()
-                _LOGGER2.handlers.clear()
+                LOGGER.handlers.clear()
+                LOGGER2.handlers.clear()

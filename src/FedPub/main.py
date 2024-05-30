@@ -5,19 +5,17 @@ from src.FedPub.utils import *
 from src.FedPub.fedpub_server import FedPubServer
 from src.utils.define_graph import define_graph
 from src.utils.graph_partitioning import partition_graph
-from src.utils.logger import get_logger
-from src.utils.utils import log_config
 
 
 def main(save_path="./"):
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
-    _LOGGER = get_logger(
+    LOGGER = getLOGGER(
         name=f"{now}_{config.dataset.dataset_name}",
         log_on_file=True,
         save_path=save_path,
     )
 
-    log_config(_LOGGER, config)
+    LOGGER.info(json.dumps(config.config, indent=4))
     graph = define_graph(config.dataset.dataset_name)
     graph.add_masks(
         train_size=config.subgraph.train_ratio,
@@ -27,7 +25,7 @@ def main(save_path="./"):
     subgraphs = partition_graph(
         graph, config.subgraph.num_subgraphs, config.subgraph.partitioning
     )
-    server = FedPubServer(graph, save_path=save_path, logger=_LOGGER)
+    server = FedPubServer(graph)
     for subgraph in subgraphs:
         server.add_client(subgraph)
     server.start()

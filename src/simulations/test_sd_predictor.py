@@ -15,7 +15,7 @@ from src.models.model_binders import MLP
 from src.server import Server
 from src.utils.create_graph import create_heterophilic_graph2, create_homophilic_graph2
 from src.utils.graph import Graph
-from src.utils.logger import get_logger
+from src.utils.logger import getLOGGER
 
 
 def plot(x, round=0):
@@ -44,39 +44,39 @@ def plot(x, round=0):
 
 
 def log_config():
-    _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
-    _LOGGER.info(f"batch: {config.model.batch}")
-    _LOGGER.info(f"batch size: {config.model.batch_size}")
-    _LOGGER.info(f"learning rate: {config.model.lr}")
-    _LOGGER.info(f"weight decay: {config.model.weight_decay}")
-    _LOGGER.info(f"dropout: {config.model.dropout}")
-    _LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
-    _LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
-    _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
-    _LOGGER.info(f"sd ratio: {config.structure_model.sd_ratio}")
+    LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
+    LOGGER.info(f"batch: {config.model.batch}")
+    LOGGER.info(f"batch size: {config.model.batch_size}")
+    LOGGER.info(f"learning rate: {config.model.lr}")
+    LOGGER.info(f"weight decay: {config.model.weight_decay}")
+    LOGGER.info(f"dropout: {config.model.dropout}")
+    LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
+    LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
+    LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
+    LOGGER.info(f"sd ratio: {config.structure_model.sd_ratio}")
     if config.model.propagate_type == "GNN":
-        _LOGGER.info(
+        LOGGER.info(
             f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
         )
     else:
-        _LOGGER.info(
+        LOGGER.info(
             f"structure layers size: {config.structure_model.DGCN_structure_layers_sizes}"
         )
-    _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
-    _LOGGER.info(
+    LOGGER.info(f"structure type: {config.structure_model.structure_type}")
+    LOGGER.info(
         f"num structural features: {config.structure_model.num_structural_features}"
     )
-    _LOGGER.info(f"loss: {config.structure_model.loss}")
-    _LOGGER.info(
+    LOGGER.info(f"loss: {config.structure_model.loss}")
+    LOGGER.info(
         f"cosine similarity predictor epochs: {config.structure_model.cosine_similarity_predictor_epochs}"
     )
-    _LOGGER.info(f"gnn epochs: {config.structure_model.gnn_epochs}")
-    _LOGGER.info(f"mlp epochs: {config.structure_model.mlp_epochs}")
+    LOGGER.info(f"gnn epochs: {config.structure_model.gnn_epochs}")
+    LOGGER.info(f"mlp epochs: {config.structure_model.mlp_epochs}")
 
 
 if __name__ == "__main__":
     save_path = f"./results/{config.dataset.dataset_name}/{config.structure_model.structure_type}/structure/"
-    _LOGGER = get_logger(
+    LOGGER = getLOGGER(
         name=f"SD_{config.dataset.dataset_name}_{config.structure_model.structure_type}",
         log_on_file=True,
         save_path=save_path,
@@ -119,7 +119,7 @@ if __name__ == "__main__":
             graph = create_homophilic_graph2(num_patterns, use_random_features=False)
 
     except:
-        _LOGGER.info("dataset name does not exist!")
+        LOGGER.info("dataset name does not exist!")
 
     if dataset is not None:
         node_ids = torch.arange(dataset[0].num_nodes)
@@ -143,12 +143,8 @@ if __name__ == "__main__":
 
     y = graph.y.long()
     num_classes = max(y).item() + 1
-    MLP_server = Server(
-        graph, num_classes, classifier_type="MLP", save_path=save_path, logger=_LOGGER
-    )
-    GNN_server = Server(
-        graph, num_classes, classifier_type="GNN", save_path=save_path, logger=_LOGGER
-    )
+    MLP_server = Server(graph, num_classes, classifier_type="MLP")
+    GNN_server = Server(graph, num_classes, classifier_type="GNN")
 
     # GNN_server.train_sd_predictor(
     #     config.structure_model.cosine_similarity_predictor_epochs,
@@ -163,9 +159,9 @@ if __name__ == "__main__":
     graph.num_features = x.shape[1]
 
     # MLP_server.train_local_classifier(config.structure_model.mlp_epochs)
-    # _LOGGER.info(f"Server MLP test accuracy: {MLP_server.test_local_classifier()}")
+    # LOGGER.info(f"Server MLP test accuracy: {MLP_server.test_local_classifier()}")
     # GNN_server.train_local_classifier(config.structure_model.gnn_epochs)
-    # _LOGGER.info(f"Server GNN test accuracy: {GNN_server.test_local_classifier()}")
+    # LOGGER.info(f"Server GNN test accuracy: {GNN_server.test_local_classifier()}")
 
     # x = server.get_sd_embeddings()
 
@@ -200,7 +196,7 @@ if __name__ == "__main__":
         )
         test_acc = cls.test(x_test, y_test)
 
-        _LOGGER.info(f"epoch: {i} test accuracy: {test_acc}")
+        LOGGER.info(f"epoch: {i} test accuracy: {test_acc}")
         test_acc_list.append(test_acc)
         x = message_passing.propagate(edge_index, x=x)
         if i in [0, 2, 5, 10, 20, l - 1]:

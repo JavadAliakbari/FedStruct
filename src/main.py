@@ -12,7 +12,6 @@ from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
 from src.fedsage.fedsage_server import FedSAGEServer
 from src.FedPub.fedpub_server import FedPubServer
-from src.utils.logger import get_logger
 from src.utils.define_graph import define_graph
 from src.utils.graph_partitioning import (
     create_mend_graph,
@@ -20,14 +19,8 @@ from src.utils.graph_partitioning import (
 )
 
 
-def set_up_system(save_path="./"):
-    _LOGGER = get_logger(
-        name=f"{now}_{config.dataset.dataset_name}",
-        log_on_file=True,
-        save_path=save_path,
-    )
-
-    log_config(_LOGGER, config)
+def set_up_system():
+    LOGGER.info(json.dumps(config.config, indent=4))
 
     graph = define_graph(config.dataset.dataset_name)
 
@@ -48,35 +41,35 @@ def set_up_system(save_path="./"):
         graph, config.subgraph.num_subgraphs, config.subgraph.partitioning
     )
 
-    MLP_server = MLPServer(graph, save_path=save_path, logger=_LOGGER)
+    MLP_server = MLPServer(graph)
     for subgraph in subgraphs:
         MLP_server.add_client(subgraph)
 
-    GNN_server = GNNServer(graph, save_path=save_path, logger=_LOGGER)
+    GNN_server = GNNServer(graph)
     for subgraph in subgraphs:
         GNN_server.add_client(subgraph)
 
-    GNN_server2 = GNNServer(graph, save_path=save_path, logger=_LOGGER)
+    GNN_server2 = GNNServer(graph)
     for subgraph in subgraphs:
         mend_graph = create_mend_graph(subgraph, graph, 0)
         GNN_server2.add_client(mend_graph)
 
-    GNN_server3 = GNNServer(graph, save_path=save_path, logger=_LOGGER)
+    GNN_server3 = GNNServer(graph)
     for subgraph in subgraphs:
         mend_graph = create_mend_graph(subgraph, graph, 1)
         GNN_server3.add_client(mend_graph)
 
-    fedsage_server = FedSAGEServer(graph, save_path=save_path, logger=_LOGGER)
+    fedsage_server = FedSAGEServer(graph)
     for subgraph in subgraphs:
         fedsage_server.add_client(subgraph)
 
-    fedpub_server = FedPubServer(graph, save_path=save_path, logger=_LOGGER)
+    fedpub_server = FedPubServer(graph)
     for subgraph in subgraphs:
         fedpub_server.add_client(subgraph)
 
     results = {}
 
-    # _LOGGER.info("MLP")
+    # LOGGER.info("MLP")
     # res = MLP_server.train_local_model()
     # results[f"server MLP"] = round(res["Test Acc"], 4)
 
@@ -86,7 +79,7 @@ def set_up_system(save_path="./"):
     # res = MLP_server.joint_train_g(FL=True)
     # results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
 
-    # _LOGGER.info("GNN")
+    # LOGGER.info("GNN")
     # res = GNN_server.train_local_model(data_type="feature")
     # results[f"Server F GNN"] = round(res["Test Acc"], 4)
 
@@ -121,18 +114,9 @@ def set_up_system(save_path="./"):
     # res = fedpub_server.start()
     # results[f"fedpub"] = round(res["Average"]["Test Acc"], 4)
 
-    _LOGGER.info(json.dumps(results, indent=4))
+    LOGGER.info(json.dumps(results, indent=4))
 
 
 if __name__ == "__main__":
-    save_path = (
-        "./results/"
-        f"{config.dataset.dataset_name}/"
-        f"{config.structure_model.structure_type}/"
-        f"{config.subgraph.partitioning}/"
-        f"{config.model.propagate_type}/"
-        f"{config.subgraph.num_subgraphs}/all/"
-    )
-    os.makedirs(save_path, exist_ok=True)
-    set_up_system(save_path)
+    set_up_system()
     # plt.show()

@@ -7,26 +7,12 @@ from src.MLP.MLP_client import MLPClient
 
 
 class MLPServer(Server, MLPClient):
-    def __init__(
-        self,
-        graph: Data,
-        save_path="./",
-        logger=None,
-    ):
-        super().__init__(
-            graph=graph,
-            save_path=save_path,
-            logger=logger,
-        )
+    def __init__(self, graph: Data):
+        super().__init__(graph=graph)
         self.clients: List[MLPClient] = []
 
     def add_client(self, subgraph):
-        client = MLPClient(
-            graph=subgraph,
-            id=self.num_clients,
-            save_path=self.save_path,
-            logger=self.LOGGER,
-        )
+        client = MLPClient(graph=subgraph, id=self.num_clients)
 
         self.clients.append(client)
         self.num_clients += 1

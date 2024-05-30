@@ -4,7 +4,7 @@ import logging
 _DEV_LOG_LEVEL = logging.DEBUG
 
 
-def get_logger(
+def getLOGGER(
     name: str = "root",
     terminal=True,
     log_on_file=False,

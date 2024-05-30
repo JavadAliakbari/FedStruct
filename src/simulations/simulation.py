@@ -11,7 +11,7 @@ from tqdm import tqdm
 from src import *
 from src.simulations.simulation_utils import *
 from src.utils.define_graph import define_graph
-from src.utils.logger import get_logger
+from src.utils.logger import getLOGGER
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
 from src.FedPub.fedpub_server import FedPubServer
@@ -55,7 +55,7 @@ if __name__ == "__main__":
                 test_ratio = config.subgraph.test_ratio
                 epochs = config.model.iterations
 
-                save_path = (
+                simulation_path = (
                     "./results/Simulation/"
                     f"{config.dataset.dataset_name}/"
                     f"{partitioning}/"
@@ -63,20 +63,20 @@ if __name__ == "__main__":
                     f"{train_ratio}/"
                 )
 
-                os.makedirs(save_path, exist_ok=True)
+                os.makedirs(simulation_path, exist_ok=True)
 
-                _LOGGER = get_logger(
+                LOGGER = getLOGGER(
                     name=f"average_{now}_{config.dataset.dataset_name}",
                     log_on_file=True,
-                    save_path=save_path,
+                    save_path=simulation_path,
                 )
-                _LOGGER2 = get_logger(
+                LOGGER2 = getLOGGER(
                     name=f"all_{now}_{config.dataset.dataset_name}",
                     terminal=False,
                     log_on_file=True,
-                    save_path=save_path,
+                    save_path=simulation_path,
                 )
-                log_config(_LOGGER, config)
+                LOGGER.info(json.dumps(config.config, indent=4))
 
                 bar = tqdm(total=rep)
                 results = []
@@ -144,18 +144,20 @@ if __name__ == "__main__":
                         GNN_result_prune2[f"{key}_prune"] = val
                     model_results.update(GNN_result_prune2)
 
-                    _LOGGER2.info(f"Run id: {i}")
-                    _LOGGER2.info(json.dumps(model_results, indent=4))
+                    LOGGER2.info(f"Run id: {i}")
+                    LOGGER2.info(json.dumps(model_results, indent=4))
 
                     results.append(model_results)
 
                     average_result = calc_average_std_result(results)
-                    file_name = f"{save_path}{now}_{config.dataset.dataset_name}.csv"
+                    file_name = (
+                        f"{simulation_path}{now}_{config.dataset.dataset_name}.csv"
+                    )
                     save_average_result(average_result, file_name)
 
                     bar.update()
 
-                _LOGGER.info(json.dumps(average_result, indent=4))
+                LOGGER.info(json.dumps(average_result, indent=4))
 
-                _LOGGER.handlers.clear()
-                _LOGGER2.handlers.clear()
+                LOGGER.handlers.clear()
+                LOGGER2.handlers.clear()

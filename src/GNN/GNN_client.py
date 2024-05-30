@@ -17,21 +17,9 @@ from src.GNN.GNN_classifier import (
 
 
 class GNNClient(Client):
-    def __init__(
-        self,
-        graph: Graph,
-        id: int = 0,
-        save_path="./",
-        logger=None,
-    ):
-        super().__init__(
-            graph=graph,
-            id=id,
-            classifier_type="GNN",
-            save_path=save_path,
-            logger=logger,
-        )
-        # self.LOGGER.info(f"Number of edges: {self.graph.num_edges}")
+    def __init__(self, graph: Graph, id: int = 0):
+        super().__init__(graph=graph, id=id, classifier_type="GNN")
+        # LOGGER.info(f"Number of edges: {self.graph.num_edges}")
         self.classifier: Classifier | None = None
 
     def create_FDGCN_data(self) -> AGraph:

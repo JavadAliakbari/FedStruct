@@ -12,15 +12,8 @@ from src.utils.graph import Graph
 
 
 class FedPubServer:
-    def __init__(
-        self,
-        graph: Graph,
-        save_path="./",
-        logger=None,
-    ):
+    def __init__(self, graph: Graph):
         self.graph = graph
-        self.save_path = save_path
-        self.LOGGER = logger or logging
 
         self.model = MaskedGCN(
             self.graph.num_features,
@@ -38,13 +31,7 @@ class FedPubServer:
         self.num_clients = 0
 
     def add_client(self, subgraph):
-        client: FedPubClient = FedPubClient(
-            subgraph,
-            self.num_clients,
-            self.proxy,
-            save_path=self.save_path,
-            logger=self.LOGGER,
-        )
+        client: FedPubClient = FedPubClient(subgraph, self.num_clients, self.proxy)
         self.clients.append(client)
         self.num_clients += 1
 
@@ -79,9 +66,8 @@ class FedPubServer:
         plot=True,
         model_type="FedPub",
     ):
-        self.LOGGER.info(f"{model_type} starts!")
-
         if log:
+            LOGGER.info(f"{model_type} starts!")
             bar = tqdm(total=iterations, position=0)
 
         coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
@@ -93,11 +79,11 @@ class FedPubServer:
             average_result = sum_lod(results)
             average_result["Epoch"] = curr_rnd + 1
             average_results.append(average_result)
-            # self.LOGGER.info(f"all clients have been uploaded ({time.time()-st:.2f}s)")
+            # LOGGER.info(f"all clients have been uploaded ({time.time()-st:.2f}s)")
             ###########################################
             self.update(clients_data)
             ###########################################
-            # self.LOGGER.info(f"[main] round {curr_rnd} done ({time.time()-st:.2f} s)")
+            # LOGGER.info(f"[main] round {curr_rnd} done ({time.time()-st:.2f} s)")
             if log:
                 bar.set_postfix(average_result)
                 bar.update()
@@ -105,10 +91,10 @@ class FedPubServer:
                 if curr_rnd == iterations - 1:
                     self.report_results(results, "Joint Training")
 
-        # self.LOGGER.info("[main] server done")
+        # LOGGER.info("[main] server done")
         if plot:
             title = f"Average joint Training {model_type}"
-            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
 
         # if log:
@@ -156,7 +142,7 @@ class FedPubServer:
         # st = time.time()
         ratio = (np.array(local_train_sizes) / np.sum(local_train_sizes)).tolist()
         self.set_weights(self.model, aggregate(local_weights, ratio))
-        # self.LOGGER.info(f"global model has been updated ({time.time()-st:.2f}s)")
+        # LOGGER.info(f"global model has been updated ({time.time()-st:.2f}s)")
 
         # st = time.time()
         for client in self.clients:
@@ -167,7 +153,7 @@ class FedPubServer:
 
         # self.update_lists.append(updated)
         self.sim_matrices.append(sim_matrix)
-        # self.LOGGER.info(f"local model has been updated ({time.time()-st:.2f}s)")
+        # LOGGER.info(f"local model has been updated ({time.time()-st:.2f}s)")
 
     def train_clients(self, curr_rnd):
         results = []
@@ -189,11 +175,11 @@ class FedPubServer:
     def report_test_results(self, test_results):
         for client_id, result in test_results.items():
             for key, val in result.items():
-                self.LOGGER.info(f"{client_id} {key}: {val:0.4f}")
+                LOGGER.info(f"{client_id} {key}: {val:0.4f}")
 
     # def report_server_test(self):
     #     test_acc, test_loss = self.test_classifier()
-    #     self.LOGGER.info(f"Server test: {test_acc:0.4f}")
+    #     LOGGER.info(f"Server test: {test_acc:0.4f}")
 
     def test_clients(self):
         results = []

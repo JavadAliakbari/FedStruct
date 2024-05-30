@@ -15,10 +15,11 @@ from torch_geometric.utils import degree, add_self_loops
 from dotenv import load_dotenv
 
 from src.utils.config_parser import Config
+from src.utils.logger import getLOGGER
 
 load_dotenv()
-path = os.environ.get("CONFIGPATH")
-config = Config(path)
+config_path = os.environ.get("CONFIGPATH")
+config = Config(config_path)
 
 plt.rcParams["figure.figsize"] = [16, 9]
 plt.rcParams["figure.dpi"] = 100  # 200 e.g. is really fine, but slower
@@ -45,6 +46,23 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 now = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+result_path = os.environ.get("RESULTPATH")
+save_path = (
+    f"{result_path}"
+    f"{config.dataset.dataset_name}/"
+    f"{config.structure_model.structure_type}/"
+    f"{config.subgraph.partitioning}/"
+    f"{config.model.propagate_type}/"
+    f"{config.subgraph.num_subgraphs}/all/"
+)
+
+os.makedirs(save_path, exist_ok=True)
+LOGGER = getLOGGER(
+    name=f"{now}_{config.dataset.dataset_name}",
+    log_on_file=True,
+    save_path=save_path,
+)
 
 
 @torch.no_grad()
@@ -344,37 +362,3 @@ def sum_lod(x: List, coef=None):
         return z
     else:
         return sum([weight * val for weight, val in zip(coef, x)])
-
-
-def log_config(_LOGGER, config):
-    _LOGGER.info(f"dataset name: {config.dataset.dataset_name}")
-    _LOGGER.info(f"num subgraphs: {config.subgraph.num_subgraphs}")
-    _LOGGER.info(f"partitioning method: {config.subgraph.partitioning}")
-    _LOGGER.info(f"num Epochs: {config.model.iterations}")
-    _LOGGER.info(f"batch: {config.model.batch}")
-    _LOGGER.info(f"batch size: {config.model.batch_size}")
-    _LOGGER.info(f"learning rate: {config.model.lr}")
-    _LOGGER.info(f"weight decay: {config.model.weight_decay}")
-    _LOGGER.info(f"dropout: {config.model.dropout}")
-    _LOGGER.info(f"gnn layer type: {config.model.gnn_layer_type}")
-    _LOGGER.info(f"propagate type: {config.model.propagate_type}")
-    _LOGGER.info(f"gnn layer sizes: {config.feature_model.gnn_layer_sizes}")
-    _LOGGER.info(f"DGCN_layer_sizes: {config.feature_model.DGCN_layer_sizes}")
-    _LOGGER.info(f"mlp layer sizes: {config.feature_model.mlp_layer_sizes}")
-    _LOGGER.info(f"structure DGCN layers: {config.structure_model.DGCN_layers}")
-    _LOGGER.info(f"feature DGCN layers: {config.feature_model.DGCN_layers}")
-    if config.model.propagate_type == "GNN":
-        _LOGGER.info(
-            f"structure layers size: {config.structure_model.GNN_structure_layers_sizes}"
-        )
-    else:
-        _LOGGER.info(
-            f"structure layers size: {config.structure_model.DGCN_structure_layers_sizes}"
-        )
-    _LOGGER.info(f"structure type: {config.structure_model.structure_type}")
-    _LOGGER.info(
-        f"num structural features: {config.structure_model.num_structural_features}"
-    )
-    _LOGGER.info(
-        f"Train-Test ratio: [{config.subgraph.train_ratio}, {config.subgraph.test_ratio}]"
-    )

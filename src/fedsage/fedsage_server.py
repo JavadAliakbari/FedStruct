@@ -7,27 +7,13 @@ from src.fedsage.fedsage_client import FedSAGEClient
 
 
 class FedSAGEServer(GNNServer, FedSAGEClient):
-    def __init__(
-        self,
-        graph: Graph,
-        save_path="./",
-        logger=None,
-    ):
-        super().__init__(
-            graph=graph,
-            save_path=save_path,
-            logger=logger,
-        )
+    def __init__(self, graph: Graph):
+        super().__init__(graph=graph)
 
         self.clients: List[FedSAGEClient] = []
 
     def add_client(self, subgraph):
-        client = FedSAGEClient(
-            graph=subgraph,
-            id=self.num_clients,
-            save_path=self.save_path,
-            logger=self.LOGGER,
-        )
+        client = FedSAGEClient(graph=subgraph, id=self.num_clients)
 
         self.clients.append(client)
         self.num_clients += 1
@@ -105,7 +91,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         log=True,
         plot=True,
     ):
-        self.LOGGER.info(f"Neighgen starts!")
+        LOGGER.info(f"Neighgen starts!")
 
         if log:
             bar = tqdm(total=epochs, position=0)
@@ -136,7 +122,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
 
         if plot:
             title = f"Average joint Training Neighgen"
-            plot_path = f"{self.save_path}/plots/{now}/"
+            plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
 
         test_results = self.test_neighgen_models()
@@ -157,7 +143,8 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         log=True,
         plot=True,
     ):
-        self.LOGGER.info("Locsage+ starts!")
+        if log:
+            LOGGER.info("Locsage+ starts!")
         self.initialize_neighgens()
         self.joint_train_neighgen(
             epochs=config.fedsage.neighgen_epochs,
@@ -231,7 +218,8 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         log=True,
         plot=True,
     ):
-        self.LOGGER.info("FedSage+ starts!")
+        if log:
+            LOGGER.info("FedSage+ starts!")
 
         self.initialize_neighgens()
         self.train_fedgen(predict=predict, log=log, plot=plot)
