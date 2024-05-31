@@ -71,35 +71,15 @@ def calc_accuracy(pred_y, y):
     return ((pred_y == y).sum() / len(y)).item()
 
 
-def calc_accuracy2(pred_y, y):
-    """Calculate accuracy."""
-    return sum(pred_y == y) / len(y)
-
-
 @torch.no_grad()
 def calc_f1_score(pred_y, y):
-    # P = pred_y[y == 1]
-    # Tp = ((P == 1).sum() / len(P)).item()
-
     f1score = f1_score(
-        pred_y.data,
-        y.data,
+        pred_y.detach().cpu().numpy(),
+        y.detach().cpu().numpy(),
         average="micro",
         labels=torch.unique(pred_y),
-        # pred_y.data, y.data, average="weighted", labels=np.unique(pred_y)
     )
     return f1score
-
-
-@torch.no_grad()
-def test(model, data):
-    """Evaluate the model on test set and print the accuracy score."""
-    model.eval()
-    out = model(data.x, data.edge_index)
-    # out = out[: len(data.test_mask)]
-    label = data.y[: len(data.test_mask)]
-    acc = calc_accuracy(out.argmax(dim=1)[data.test_mask], label[data.test_mask])
-    return acc
 
 
 def find_neighbors_(
