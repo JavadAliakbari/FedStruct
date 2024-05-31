@@ -89,7 +89,7 @@ class Graph(Data):
                 )
             )
 
-            new_edges = torch.tensor(new_edges, device=edges.device)
+            new_edges = torch.tensor(new_edges, dtype=torch.int64, device=edges.device)
 
         return node_map, new_edges
 
