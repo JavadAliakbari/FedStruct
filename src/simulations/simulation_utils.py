@@ -18,7 +18,7 @@ def create_clients(
     graph: Graph,
     MLP_server: MLPServer,
     GNN_server: GNNServer,
-    GNN_server2: GNNServer,
+    GNN_server_ideal: GNNServer,
     FedSage_server: FedSAGEServer,
     FedPub_server: FedPubServer,
     train_ratio=config.subgraph.train_ratio,
@@ -30,7 +30,7 @@ def create_clients(
 
     MLP_server.remove_clients()
     GNN_server.remove_clients()
-    GNN_server2.remove_clients()
+    GNN_server_ideal.remove_clients()
     FedSage_server.remove_clients()
     FedPub_server.remove_clients()
 
@@ -42,7 +42,7 @@ def create_clients(
         FedSage_server.add_client(subgraph)
         FedPub_server.add_client(subgraph)
         mend_graph = create_mend_graph(subgraph, graph)
-        GNN_server2.add_client(mend_graph)
+        GNN_server_ideal.add_client(mend_graph)
 
 
 def get_MLP_results(

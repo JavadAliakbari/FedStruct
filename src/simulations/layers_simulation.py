@@ -1,5 +1,10 @@
 import os
 import json
+import sys
+
+pythonpath = os.getcwd()
+if pythonpath not in sys.path:
+    sys.path.append(pythonpath)
 
 from tqdm import tqdm
 
