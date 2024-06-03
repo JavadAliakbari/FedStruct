@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     FedPub_server = FedPubServer(graph)
 
-    GNN_server2 = GNNServer(graph)
+    GNN_server_ideal = GNNServer(graph)
 
     rep = 10
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
                         graph,
                         MLP_server,
                         GNN_server,
-                        GNN_server2,
+                        GNN_server_ideal,
                         FedSage_server,
                         FedPub_server,
                         train_ratio=train_ratio,
@@ -114,7 +114,7 @@ if __name__ == "__main__":
                     )
                     model_results.update(Fedpub_results)
                     Fedsage_ideal_results = get_Fedsage_ideal_reults(
-                        GNN_server2,
+                        GNN_server_ideal,
                         bar=bar,
                         epochs=epochs,
                     )

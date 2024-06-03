@@ -1,4 +1,11 @@
 from os import listdir
+import os
+import sys
+
+pythonpath = os.getcwd()
+if pythonpath not in sys.path:
+    sys.path.append(pythonpath)
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
