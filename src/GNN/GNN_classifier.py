@@ -94,6 +94,17 @@ class FedClassifier(Classifier):
         else:
             return res
 
+    def calc_test_accuracy(self, metric="acc"):
+        res = super().calc_test_accuracy(metric=metric)
+
+        y = self.graph.y
+        test_mask = self.graph.test_mask
+
+        f_res = Classifier.calc_metrics(self.f_model, y, test_mask, metric)
+        s_res = Classifier.calc_metrics(self.s_model, y, test_mask, metric)
+
+        return res + f_res + s_res
+
 
 class FedGNNSlave(FedClassifier):
     def __init__(self, graph: Graph, server_embedding_func):
