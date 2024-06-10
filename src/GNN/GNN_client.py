@@ -34,6 +34,7 @@ class GNNClient(Client):
 
         graph = AGraph(
             abar=abar,
+            edge_index=self.graph.edge_index,
             x=self.graph.x,
             y=self.graph.y,
             node_ids=self.graph.node_ids,
@@ -66,6 +67,7 @@ class GNNClient(Client):
         abar = kwargs.get("abar", None)
         abar_i = self.split_abar(abar)
 
+        edge_index = kwargs.get("edge_index", None)
         SFV = kwargs.get("SFV", None)
         SFV_ = torch.tensor(
             SFV.detach().cpu().numpy(),
@@ -74,6 +76,7 @@ class GNNClient(Client):
         )
         graph = AGraph(
             abar=abar_i,
+            edge_index=edge_index,
             x=SFV_,
             y=self.graph.y,
             node_ids=self.graph.node_ids,

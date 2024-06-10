@@ -99,12 +99,16 @@ class Classifier:
         y_pred = torch.nn.functional.softmax(H, dim=1)
         return y_pred
 
+    def rank_loss(self):
+        return 0
+
     def train_step(self, eval_=True):
         y_pred = self.get_prediction()
         y = self.graph.y
         train_mask, val_mask, _ = self.graph.get_masks()
 
         train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
+        train_loss += self.rank_loss()
         train_loss.backward(retain_graph=True)
 
         if eval_:

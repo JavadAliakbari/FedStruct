@@ -52,6 +52,7 @@ class GNNServer(Server, GNNClient):
             data_type=data_type,
             SFV=SFV,
             abar=self.graph.abar,
+            edge_index=self.graph.edge_index,
             **kwargs,
         )
 
@@ -74,6 +75,7 @@ class GNNServer(Server, GNNClient):
                 abar=self.graph.abar,
                 SFV=self.graph.structural_features,
                 server_embedding_func=self.classifier.get_embeddings_func(),
+                edge_index=self.graph.edge_index,
                 **kwargs,
             )
 

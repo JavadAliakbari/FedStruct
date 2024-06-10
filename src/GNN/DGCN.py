@@ -1,5 +1,6 @@
 import torch
 from torch_geometric.loader import NeighborLoader
+from torch_geometric.utils import get_laplacian
 
 from src import *
 from src.GNN.sGNN import SGNNMaster
@@ -54,6 +55,20 @@ class SDGCN(DGCN):
     ):
         super().__init__(graph, hidden_layer_size)
 
+        num_nodes = self.graph.num_nodes
+        edge_index, edge_weight = get_laplacian(
+            self.graph.edge_index,
+            num_nodes=num_nodes,
+            normalization="sym",
+        )
+        self.L = torch.sparse_coo_tensor(
+            edge_index,
+            edge_weight,
+            (num_nodes, num_nodes),
+            dtype=torch.float32,
+            device=dev,
+        )
+
     def parameters(self):
         parameters = super().parameters()
         if self.graph.x.requires_grad:
@@ -65,7 +80,20 @@ class SDGCN(DGCN):
         grads = super().get_grads(just_SFV)
         if self.graph.x is not None:
             if self.graph.x.requires_grad:
-                grads["SFV"] = [self.graph.x.grad]
+                a = self.graph.x.grad
+                grads["SFV"] = [a]
+                # edge_index, edge_weight = get_laplacian(
+                #     self.graph.edge_index,
+                #     num_nodes=self.graph.num_nodes,
+                #     normalization="rw",
+                # )
+                # L = to_dense_adj(
+                #     edge_index,
+                #     edge_attr=edge_weight,
+                #     max_num_nodes=self.graph.num_nodes,
+                # ).squeeze(0)
+                # r = torch.matmul(L, self.graph.x)
+                # grads["SFV"] = [a + 0 * r]
 
         return grads
 
@@ -78,6 +106,30 @@ class SDGCN(DGCN):
         super().zero_grad(set_to_none)
         if self.graph.x.requires_grad:
             self.graph.x.grad = None
+
+    def rank_loss(self):
+        # return 0
+
+        # return torch.sum(torch.abs(self.graph.x))
+
+        # u, s, v = torch.svd(self.graph.x)
+        # return torch.sum(s)
+
+        # L = to_dense_adj(
+        #     edge_index,
+        #     edge_attr=edge_weight,
+        #     max_num_nodes=self.graph.num_nodes,
+        # ).squeeze(0)
+        r1 = torch.matmul(self.L, self.graph.x)
+        r = torch.matmul(self.graph.x.T, r1)
+        return torch.trace(r) / r.shape[0]
+
+    def get_embeddings(self):
+        # return super().get_embeddings()
+        H = self.model(self.graph.x)
+        nodes = self.graph.node_ids
+        H = H[nodes]
+        return H
 
 
 class SDGCNMaster(SGNNMaster):

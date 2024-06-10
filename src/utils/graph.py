@@ -23,6 +23,7 @@ class AGraph(Data):
     def __init__(
         self,
         abar: torch.Tensor | SparseTensor,
+        edge_index: torch.Tensor = None,
         x: torch.Tensor | SparseTensor | None = None,
         y: torch.Tensor | None = None,
         node_ids: torch.Tensor | None = None,
@@ -30,6 +31,7 @@ class AGraph(Data):
     ) -> None:
         super().__init__(x, y, node_ids, **kwargs)
         self.abar = abar
+        self.edge_index = edge_index
 
 
 class Graph(Data):
