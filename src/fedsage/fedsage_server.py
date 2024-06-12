@@ -138,7 +138,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
     def train_locsages(
         self,
         epochs=config.model.iterations,
-        propagate_type=config.model.propagate_type,
+        smodel_type=config.model.smodel_type,
         log=True,
         plot=True,
     ):
@@ -153,7 +153,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         self.create_mend_graphs()
         res1 = self.joint_train_w(
             epochs=epochs,
-            propagate_type=propagate_type,
+            smodel_type=smodel_type,
             log=log,
             plot=plot,
             model_type="Neighgen",
@@ -161,7 +161,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
 
         res2 = self.joint_train_g(
             epochs=epochs,
-            propagate_type=propagate_type,
+            smodel_type=smodel_type,
             log=log,
             plot=plot,
             model_type="Neighgen",
@@ -211,7 +211,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
     def train_fedSage_plus(
         self,
         epochs=config.model.iterations,
-        # propagate_type=config.model.propagate_type,
+        # smodel_type=config.model.smodel_type,
         model="both",
         predict=True,
         log=True,
@@ -227,7 +227,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         if model == "WA" or model == "both":
             res1 = self.joint_train_w(
                 epochs=epochs,
-                # propagate_type="GNN",
+                # smodel_type="GNN",
                 log=log,
                 plot=plot,
                 model_type="Neighgen",
@@ -237,7 +237,7 @@ class FedSAGEServer(GNNServer, FedSAGEClient):
         if model == "GA" or model == "both":
             res2 = self.joint_train_g(
                 epochs=epochs,
-                # propagate_type="GNN",
+                # smodel_type="GNN",
                 log=log,
                 plot=plot,
                 model_type="Neighgen",

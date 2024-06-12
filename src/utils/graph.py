@@ -23,7 +23,6 @@ class AGraph(Data):
     def __init__(
         self,
         abar: torch.Tensor | SparseTensor,
-        edge_index: torch.Tensor = None,
         x: torch.Tensor | SparseTensor | None = None,
         y: torch.Tensor | None = None,
         node_ids: torch.Tensor | None = None,
@@ -31,7 +30,6 @@ class AGraph(Data):
     ) -> None:
         super().__init__(x, y, node_ids, **kwargs)
         self.abar = abar
-        self.edge_index = edge_index
 
 
 class Graph(Data):
@@ -46,15 +44,15 @@ class Graph(Data):
         keep_sfvs=False,
         **kwargs,
     ) -> None:
+        if node_ids is None:
+            node_ids = np.arange(len(x))
         super().__init__(
             x=x,
             y=y,
+            node_ids=node_ids,
             **kwargs,
         )
-        if node_ids is None:
-            node_ids = np.arange(len(x))
 
-        self.node_ids = node_ids
         self.original_edge_index = edge_index
         node_map, new_edges = Graph.reindex_nodes(node_ids, edge_index)
         self.edge_index = new_edges
@@ -75,7 +73,14 @@ class Graph(Data):
         self.structural_features = None
 
     def get_edges(self):
+        # return only the original intra edges
         return self.original_edge_index
+
+    def get_all_edges(self):
+        # return both intra and inter connections
+        if self.inter_edges is not None:
+            return torch.concat((self.original_edge_index, self.inter_edges), dim=1)
+        return self.get_edges()
 
     def reindex_nodes(nodes, edges):
         node_map = {node.item(): ind for ind, node in enumerate(nodes)}

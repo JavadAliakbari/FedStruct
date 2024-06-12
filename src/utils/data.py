@@ -15,7 +15,7 @@ class Data:
         self.x = x
         self.y = y
         self.node_ids = node_ids
-        self.num_nodes = x.shape[0]
+        self.num_nodes = node_ids.shape[0]
         self.num_features = x.shape[1]
 
         self.train_mask = kwargs.get("train_mask", None)

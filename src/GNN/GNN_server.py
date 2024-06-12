@@ -24,12 +24,12 @@ class GNNServer(Server, GNNClient):
 
     def initialize(
         self,
-        propagate_type=config.model.propagate_type,
+        smodel_type=config.model.smodel_type,
         data_type="feature",
         **kwargs,
     ) -> None:
         if data_type in ["structure", "f+s"]:
-            if propagate_type == "DGCN":
+            if smodel_type in ["DGCN", "CentralDGCN"]:
                 self.graph.obtain_a()
 
         SFV = None
@@ -48,7 +48,7 @@ class GNNServer(Server, GNNClient):
             SFV = self.graph.structural_features
 
         super().initialize(
-            propagate_type=propagate_type,
+            smodel_type=smodel_type,
             data_type=data_type,
             SFV=SFV,
             abar=self.graph.abar,
@@ -58,31 +58,34 @@ class GNNServer(Server, GNNClient):
 
     def initialize_FL(
         self,
-        propagate_type=config.model.propagate_type,
+        smodel_type=config.model.smodel_type,
+        fmodel_type=config.model.fmodel_type,
         data_type="feature",
         **kwargs,
     ) -> None:
         self.initialize(
-            propagate_type=propagate_type,
+            smodel_type=smodel_type,
+            fmodel_type=fmodel_type,
             data_type=data_type,
             **kwargs,
         )
         client: GNNClient
         for client in self.clients:
             client.initialize(
-                propagate_type=propagate_type,
+                smodel_type=smodel_type,
+                fmodel_type=fmodel_type,
                 data_type=data_type,
                 abar=self.graph.abar,
                 SFV=self.graph.structural_features,
                 server_embedding_func=self.classifier.get_embeddings_func(),
-                edge_index=self.graph.edge_index,
                 **kwargs,
             )
 
     def joint_train_g(
         self,
         epochs=config.model.iterations,
-        propagate_type=config.model.propagate_type,
+        smodel_type=config.model.smodel_type,
+        fmodel_type=config.model.fmodel_type,
         FL=True,
         data_type="feature",
         log=True,
@@ -91,14 +94,15 @@ class GNNServer(Server, GNNClient):
         **kwargs,
     ):
         self.initialize_FL(
-            propagate_type=propagate_type,
+            smodel_type=smodel_type,
+            fmodel_type=fmodel_type,
             data_type=data_type,
             **kwargs,
         )
         if FL:
-            model_type = f"FL {data_type} {propagate_type} GA"
+            model_type = f"FL {data_type} {smodel_type}-{fmodel_type} GA"
         else:
-            model_type = f"Local {data_type} {propagate_type} GA"
+            model_type = f"Local {data_type} {smodel_type}-{fmodel_type} GA"
 
         return super().joint_train_g(
             epochs=epochs,
@@ -111,7 +115,8 @@ class GNNServer(Server, GNNClient):
     def joint_train_w(
         self,
         epochs=config.model.iterations,
-        propagate_type=config.model.propagate_type,
+        smodel_type=config.model.smodel_type,
+        fmodel_type=config.model.fmodel_type,
         FL=True,
         data_type="feature",
         log=True,
@@ -120,14 +125,15 @@ class GNNServer(Server, GNNClient):
         **kwargs,
     ):
         self.initialize_FL(
-            propagate_type=propagate_type,
+            smodel_type=smodel_type,
+            fmodel_type=fmodel_type,
             data_type=data_type,
             **kwargs,
         )
         if FL:
-            model_type = f"FL {data_type} {propagate_type} WA"
+            model_type = f"FL {data_type} {smodel_type}-{fmodel_type} WA"
         else:
-            model_type = f"Local {data_type} {propagate_type} WA"
+            model_type = f"Local {data_type} {smodel_type}-{fmodel_type} WA"
 
         return super().joint_train_w(
             epochs=epochs,

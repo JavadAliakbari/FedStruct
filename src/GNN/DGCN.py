@@ -1,9 +1,14 @@
 import torch
 from torch_geometric.loader import NeighborLoader
-from torch_geometric.utils import get_laplacian
+from torch_geometric.utils import (
+    get_laplacian,
+    to_undirected,
+    scatter,
+    remove_self_loops,
+)
 
 from src import *
-from src.GNN.sGNN import SGNNMaster
+from src.GNN.sGNN import SGNNMaster, SClassifier
 from src.utils.graph import AGraph
 from src.classifier import Classifier
 from src.models.model_binders import (
@@ -16,12 +21,11 @@ class DGCN(Classifier):
     def __init__(
         self, graph: AGraph, hidden_layer_size=config.feature_model.DGCN_layer_sizes
     ):
-        super().__init__()
-        self.graph: AGraph = graph
-        self.create_model(hidden_layer_size)
+        Classifier.__init__(self, graph)
+        self.create_smodel(hidden_layer_size)
         # self.create_model(config.feature_model.DGCN_layer_sizes)
 
-    def create_model(self, hidden_layer_size=[]):
+    def create_smodel(self, hidden_layer_size=[]):
         layer_sizes = (
             [self.graph.num_features] + hidden_layer_size + [self.graph.num_classes]
         )
@@ -46,90 +50,23 @@ class DGCN(Classifier):
             H = torch.matmul(self.graph.abar, H)
         return H
 
+    def __call__(self):
+        return DGCN.get_embeddings(self)
 
-class SDGCN(DGCN):
+
+class SDGCN(DGCN, SClassifier):
     def __init__(
         self,
         graph: AGraph,
         hidden_layer_size=config.structure_model.DGCN_structure_layers_sizes,
     ):
-        super().__init__(graph, hidden_layer_size)
-
-        num_nodes = self.graph.num_nodes
-        edge_index, edge_weight = get_laplacian(
-            self.graph.edge_index,
-            num_nodes=num_nodes,
-            normalization="sym",
-        )
-        self.L = torch.sparse_coo_tensor(
-            edge_index,
-            edge_weight,
-            (num_nodes, num_nodes),
-            dtype=torch.float32,
-            device=dev,
-        )
-
-    def parameters(self):
-        parameters = super().parameters()
-        if self.graph.x.requires_grad:
-            parameters += [self.graph.x]
-
-        return parameters
-
-    def get_grads(self, just_SFV=False):
-        grads = super().get_grads(just_SFV)
-        if self.graph.x is not None:
-            if self.graph.x.requires_grad:
-                a = self.graph.x.grad
-                grads["SFV"] = [a]
-                # edge_index, edge_weight = get_laplacian(
-                #     self.graph.edge_index,
-                #     num_nodes=self.graph.num_nodes,
-                #     normalization="rw",
-                # )
-                # L = to_dense_adj(
-                #     edge_index,
-                #     edge_attr=edge_weight,
-                #     max_num_nodes=self.graph.num_nodes,
-                # ).squeeze(0)
-                # r = torch.matmul(L, self.graph.x)
-                # grads["SFV"] = [a + 0 * r]
-
-        return grads
-
-    def set_grads(self, grads):
-        super().set_grads(grads)
-        if "SFV" in grads.keys():
-            self.graph.x.grad = grads["SFV"][0]
-
-    def zero_grad(self, set_to_none=False):
-        super().zero_grad(set_to_none)
-        if self.graph.x.requires_grad:
-            self.graph.x.grad = None
-
-    def rank_loss(self):
-        # return 0
-
-        # return torch.sum(torch.abs(self.graph.x))
-
-        # u, s, v = torch.svd(self.graph.x)
-        # return torch.sum(s)
-
-        # L = to_dense_adj(
-        #     edge_index,
-        #     edge_attr=edge_weight,
-        #     max_num_nodes=self.graph.num_nodes,
-        # ).squeeze(0)
-        r1 = torch.matmul(self.L, self.graph.x)
-        r = torch.matmul(self.graph.x.T, r1)
-        return torch.trace(r) / r.shape[0]
+        DGCN.__init__(self, graph, hidden_layer_size)
 
     def get_embeddings(self):
-        # return super().get_embeddings()
-        H = self.model(self.graph.x)
-        nodes = self.graph.node_ids
-        H = H[nodes]
-        return H
+        return DGCN.get_embeddings(self)
+
+    # def __call__(self):
+    #     return DGCN.__call__(self)
 
 
 class SDGCNMaster(SGNNMaster):
@@ -140,9 +77,9 @@ class SDGCNMaster(SGNNMaster):
     ):
         super().__init__(graph)
         self.GNN_structure_embedding = None
-        self.create_model(hidden_layer_size)
+        self.create_smodel(hidden_layer_size)
 
-    def create_model(self, hidden_layer_size=[]):
+    def create_smodel(self, hidden_layer_size=[]):
         layer_sizes = (
             [self.graph.num_features] + hidden_layer_size + [self.graph.num_classes]
         )

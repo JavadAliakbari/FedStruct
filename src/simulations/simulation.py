@@ -137,7 +137,7 @@ if __name__ == "__main__":
                         GNN_server,
                         bar=bar,
                         epochs=epochs,
-                        propagate_types=["DGCN"],
+                        smodel_types=["DGCN"],
                     )
                     GNN_result_prune2 = {}
                     for key, val in GNN_result_prune.items():

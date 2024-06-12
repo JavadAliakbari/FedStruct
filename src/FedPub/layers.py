@@ -248,7 +248,7 @@ class MaskedGCNConv(MessagePassing):
         x = self.lin(x, curr_mask)
         #####################################################
 
-        # propagate_type: (x: Tensor, edge_weight: OptTensor)
+        # smodel_type: (x: Tensor, edge_weight: OptTensor)
         out = self.propagate(edge_index, x=x, edge_weight=edge_weight, size=None)
 
         if self.bias is not None:

@@ -24,7 +24,7 @@ def set_up_system():
 
     graph = define_graph(config.dataset.dataset_name)
 
-    if config.model.propagate_type == "DGCN":
+    if config.model.smodel_type in ["DGCN", "CentralDGCN"]:
         # graph.obtain_a(config.structure_model.DGCN_layers)
         graph.obtain_a(
             config.structure_model.DGCN_layers,
@@ -104,10 +104,11 @@ def set_up_system():
     # res = GNN_server.joint_train_g(data_type="structure", FL=True)
     # results[f"FL S GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    res = GNN_server.joint_train_g(data_type="f+s", FL=True)
+    res = GNN_server.joint_train_g(data_type="structure", FL=True)
+    # res = GNN_server.joint_train_g(data_type="f+s", FL=True)
     results[f"FL F+S GNN"] = round(res["Average"]["Test Acc"], 4)
-    results[f"FL F+S(F) GNN"] = round(res["Average"]["Test Acc F"], 4)
-    results[f"FL F+S(S) GNN"] = round(res["Average"]["Test Acc S"], 4)
+    # results[f"FL F+S(F) GNN"] = round(res["Average"]["Test Acc F"], 4)
+    # results[f"FL F+S(S) GNN"] = round(res["Average"]["Test Acc S"], 4)
 
     # res = fedsage_server.train_fedSage_plus()
     # results[f"fedsage WA"] = round(res["WA"]["Average"]["Test Acc"], 4)

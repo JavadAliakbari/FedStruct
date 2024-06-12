@@ -17,7 +17,8 @@ model:
   weight_decay: 0.0005
   dropout: 0.7
   gnn_layer_type: sage
-  propagate_type: DGCN
+  smodel_type: DGCN
+  fmodel_type: same
   iterations: 100
   metric: acc
 feature_model:

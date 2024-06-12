@@ -56,15 +56,22 @@ class GNN(nn.Module):
         for layer_num in range(self.num_layers):
             if self.layer_type == "sage":
                 layer = SAGEConv(
-                    layer_sizes[layer_num], layer_sizes[layer_num + 1], aggr="mean"
+                    layer_sizes[layer_num],
+                    layer_sizes[layer_num + 1],
+                    aggr="mean",
                 )
             elif self.layer_type == "gcn":
                 layer = GCNConv(
-                    layer_sizes[layer_num], layer_sizes[layer_num + 1], aggr="mean"
+                    layer_sizes[layer_num],
+                    layer_sizes[layer_num + 1],
+                    aggr="mean",
+                    cached=True,
                 )
             elif self.layer_type == "gat":
                 layer = GATConv(
-                    layer_sizes[layer_num], layer_sizes[layer_num + 1], aggr="mean"
+                    layer_sizes[layer_num],
+                    layer_sizes[layer_num + 1],
+                    aggr="mean",
                 )
             layers.append(layer)
             if layer_num < self.num_layers - 1:

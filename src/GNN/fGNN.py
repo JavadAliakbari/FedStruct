@@ -11,11 +11,10 @@ from src.models.model_binders import (
 
 class FGNN(Classifier):
     def __init__(self, graph: Graph):
-        super().__init__()
-        self.graph = graph
-        self.create_model()
+        super().__init__(graph)
+        self.create_smodel()
 
-    def create_model(self):
+    def create_smodel(self):
         gnn_layer_sizes = [
             self.graph.num_features
         ] + config.feature_model.gnn_layer_sizes

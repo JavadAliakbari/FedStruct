@@ -7,12 +7,12 @@ from src.utils.data import Data
 
 
 class Classifier:
-    def __init__(self):
-        self.graph: Graph | Data | None = None
+    def __init__(self, graph=None):
+        self.graph: Graph | Data | None = graph
         self.model: ModelBinder | None = None
         self.optimizer = None
 
-    def create_model(self):
+    def create_smodel(self):
         raise NotImplementedError
 
     def create_optimizer(self):
@@ -103,26 +103,30 @@ class Classifier:
         return 0
 
     def train_step(self, eval_=True):
-        y_pred = self.get_prediction()
-        y = self.graph.y
-        train_mask, val_mask, _ = self.graph.get_masks()
-
-        train_loss, train_acc = calc_metrics(y, y_pred, train_mask)
+        train_loss, train_acc = Classifier.calc_mask_metric(self, mask="train")
         train_loss += self.rank_loss()
         train_loss.backward(retain_graph=True)
 
         if eval_:
-            val_loss, val_acc = Classifier.calc_metrics(self, y, val_mask)
+            val_loss, val_acc = Classifier.calc_mask_metric(self, mask="val")
             return train_loss.item(), train_acc, val_loss.item(), val_acc
         else:
             return train_loss.item(), train_acc
 
-    def calc_test_accuracy(self, metric="acc"):
-        return Classifier.calc_metrics(self, self.graph.y, self.graph.test_mask, metric)
+    def calc_mask_metric(self, mask="test", metric=""):
+        if mask == "train":
+            self.train()
+            metric_mask = self.graph.train_mask
+        elif mask == "val":
+            self.eval()
+            metric_mask = self.graph.val_mask
+        elif mask == "test":
+            self.eval()
+            metric_mask = self.graph.test_mask
+        return Classifier.calc_metrics(self, self.graph.y, metric_mask, metric)
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def calc_metrics(model, y, mask, metric=""):
-        model.eval()
         y_pred = model.get_prediction()
         loss, acc = calc_metrics(y, y_pred, mask)
 

@@ -13,12 +13,13 @@ model:
   batch: False
   batch_size: 64
   local_epochs: 1
-  lr: 0.005
-  weight_decay: 0.0005
+  lr: 0.002
+  weight_decay: 0.0003
   dropout: 0.7
   gnn_layer_type: sage
-  propagate_type: DGCN
-  iterations: 75
+  smodel_type: Laplace
+  fmodel_type: same
+  iterations: 150
   metric: acc
 feature_model:
   gnn_layer_sizes: [128,64]

@@ -53,7 +53,7 @@ save_path = (
     f"{config.dataset.dataset_name}/"
     f"{config.structure_model.structure_type}/"
     f"{config.subgraph.partitioning}/"
-    f"{config.model.propagate_type}/"
+    f"{config.model.smodel_type}/"
     f"{config.subgraph.num_subgraphs}/all/"
 )
 
