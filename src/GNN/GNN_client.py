@@ -1,7 +1,8 @@
+from copy import deepcopy
 from torch_sparse import SparseTensor
 
 from src import *
-from src.GNN.laplace import SLaplace
+from src.GNN.laplace import SLaplace, SpectralLaplace
 from src.client import Client
 from src.classifier import Classifier
 from src.utils.graph import AGraph, Graph
@@ -15,6 +16,7 @@ from src.GNN.GNN_classifier import (
     FedLaplaceClassifier,
     FedMLPClassifier,
     FedSlave,
+    FedSpectralLaplaceClassifier,
 )
 
 
@@ -23,6 +25,8 @@ class GNNClient(Client):
         super().__init__(graph=graph, id=id, classifier_type="GNN")
         # LOGGER.info(f"Number of edges: {self.graph.num_edges}")
         self.classifier: Classifier | None = None
+        self.SFVs = []
+        self.cf_score_list = []
 
     def create_FDGCN_data(self) -> AGraph:
         abar = calc_a(
@@ -122,6 +126,13 @@ class GNNClient(Client):
             elif smodel_type == "Laplace":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = SLaplace(sgraph)
+            elif smodel_type == "SpectralLaplace":
+                sgraph = self.create_SGNN_data(**kwargs)
+                self.classifier = SpectralLaplace(sgraph)
+                if "U" in kwargs.keys():
+                    U = kwargs.get("U", None)
+                    D = kwargs.get("D", None)
+                    self.classifier.set_UD(U, D)
             elif smodel_type == "MLP":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = SClassifier(sgraph)
@@ -152,6 +163,13 @@ class GNNClient(Client):
             elif smodel_type == "Laplace":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = FedLaplaceClassifier(fgraph, sgraph)
+            elif smodel_type == "SpectralLaplace":
+                sgraph = self.create_SGNN_data(**kwargs)
+                self.classifier = FedSpectralLaplaceClassifier(fgraph, sgraph)
+                if "U" in kwargs.keys():
+                    U = kwargs.get("U", None)
+                    D = kwargs.get("D", None)
+                    self.classifier.set_UD(U, D)
             elif smodel_type == "MLP":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = FedMLPClassifier(fgraph, sgraph)
@@ -199,3 +217,16 @@ class GNNClient(Client):
             plot=plot,
             model_type=model_type,
         )
+
+    def save_SFVs(self):
+        SFV = self.classifier.get_SFV().detach().numpy()
+        self.SFVs.append(deepcopy(SFV))
+
+        y_pred = self.classifier.get_prediction()
+        y_pred = y_pred.detach().numpy()
+        y = self.graph.y.numpy()
+        cf_score = y_pred[np.arange(y_pred.shape[0]), y]
+        self.cf_score_list.append(cf_score)
+
+    def get_SFVs(self):
+        return self.SFVs, self.cf_score_list

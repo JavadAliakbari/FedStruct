@@ -127,10 +127,29 @@ class Server(Client):
                 if epoch == epochs - 1:
                     self.report_results(results, "Joint Training")
 
+            if plot:
+                self.save_SFVs()
+
         if plot:
             title = f"{model_type}"
             plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
+
+            SFVs, correctly_classified_list = self.get_SFVs()
+            path_file = f"{save_path}/plots/{now}/"
+            x = self.classifier.get_x().detach().numpy()
+            D = self.classifier.get_D()
+
+            plot_spectral_hist(x, D, path_file)
+
+            plot_TSNE2(
+                path_file,
+                SFVs,
+                self.graph.edge_index,
+                self.graph.y,
+                self.graph.num_classes,
+                correctly_classified_list,
+            )
 
         if log:
             self.report_server_test()

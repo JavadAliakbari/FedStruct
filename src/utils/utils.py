@@ -4,6 +4,7 @@ import itertools
 from ast import List
 from datetime import datetime
 
+import imageio
 import torch
 import numpy as np
 import pandas as pd
@@ -13,9 +14,12 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
 from torch_geometric.utils import degree, add_self_loops
 from dotenv import load_dotenv
+from sklearn.manifold import TSNE
+import matplotlib.cm as cm
 
 from src.utils.config_parser import Config
 from src.utils.logger import getLOGGER
+from src.utils.plot_graph import plot_graph
 
 load_dotenv()
 config_path = os.environ.get("CONFIGPATH")
@@ -28,8 +32,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-elif torch.backends.mps.is_available():
-    dev = "mps"
+# elif torch.backends.mps.is_available():
+#     dev = "mps"
 else:
     dev = "cpu"
 device = torch.device(dev)
@@ -40,7 +44,7 @@ else:
     local_dev = dev
 
 
-seed = 65
+seed = 23
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -127,6 +131,125 @@ def plot_metrics(
     plot_title = f"accuracy {title}"
     plt.title(plot_title)
     plt.savefig(f"{save_path}{plot_title}.png")
+
+
+def plot_spectral_hist(x, D, path_file="./"):
+    if D is None:
+        D = np.arange(x.shape[0])
+    else:
+        D = D.numpy()
+    hist_x = np.sum(abs(x), axis=1)
+    normalized_hist_x = hist_x / sum(hist_x)
+    # sorted_x = np.sort(abs(x), axis=0)
+    # ax = fig.add_subplot()
+    fig, ax = plt.subplots()
+    ax.plot(D, x, "*")
+    fig.savefig(f"{path_file}x1.png")
+
+    fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
+    X = range(x.shape[0])
+    Y = range(x.shape[1])
+    X, Y = np.meshgrid(X, Y)
+    ax.plot_surface(
+        X,
+        Y,
+        x.T,
+        rstride=1,
+        cstride=1,
+        cmap=cm.coolwarm,
+        linewidth=0,
+        antialiased=False,
+    )
+    fig.savefig(f"{path_file}x2.png")
+    fig, ax = plt.subplots()
+    ax.bar(D, normalized_hist_x)
+    fig.savefig(f"{path_file}x3.png")
+    fig, ax = plt.subplots()
+    ax.bar(range(len(normalized_hist_x)), hist_x)
+    fig.savefig(f"{path_file}x4.png")
+
+
+def plot_TSNE2(
+    file_path, SFVs, edge_index, labels, num_classes, correctly_classified_list=None
+):
+    image_path = f"{file_path}points/"
+    os.makedirs(image_path, exist_ok=True)
+    graph_path = f"{file_path}graph/"
+    os.makedirs(graph_path, exist_ok=True)
+    cmap = plt.get_cmap("gist_rainbow", num_classes)
+    colors = [cmap(1.0 * i / num_classes) for i in range(num_classes)]
+    tsne = TSNE(
+        random_state=seed,
+        perplexity=15,
+        max_iter=500,
+        n_iter_without_progress=100,
+        n_jobs=7,
+    )
+
+    reference_tsne = None
+    bar = tqdm(total=len(SFVs))
+    for epoch, SFV in reversed(list(enumerate(SFVs))):
+        points = tsne_and_align(tsne, SFV, reference_tsne)
+        reference_tsne = points
+
+        fig, ax = plt.subplots()
+        for i in range(num_classes):
+            mask = labels == i
+            class_points = points[mask]
+            ax.scatter(
+                class_points[:, 0],
+                class_points[:, 1],
+                color=colors[i],
+                marker=f"${i}$",
+                label=i,
+            )
+
+        plot_title = f"epoch {epoch}"
+
+        file_name = f"{image_path}{plot_title}.png"
+        ax.legend(loc="lower right")
+        plt.title(plot_title)
+        fig.savefig(file_name)
+
+        fig2, ax = plt.subplots()
+        plot_graph(
+            edge_index,
+            SFV.shape[0],
+            num_classes,
+            labels,
+            points,
+            correctly_classified_list[epoch],
+        )
+        plt.title(plot_title)
+        file_name2 = f"{graph_path}{plot_title}.png"
+        fig2.savefig(file_name2)
+        # plt.show()
+        bar.update()
+
+    generate_gif(file_path, name="points")
+    generate_gif(file_path, name="graph")
+
+
+def tsne_and_align(tsne: TSNE, new_matrix, reference_tsne):
+    if reference_tsne is not None:
+        tsne.set_params(init=reference_tsne)
+    tsne_result = tsne.fit_transform(new_matrix)
+    return tsne_result
+
+
+def generate_gif(root_path, name="graph"):
+    image_path = f"{root_path}{name}/"
+    filenames = os.listdir(image_path)
+    filenames = [filename for filename in filenames if filename.endswith(".png")]
+    filenames = list(sorted(filenames, key=lambda elem: int(elem.split(".")[0][6:])))
+
+    images = []
+    for filename in filenames:
+        file_path = f"{image_path}{filename}"
+        images.append(imageio.imread(file_path))
+    gif_path = f"{root_path}gif/"
+    os.makedirs(gif_path, exist_ok=True)
+    imageio.mimsave(f"{gif_path}/{name}.gif", images, format="GIF", fps=5)
 
 
 def obtain_a(edge_index, num_nodes, num_layers, estimate=False, pruning=False):
@@ -274,9 +397,13 @@ def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
     return abar
 
 
-def calc_metrics(y, y_pred, mask):
-    y_masked = y[mask]
-    y_pred_masked = y_pred[mask]
+def calc_metrics(y, y_pred, mask=None):
+    if mask is None:
+        y_masked = y
+        y_pred_masked = y_pred
+    else:
+        y_masked = y[mask]
+        y_pred_masked = y_pred[mask]
 
     criterion = torch.nn.CrossEntropyLoss()
     loss = criterion(y_pred_masked, y_masked)

@@ -59,8 +59,11 @@ class Client:
             "Train Acc",
             "Val Loss",
             "Val Acc",
+            "Test Acc",
             "Val F Acc",
             "Val S Acc",
+            "Test F Acc",
+            "Test S Acc",
         ]
         result = {}
         for metric, val in zip(metrics, res):

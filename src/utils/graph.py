@@ -45,7 +45,7 @@ class Graph(Data):
         **kwargs,
     ) -> None:
         if node_ids is None:
-            node_ids = np.arange(len(x))
+            node_ids = torch.arange(len(x))
         super().__init__(
             x=x,
             y=y,

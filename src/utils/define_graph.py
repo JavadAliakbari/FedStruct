@@ -8,7 +8,7 @@ from torch_geometric.datasets import (
     Amazon,
     Actor,
 )
-from torch_geometric.utils import to_undirected, remove_self_loops
+from torch_geometric.utils import to_undirected, remove_self_loops, is_undirected
 
 from src import *
 from src.utils.graph import Graph
@@ -57,8 +57,8 @@ def define_graph(dataset_name=config.dataset.dataset_name):
         node_ids = torch.arange(dataset[0].num_nodes)
         edge_index = dataset[0].edge_index
 
-        edge_index = to_undirected(edge_index)
-        edge_index = remove_self_loops(edge_index)[0]
+        # edge_index = to_undirected(edge_index)
+        # edge_index = remove_self_loops(edge_index)[0]
         graph = Graph(
             x=dataset[0].x.to(device),
             y=dataset[0].y.to(device),

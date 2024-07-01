@@ -50,9 +50,8 @@ class GNNServer(Server, GNNClient):
         super().initialize(
             smodel_type=smodel_type,
             data_type=data_type,
-            SFV=SFV,
             abar=self.graph.abar,
-            edge_index=self.graph.edge_index,
+            SFV=SFV,
             **kwargs,
         )
 
@@ -69,6 +68,9 @@ class GNNServer(Server, GNNClient):
             data_type=data_type,
             **kwargs,
         )
+
+        U, D = self.classifier.get_UD()
+
         client: GNNClient
         for client in self.clients:
             client.initialize(
@@ -78,6 +80,8 @@ class GNNServer(Server, GNNClient):
                 abar=self.graph.abar,
                 SFV=self.graph.structural_features,
                 server_embedding_func=self.classifier.get_embeddings_func(),
+                U=U,
+                D=D,
                 **kwargs,
             )
 

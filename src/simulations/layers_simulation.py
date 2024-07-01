@@ -32,7 +32,7 @@ def run(
     num_subgraphs=config.subgraph.num_subgraphs,
     partitioning=config.subgraph.partitioning,
 ):
-    graph.add_masks(train_size=train_ratio, test_size=test_ratio)
+    graph.add_masks(train_ratio=train_ratio, test_ratio=test_ratio)
 
     GNN_server.remove_clients()
 

@@ -33,8 +33,8 @@ def set_up_system():
         )
 
     graph.add_masks(
-        train_size=config.subgraph.train_ratio,
-        test_size=config.subgraph.test_ratio,
+        train_ratio=config.subgraph.train_ratio,
+        test_ratio=config.subgraph.test_ratio,
     )
 
     subgraphs = partition_graph(
@@ -104,11 +104,11 @@ def set_up_system():
     # res = GNN_server.joint_train_g(data_type="structure", FL=True)
     # results[f"FL S GNN"] = round(res["Average"]["Test Acc"], 4)
 
-    res = GNN_server.joint_train_g(data_type="structure", FL=True)
-    # res = GNN_server.joint_train_g(data_type="f+s", FL=True)
+    # res = GNN_server.joint_train_g(data_type="structure", FL=True)
+    res = GNN_server.joint_train_g(data_type="f+s", FL=True)
     results[f"FL F+S GNN"] = round(res["Average"]["Test Acc"], 4)
-    # results[f"FL F+S(F) GNN"] = round(res["Average"]["Test Acc F"], 4)
-    # results[f"FL F+S(S) GNN"] = round(res["Average"]["Test Acc S"], 4)
+    results[f"FL F+S(F) GNN"] = round(res["Average"]["Test Acc F"], 4)
+    results[f"FL F+S(S) GNN"] = round(res["Average"]["Test Acc S"], 4)
 
     # res = fedsage_server.train_fedSage_plus()
     # results[f"fedsage WA"] = round(res["WA"]["Average"]["Test Acc"], 4)

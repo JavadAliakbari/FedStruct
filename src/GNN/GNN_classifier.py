@@ -3,7 +3,7 @@ from torch_geometric.loader import NeighborLoader
 from src import *
 from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
 from src.GNN.fGNN import FGNN
-from src.GNN.laplace import SLaplace
+from src.GNN.laplace import SLaplace, SpectralLaplace
 from src.GNN.sGNN import SClassifier, SGNNMaster, SGNNSlave
 from src.utils.graph import AGraph, Graph
 from src.utils.data import Data
@@ -73,6 +73,12 @@ class FedClassifier(Classifier):
         self.fmodel.reset()
         self.smodel.reset()
 
+    def get_UD(self):
+        return self.smodel.get_UD()
+
+    def set_UD(self, U, D):
+        self.smodel.set_UD(U, D)
+
     def create_smodel(self):
         raise NotImplementedError
 
@@ -82,14 +88,24 @@ class FedClassifier(Classifier):
         if isinstance(fgraph, Graph):
             self.fmodel = FGNN(fgraph)
 
+    def get_SFV(self):
+        # return self.smodel()
+        return self.smodel.get_SFV()
+
+    def get_x(self):
+        return self.smodel.get_x()
+
+    def get_D(self):
+        return self.smodel.get_D()
+
     def get_embeddings(self):
         H = self.fmodel()
         S = self.smodel()
         O = H + S
         return O
 
-    def rank_loss(self):
-        return self.smodel.rank_loss()
+    def regularizer(self):
+        return self.smodel.regularizer()
 
     def train_step(self, eval_=True):
         res = super().train_step(eval_=eval_)
@@ -97,7 +113,9 @@ class FedClassifier(Classifier):
         if eval_:
             f_res = self.fmodel.calc_mask_metric(mask="val", metric="acc")
             s_res = self.smodel.calc_mask_metric(mask="val", metric="acc")
-            return res + f_res + s_res
+            f_test = self.fmodel.calc_mask_metric(mask="test", metric="acc")
+            s_test = self.smodel.calc_mask_metric(mask="test", metric="acc")
+            return res + f_res + s_res + f_test + s_test
         else:
             return res
 
@@ -157,6 +175,11 @@ class FedDGCNMaster(FedGNNMaster):
 class FedLaplaceClassifier(FedClassifier):
     def create_smodel(self, sgraph: Graph):
         self.smodel = SLaplace(sgraph)
+
+
+class FedSpectralLaplaceClassifier(FedClassifier):
+    def create_smodel(self, sgraph: Graph):
+        self.smodel = SpectralLaplace(sgraph)
 
 
 class FedMLPClassifier(FedClassifier):

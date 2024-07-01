@@ -85,6 +85,12 @@ class Classifier:
         self.model = None
         self.optimizer = None
 
+    def get_UD(self):
+        return None, None
+
+    def set_UD(self, U, D):
+        pass
+
     def get_embeddings(self):
         raise NotImplementedError
 
@@ -99,17 +105,30 @@ class Classifier:
         y_pred = torch.nn.functional.softmax(H, dim=1)
         return y_pred
 
-    def rank_loss(self):
+    def get_SFV(self):
+        # return self()
+        return self.graph.x
+
+    def get_x(self):
+        return self.graph.x
+
+    def get_D(self):
+        return None
+
+    def regularizer(self):
         return 0
 
     def train_step(self, eval_=True):
-        train_loss, train_acc = Classifier.calc_mask_metric(self, mask="train")
-        train_loss += self.rank_loss()
+        label_loss, train_acc = Classifier.calc_mask_metric(self, mask="train")
+        structure_loss = self.regularizer()
+        train_loss = 1 * label_loss + 10 * structure_loss
+
         train_loss.backward(retain_graph=True)
 
         if eval_:
+            test_loss, test_acc = Classifier.calc_mask_metric(self, mask="test")
             val_loss, val_acc = Classifier.calc_mask_metric(self, mask="val")
-            return train_loss.item(), train_acc, val_loss.item(), val_acc
+            return train_loss.item(), train_acc, val_loss.item(), val_acc, test_acc
         else:
             return train_loss.item(), train_acc
 

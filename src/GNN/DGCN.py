@@ -42,6 +42,9 @@ class DGCN(Classifier):
         self.model: ModelBinder = ModelBinder(model_specs)
         self.model.to(device)
 
+    def get_SFV(self):
+        return torch.matmul(self.graph.abar, self.graph.x)
+
     def get_embeddings(self):
         H = self.model(self.graph.x)
         if self.graph.abar.is_sparse and H.device.type == "mps":
@@ -64,6 +67,9 @@ class SDGCN(DGCN, SClassifier):
 
     def get_embeddings(self):
         return DGCN.get_embeddings(self)
+
+    def get_SFV(self):
+        return DGCN.get_SFV(self)
 
     # def __call__(self):
     #     return DGCN.__call__(self)
