@@ -130,7 +130,7 @@ class GNNClient(Client):
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = SpectralLaplace(sgraph)
                 if "U" in kwargs.keys():
-                    U = kwargs.get("U", None)
+                    U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)
                     self.classifier.set_UD(U, D)
             elif smodel_type == "MLP":
@@ -167,7 +167,7 @@ class GNNClient(Client):
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = FedSpectralLaplaceClassifier(fgraph, sgraph)
                 if "U" in kwargs.keys():
-                    U = kwargs.get("U", None)
+                    U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)
                     self.classifier.set_UD(U, D)
             elif smodel_type == "MLP":

@@ -44,7 +44,7 @@ else:
     local_dev = dev
 
 
-seed = 23
+seed = 65
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -169,7 +169,7 @@ def plot_spectral_hist(x, D, path_file="./"):
     fig.savefig(f"{path_file}x4.png")
 
 
-def plot_TSNE2(
+def plot_TSNE(
     file_path, SFVs, edge_index, labels, num_classes, correctly_classified_list=None
 ):
     image_path = f"{file_path}points/"
@@ -432,24 +432,6 @@ def lol2lol(list_of_lists):
     res = [[d[key] for d in list_of_lists] for key in keys]
 
     return res
-
-
-def get_grads(clients, just_SFV=False):
-    clients_grads = []
-    for client in clients:
-        grads = client.get_grads(just_SFV)
-        clients_grads.append(grads)
-
-    return clients_grads
-
-
-def state_dict(clients):
-    clients_weights = []
-    for client in clients:
-        grads = client.state_dict()
-        clients_weights.append(grads)
-
-    return clients_weights
 
 
 def sum_lod(x: List, coef=None):

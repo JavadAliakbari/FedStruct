@@ -126,7 +126,7 @@ class Classifier:
         train_loss.backward(retain_graph=True)
 
         if eval_:
-            test_loss, test_acc = Classifier.calc_mask_metric(self, mask="test")
+            _, test_acc = Classifier.calc_mask_metric(self, mask="test")
             val_loss, val_acc = Classifier.calc_mask_metric(self, mask="val")
             return train_loss.item(), train_acc, val_loss.item(), val_acc, test_acc
         else:

@@ -17,6 +17,22 @@ class Server(Client):
         self.clients.clear()
         self.num_clients = 0
 
+    def get_grads(self, just_SFV=False):
+        clients_grads = []
+        for client in self.clients:
+            grads = client.get_grads(just_SFV)
+            clients_grads.append(grads)
+
+        return clients_grads
+
+    def get_weights(self):
+        clients_weights = []
+        for client in self.clients:
+            grads = client.state_dict()
+            clients_weights.append(grads)
+
+        return clients_weights
+
     def share_weights(self):
         server_weights = self.state_dict()
 
@@ -114,7 +130,7 @@ class Server(Client):
             average_results.append(average_result)
 
             if FL:
-                clients_grads = get_grads(self.clients)
+                clients_grads = self.get_grads()
                 grads = sum_lod(clients_grads, coef)
                 self.share_grads(grads)
 
@@ -135,21 +151,20 @@ class Server(Client):
             plot_path = f"{save_path}/plots/{now}/"
             plot_metrics(average_results, title=title, save_path=plot_path)
 
-            SFVs, correctly_classified_list = self.get_SFVs()
-            path_file = f"{save_path}/plots/{now}/"
-            x = self.classifier.get_x().detach().numpy()
-            D = self.classifier.get_D()
+            # SFVs, correctly_classified_list = self.get_SFVs()
+            # path_file = f"{save_path}/plots/{now}/"
+            # x = self.classifier.get_x().detach().numpy()
+            # D = self.classifier.get_D()
+            # plot_spectral_hist(x, D, path_file)
 
-            plot_spectral_hist(x, D, path_file)
-
-            plot_TSNE2(
-                path_file,
-                SFVs,
-                self.graph.edge_index,
-                self.graph.y,
-                self.graph.num_classes,
-                correctly_classified_list,
-            )
+            # plot_TSNE2(
+            #     path_file,
+            #     SFVs,
+            #     self.graph.edge_index,
+            #     self.graph.y,
+            #     self.graph.num_classes,
+            #     correctly_classified_list,
+            # )
 
         if log:
             self.report_server_test()
@@ -191,14 +206,14 @@ class Server(Client):
             average_results.append(average_result)
 
             if FL:
-                clients_grads = get_grads(self.clients, True)
+                clients_grads = self.get_grads(True)
                 grads = sum_lod(clients_grads, coef)
                 self.share_grads(grads)
 
             self.update_models()
 
             if FL:
-                clients_weights = state_dict(self.clients)
+                clients_weights = self.get_weights()
                 mean_weights = sum_lod(clients_weights, coef)
                 self.load_state_dict(mean_weights)
 

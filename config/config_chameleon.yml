@@ -13,13 +13,14 @@ model:
   batch: False
   batch_size: 64
   local_epochs: 1
-  lr: 0.003
+  lr: 0.001
   weight_decay: 0.0003
   dropout: 0.7
   gnn_layer_type: sage
-  smodel_type: DGCN
+  # smodel_type: Laplace
+  smodel_type: SpectralLaplace
   fmodel_type: same
-  iterations: 225
+  iterations: 100
   metric: acc
 feature_model:
   gnn_layer_sizes: [128,64,32]
@@ -41,6 +42,10 @@ structure_model:
   rw_len: 50
   gnn_epochs: 500
   mlp_epochs: 200
+spectral:
+  estimate: True
+  spectral_len: 200
+  lanczos_iter: 1000
 node2vec:
   epochs: 75
   walk_length: 10

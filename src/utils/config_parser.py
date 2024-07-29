@@ -10,6 +10,7 @@ class Config:
         self.model = ModelConfig(self.config["model"])
         self.feature_model = FeatureModelConfig(self.config["feature_model"])
         self.structure_model = StructureModelConfig(self.config["structure_model"])
+        self.spectral = SpectralConfig(self.config["spectral"])
         self.node2vec = Node2VecConfig(self.config["node2vec"])
         self.fedsage = FedSAGEConfig(self.config["fedsage"])
         self.fedpub = PubMedConfig(self.config["fedpub"])
@@ -88,6 +89,16 @@ class StructureModelConfig:
         self.rw_len = structure_model["rw_len"]
         self.gnn_epochs = structure_model["gnn_epochs"]
         self.mlp_epochs = structure_model["mlp_epochs"]
+
+
+class SpectralConfig:
+    def __init__(self, spectral_model):
+        self.load_config(spectral_model)
+
+    def load_config(self, spectral_model):
+        self.estimate = spectral_model["estimate"]
+        self.spectral_len = spectral_model["spectral_len"]
+        self.lanczos_iter = spectral_model["lanczos_iter"]
 
 
 class Node2VecConfig:

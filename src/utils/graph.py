@@ -5,12 +5,18 @@ from operator import itemgetter
 import torch
 import numpy as np
 import torch.nn.functional as F
-from torch_geometric.utils import degree
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
 from torch_sparse import SparseTensor
+from torch_geometric.utils import (
+    degree,
+    to_undirected,
+    scatter,
+    remove_self_loops,
+)
 
 from src import *
+from src.GNN.Lanczos import estimate_eigh
 from src.models.GDV import GDV
 from src.utils.data import Data
 from src.models.Node2Vec import find_node2vect_embedings
@@ -115,6 +121,7 @@ class Graph(Data):
         self,
         structure_type="degree",
         num_structural_features=100,
+        num_spectral_features=None,
     ):
         structural_features = None
         if self.keep_sfvs:
@@ -127,6 +134,7 @@ class Graph(Data):
                 self.num_nodes,
                 structure_type=structure_type,
                 num_structural_features=num_structural_features,
+                num_spectral_features=num_spectral_features,
                 save=True,
             )
             if structure_type in ["degree", "GDV", "node2vec"]:
@@ -141,6 +149,7 @@ class Graph(Data):
         num_nodes=None,
         structure_type="degree",
         num_structural_features=100,
+        num_spectral_features=None,
         save=False,
     ):
         if num_nodes is None:
@@ -170,8 +179,10 @@ class Graph(Data):
                 iteration=config.structure_model.num_mp_vectors,
             )
         elif structure_type == "hop2vec":
+            if num_spectral_features is None:
+                num_spectral_features = num_nodes
             structural_features = Graph.initialize_random_features(
-                size=(num_nodes, num_structural_features)
+                size=(num_spectral_features, num_structural_features)
             )
         elif structure_type == "fedstar":
             structural_features = Graph.calc_fedStar(
@@ -253,3 +264,65 @@ class Graph(Data):
             edge_index=edges,
             include_node=include_node,
         )
+
+    def create_L(self, normalization=None):
+        nodes = self.node_ids
+
+        num_nodes = self.x.shape[0]
+        intra_edges = self.original_edge_index
+        inter_edges = self.inter_edges
+        if inter_edges is not None:
+            edges = torch.concat((intra_edges, inter_edges), dim=1)
+        else:
+            edges = intra_edges
+
+        # prob_tensor = torch.full((edges.shape[1],), 0.50)
+        # selected_edges = torch.bernoulli(prob_tensor).bool()
+        # edges = edges[:, selected_edges]
+
+        undirected_edges = to_undirected(edges)
+        edge_mask = undirected_edges[0].unsqueeze(1).eq(nodes).any(1)
+        directed_edges = undirected_edges[:, edge_mask]
+        directed_edges, _ = remove_self_loops(directed_edges)
+
+        nodes_ = nodes.unsqueeze(0)
+        self_loops = torch.concat((nodes_, nodes_), dim=0)
+        l_edge_index = torch.concat((directed_edges, self_loops), dim=1)
+
+        edge_weight = torch.ones(
+            directed_edges.size(1), dtype=torch.float32, device=directed_edges.device
+        )
+        row, col = directed_edges[0], directed_edges[1]
+        deg = scatter(edge_weight, row, 0, dim_size=num_nodes, reduce="sum")
+        deg_inv = 1.0 / deg
+        deg_inv.masked_fill_(deg_inv == float("inf"), 0)
+
+        if normalization is None:
+            # D - A
+            l_edge_weight = torch.concat(
+                (-torch.ones_like(directed_edges[0]), deg[self_loops[0]])
+            )
+        elif normalization == "rw":
+            # I - D^-1 A
+            l_edge_weight = torch.concat(
+                (-deg_inv[directed_edges[0]], torch.ones_like(nodes))
+            )
+
+        self.L = torch.sparse_coo_tensor(
+            l_edge_index,
+            l_edge_weight,
+            (num_nodes, num_nodes),
+            dtype=torch.float32,
+            device=intra_edges.device,
+        )
+
+    def calc_eignvalues(self, estimate=False):
+        if estimate:
+            self.D, self.U = estimate_eigh(self.L, config.spectral.lanczos_iter)
+            # self.D, self.U = estimate_eigh(self.L, num_nodes)
+        else:
+            self.D, self.U = torch.linalg.eigh(self.L)
+
+        if config.spectral.spectral_len > 0:
+            self.U = self.U[:, : config.spectral.spectral_len]
+            self.D = self.D[: config.spectral.spectral_len]

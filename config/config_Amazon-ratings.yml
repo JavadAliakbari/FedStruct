@@ -17,7 +17,8 @@ model:
   weight_decay: 0.0002
   dropout: 0.7
   gnn_layer_type: sage
-  smodel_type: DGCN
+  # smodel_type: Laplace
+  smodel_type: SpectralLaplace
   fmodel_type: same
   iterations: 100
   metric: acc
@@ -40,6 +41,10 @@ structure_model:
   rw_len: 50
   gnn_epochs: 500
   mlp_epochs: 200
+spectral:
+  estimate: True
+  spectral_len: 200
+  lanczos_iter: 1000
 node2vec:
   epochs: 50
   walk_length: 20

@@ -25,14 +25,11 @@ class GNNServer(Server, GNNClient):
     def initialize(
         self,
         smodel_type=config.model.smodel_type,
+        fmodel_type=config.model.fmodel_type,
         data_type="feature",
         **kwargs,
     ) -> None:
-        if data_type in ["structure", "f+s"]:
-            if smodel_type in ["DGCN", "CentralDGCN"]:
-                self.graph.obtain_a()
-
-        SFV = None
+        share = {}
         if data_type in ["structure", "f+s"]:
             structure_type = kwargs.get(
                 "structure_type", config.structure_model.structure_type
@@ -41,19 +38,42 @@ class GNNServer(Server, GNNClient):
                 "num_structural_features",
                 config.structure_model.num_structural_features,
             )
+            if smodel_type == "SpectralLaplace":
+                num_spectral_features = config.spectral.spectral_len
+            else:
+                num_spectral_features = None
+
             self.graph.add_structural_features(
                 structure_type=structure_type,
                 num_structural_features=num_structural_features,
+                num_spectral_features=num_spectral_features,
             )
             SFV = self.graph.structural_features
+            share["SFV"] = SFV
+
+            if smodel_type in ["DGCN", "CentralDGCN"]:
+                self.graph.obtain_a()
+                share["abar"] = self.graph.abar
+
+            if smodel_type == "CentralDGCN":
+                share["server_embedding_func"] = self.classifier.get_embeddings_func()
+
+            if smodel_type == "SpectralLaplace":
+                self.graph.create_L()
+                self.graph.calc_eignvalues(estimate=config.spectral.estimate)
+                share["U"] = self.graph.U
+                share["D"] = self.graph.D
+
+        kwargs.update(share)
 
         super().initialize(
             smodel_type=smodel_type,
+            fmodel_type=fmodel_type,
             data_type=data_type,
-            abar=self.graph.abar,
-            SFV=SFV,
             **kwargs,
         )
+
+        return share
 
     def initialize_FL(
         self,
@@ -62,14 +82,14 @@ class GNNServer(Server, GNNClient):
         data_type="feature",
         **kwargs,
     ) -> None:
-        self.initialize(
+        share = self.initialize(
             smodel_type=smodel_type,
             fmodel_type=fmodel_type,
             data_type=data_type,
             **kwargs,
         )
 
-        U, D = self.classifier.get_UD()
+        kwargs.update(share)
 
         client: GNNClient
         for client in self.clients:
@@ -77,11 +97,6 @@ class GNNServer(Server, GNNClient):
                 smodel_type=smodel_type,
                 fmodel_type=fmodel_type,
                 data_type=data_type,
-                abar=self.graph.abar,
-                SFV=self.graph.structural_features,
-                server_embedding_func=self.classifier.get_embeddings_func(),
-                U=U,
-                D=D,
                 **kwargs,
             )
 
