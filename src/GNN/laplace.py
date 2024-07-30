@@ -1,9 +1,4 @@
 import torch
-from torch_geometric.utils import (
-    to_undirected,
-    scatter,
-    remove_self_loops,
-)
 
 from src import *
 from src.GNN.sGNN import SClassifier
@@ -142,6 +137,15 @@ class SpectralLaplace(SClassifier):
         SFV = torch.matmul(self.U, Q)
         H = self.model(SFV)
         return H
+
+
+class LanczosLaplace(SpectralLaplace):
+    def __init__(
+        self,
+        graph: Graph,
+        hidden_layer_size=config.structure_model.DGCN_structure_layers_sizes,
+    ):
+        super().__init__(graph, hidden_layer_size)
 
 
 # class SLaplace(SClassifier):

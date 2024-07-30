@@ -3,7 +3,7 @@ from torch_geometric.loader import NeighborLoader
 from src import *
 from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
 from src.GNN.fGNN import FGNN
-from src.GNN.laplace import SLaplace, SpectralLaplace
+from src.GNN.laplace import LanczosLaplace, SLaplace, SpectralLaplace
 from src.GNN.sGNN import SClassifier, SGNNMaster, SGNNSlave
 from src.utils.graph import AGraph, Graph
 from src.utils.data import Data
@@ -180,6 +180,11 @@ class FedLaplaceClassifier(FedClassifier):
 class FedSpectralLaplaceClassifier(FedClassifier):
     def create_smodel(self, sgraph: Graph):
         self.smodel = SpectralLaplace(sgraph)
+
+
+class FedLanczosLaplaceClassifier(FedClassifier):
+    def create_smodel(self, sgraph: Graph):
+        self.smodel = LanczosLaplace(sgraph)
 
 
 class FedMLPClassifier(FedClassifier):

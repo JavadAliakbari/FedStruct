@@ -321,7 +321,7 @@ class Graph(Data):
             self.D, self.U = estimate_eigh(self.L, config.spectral.lanczos_iter)
             # self.D, self.U = estimate_eigh(self.L, num_nodes)
         else:
-            self.D, self.U = torch.linalg.eigh(self.L)
+            self.D, self.U = torch.linalg.eigh(self.L.to_dense())
 
         if config.spectral.spectral_len > 0:
             self.U = self.U[:, : config.spectral.spectral_len]

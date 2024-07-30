@@ -2,7 +2,7 @@ from copy import deepcopy
 from torch_sparse import SparseTensor
 
 from src import *
-from src.GNN.laplace import SLaplace, SpectralLaplace
+from src.GNN.laplace import LanczosLaplace, SLaplace, SpectralLaplace
 from src.client import Client
 from src.classifier import Classifier
 from src.utils.graph import AGraph, Graph
@@ -13,6 +13,7 @@ from src.GNN.GNN_classifier import (
     FedDGCN,
     FedDGCNMaster,
     FedGNNMaster,
+    FedLanczosLaplaceClassifier,
     FedLaplaceClassifier,
     FedMLPClassifier,
     FedSlave,
@@ -133,6 +134,13 @@ class GNNClient(Client):
                     U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)
                     self.classifier.set_UD(U, D)
+            elif smodel_type == "LanczosLaplace":
+                sgraph = self.create_SGNN_data(**kwargs)
+                self.classifier = LanczosLaplace(sgraph)
+                if "U" in kwargs.keys():
+                    U = kwargs.get("U", None)[self.graph.node_ids]
+                    D = kwargs.get("D", None)
+                    self.classifier.set_UD(U, D)
             elif smodel_type == "MLP":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = SClassifier(sgraph)
@@ -166,6 +174,13 @@ class GNNClient(Client):
             elif smodel_type == "SpectralLaplace":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = FedSpectralLaplaceClassifier(fgraph, sgraph)
+                if "U" in kwargs.keys():
+                    U = kwargs.get("U", None)[self.graph.node_ids]
+                    D = kwargs.get("D", None)
+                    self.classifier.set_UD(U, D)
+            elif smodel_type == "LanczosLaplace":
+                sgraph = self.create_SGNN_data(**kwargs)
+                self.classifier = FedLanczosLaplaceClassifier(fgraph, sgraph)
                 if "U" in kwargs.keys():
                     U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)

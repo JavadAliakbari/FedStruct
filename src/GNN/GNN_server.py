@@ -38,7 +38,7 @@ class GNNServer(Server, GNNClient):
                 "num_structural_features",
                 config.structure_model.num_structural_features,
             )
-            if smodel_type == "SpectralLaplace":
+            if smodel_type in ["SpectralLaplace", "LanczosLaplace"]:
                 num_spectral_features = config.spectral.spectral_len
             else:
                 num_spectral_features = None
@@ -60,7 +60,12 @@ class GNNServer(Server, GNNClient):
 
             if smodel_type == "SpectralLaplace":
                 self.graph.create_L()
-                self.graph.calc_eignvalues(estimate=config.spectral.estimate)
+                self.graph.calc_eignvalues(estimate=False)
+                share["U"] = self.graph.U
+                share["D"] = self.graph.D
+            if smodel_type == "LanczosLaplace":
+                self.graph.create_L()
+                self.graph.calc_eignvalues(estimate=True)
                 share["U"] = self.graph.U
                 share["D"] = self.graph.D
 

@@ -4,8 +4,11 @@ import torch
 from tqdm import tqdm
 
 
-def estimate_eigh(A, m, prune=False):
-    T, V = Lanczos_func(A, m)
+def estimate_eigh(A, m, X=None, prune=False, block=False, p=5):
+    if block:
+        T, V = block_lanczos(A, X, m=m, p=p)
+    else:
+        T, V = Lanczos_func(A, m)
     D_, U_ = torch.linalg.eigh(T)
     if prune:
         e = torch.diff(D_)
@@ -71,15 +74,20 @@ def Lanczos_func(A, m=10):
     return T, V
 
 
-def block_lanczos(H, m=10, p=5):
+def block_lanczos(H, X=None, m=10, p=5):
     n = H.shape[0]
     H = deepcopy(H).double()
+    X = deepcopy(X).double()
     B = []
     A = []
-    R = torch.randn((n, p), dtype=torch.double)
-    Qj, _ = torch.qr(R)
+    if X is None:
+        X = torch.randn((n, p), dtype=torch.double)
+    else:
+        p = X.shape[1]
+    Qj, _ = torch.linalg.qr(X)
     Q = [Qj]
 
+    bar = tqdm(total=m)
     for j in range(m):
         if j == 0:
             U = H @ Q[-1]
@@ -93,6 +101,33 @@ def block_lanczos(H, m=10, p=5):
         Q.append(Qj)
         B.append(Bj)
 
-    T = torch.diag(A) + torch.diag(B[:-1], 1) + torch.diag(B[:-1], -1)
+        bar.update()
 
-    return T, torch.stack(Q)
+    T = (
+        torch.block_diag(*A)
+        + torch.vstack(
+            (
+                torch.hstack(
+                    (
+                        torch.zeros((j * p, p), dtype=torch.double),
+                        torch.block_diag(*B[:-1]),
+                    )
+                ),
+                torch.zeros((p, (j + 1) * p), dtype=torch.double),
+            )
+        )
+        + torch.vstack(
+            (
+                torch.zeros((p, (j + 1) * p), dtype=torch.double),
+                torch.hstack(
+                    (
+                        torch.block_diag(*B[:-1]),
+                        torch.zeros((j * p, p), dtype=torch.double),
+                    )
+                ),
+            )
+        )
+    )
+    V = torch.hstack(Q[:-1])
+
+    return T, V
