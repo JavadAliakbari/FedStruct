@@ -46,9 +46,10 @@ class Data:
             generator=torch.Generator().manual_seed(seed),
         )
 
-        self.train_mask = indices.unsqueeze(1).eq(torch.tensor(train_indices)).any(1)
-        self.val_mask = indices.unsqueeze(1).eq(torch.tensor(val_indices)).any(1)
-        self.test_mask = indices.unsqueeze(1).eq(torch.tensor(test_indices)).any(1)
+
+        self.train_mask = indices.unsqueeze(1).eq(torch.tensor(train_indices).to(dev)).any(1)
+        self.val_mask = indices.unsqueeze(1).eq(torch.tensor(val_indices).to(dev)).any(1)
+        self.test_mask = indices.unsqueeze(1).eq(torch.tensor(test_indices).to(dev)).any(1)
         # self.val_mask = ~(self.test_mask | self.train_mask)
 
         a = 2

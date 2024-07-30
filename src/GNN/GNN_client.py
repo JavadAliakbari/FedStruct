@@ -234,12 +234,12 @@ class GNNClient(Client):
         )
 
     def save_SFVs(self):
-        SFV = self.classifier.get_SFV().detach().numpy()
+        SFV = self.classifier.get_SFV().detach().cpu().numpy()
         self.SFVs.append(deepcopy(SFV))
 
         y_pred = self.classifier.get_prediction()
-        y_pred = y_pred.detach().numpy()
-        y = self.graph.y.numpy()
+        y_pred = y_pred.detach().cpu().numpy()
+        y = self.graph.y.cpu().numpy()
         cf_score = y_pred[np.arange(y_pred.shape[0]), y]
         self.cf_score_list.append(cf_score)
 

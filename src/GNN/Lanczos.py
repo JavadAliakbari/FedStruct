@@ -3,6 +3,8 @@ from copy import deepcopy
 import torch
 from tqdm import tqdm
 
+from src import *
+
 
 def estimate_eigh(A, m, X=None, prune=False, block=False, p=5):
     if block:
@@ -34,10 +36,10 @@ def Lanczos_func(A, m=10):
     n = A.shape[0]
     A = deepcopy(A).double()
     A = A.to_sparse()
-    B = torch.zeros(m - 1, dtype=torch.double)
-    a = torch.zeros(m, dtype=torch.double)
-    V = torch.zeros((n, m), dtype=torch.double)
-    v = torch.randn(n, dtype=torch.double)
+    B = torch.zeros(m - 1, dtype=torch.double, device=dev)
+    a = torch.zeros(m, dtype=torch.double, device=dev)
+    V = torch.zeros((n, m), dtype=torch.double, device=dev)
+    v = torch.randn(n, dtype=torch.double, device=dev)
     v = v / torch.norm(v)
     V[:, 0] = v
     wp = torch.matmul(A, V[:, 0]).to_dense()
@@ -81,7 +83,7 @@ def block_lanczos(H, X=None, m=10, p=5):
     B = []
     A = []
     if X is None:
-        X = torch.randn((n, p), dtype=torch.double)
+        X = torch.randn((n, p), dtype=torch.double, device=dev)
     else:
         p = X.shape[1]
     Qj, _ = torch.linalg.qr(X)
