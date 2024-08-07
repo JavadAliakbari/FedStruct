@@ -125,7 +125,13 @@ class SpectralLaplace(SClassifier):
 
     def regularizer(self):
         Q = self.calc_Qh()
-        r1 = torch.einsum("i,ij->ij", self.D, Q)
+        if len(self.D.shape) == 1:
+            r1 = torch.einsum("i,ij->ij", self.D, Q)
+            # r1 = torch.einsum(
+            #     "i,ij->ij", (self.D) ** (config.structure_model.DGCN_layers), Q
+            # )
+        else:
+            r1 = torch.einsum("ij,jk->ik", self.D, Q)
         r = torch.matmul(Q.T, r1)
         s = torch.trace(r) / torch.trace(torch.matmul(Q.T, Q))
         # s = torch.trace(r) / x.shape[1]
@@ -135,6 +141,7 @@ class SpectralLaplace(SClassifier):
     def get_embeddings(self):
         Q = self.calc_Qh()
         SFV = torch.matmul(self.U, Q)
+        torch.nn.functional.relu(SFV, inplace=True)
         H = self.model(SFV)
         return H
 
@@ -146,6 +153,23 @@ class LanczosLaplace(SpectralLaplace):
         hidden_layer_size=config.structure_model.DGCN_structure_layers_sizes,
     ):
         super().__init__(graph, hidden_layer_size)
+
+    def set_AV(self, V, A):
+        self.V = V
+        self.A = A
+
+    def guess(self, y):
+        mask = torch.arange(y.shape[0]).unsqueeze(1).eq(self.graph.node_ids).any(1)
+        Q = self.calc_Qh()
+        SFV = torch.matmul(self.V, Q)
+        H = self.model(SFV)
+        y_pred = torch.nn.functional.softmax(H, dim=1)
+        acc = calc_accuracy(y_pred.argmax(dim=1)[mask], y[mask])
+        SFV2 = torch.matmul(self.A, Q)
+        H2 = self.model(SFV2)
+        y_pred2 = torch.nn.functional.softmax(H2, dim=1)
+        acc2 = calc_accuracy(y_pred2.argmax(dim=1)[mask], y[mask])
+        return acc, acc2
 
 
 # class SLaplace(SClassifier):

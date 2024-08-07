@@ -18,7 +18,7 @@ def set_up_system():
 
     graph = define_graph(config.dataset.dataset_name)
 
-    graph.obtain_a(
+    graph.calc_abar(
         config.structure_model.DGCN_layers,
         estimate=config.structure_model.estimate,
         pruning=config.subgraph.prune,
@@ -40,8 +40,8 @@ def set_up_system():
     results = {}
 
     normal_epoch = 150
-    laplace_epoch=250
-    spectral_epoch1= laplace_epoch
+    laplace_epoch = 250
+    spectral_epoch1 = laplace_epoch
     spectral_epoch2 = 75
 
     res = GNN_server.joint_train_g(

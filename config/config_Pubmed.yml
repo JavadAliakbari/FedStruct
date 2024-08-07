@@ -41,9 +41,13 @@ structure_model:
   gnn_epochs: 500
   mlp_epochs: 200
 spectral:
-  estimate: True
   spectral_len: 200
   lanczos_iter: 1000
+  L_type: "rw"
+  method: "arnoldi"
+  regularizer_coef: 1
+  matrix: "adj" # adj lap inc
+  decompose: "svd" # svd eigh
 node2vec:
   epochs: 50
   walk_length: 20

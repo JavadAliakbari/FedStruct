@@ -1,11 +1,5 @@
 import torch
 from torch_geometric.loader import NeighborLoader
-from torch_geometric.utils import (
-    get_laplacian,
-    to_undirected,
-    scatter,
-    remove_self_loops,
-)
 
 from src import *
 from src.GNN.sGNN import SGNNMaster, SClassifier
@@ -46,7 +40,10 @@ class DGCN(Classifier):
         return torch.matmul(self.graph.abar, self.graph.x)
 
     def get_embeddings(self):
-        H = self.model(self.graph.x)
+        if self.model is not None:
+            H = self.model(self.graph.x)
+        else:
+            H = self.graph.x
         if self.graph.abar.is_sparse and H.device.type == "mps":
             H = self.graph.abar.matmul(H.cpu()).to(device)
         else:
@@ -55,6 +52,29 @@ class DGCN(Classifier):
 
     def __call__(self):
         return DGCN.get_embeddings(self)
+
+
+class SpectralDGCN(DGCN):
+    def __init__(
+        self,
+        graph: AGraph,
+        hidden_layer_size=config.structure_model.DGCN_structure_layers_sizes,
+    ):
+        super().__init__(graph, hidden_layer_size)
+
+    def get_embeddings(self):
+        H = self.graph.x
+        if self.graph.abar.is_sparse and H.device.type == "mps":
+            H = self.graph.abar.matmul(H.cpu()).to(device)
+        else:
+            H = torch.matmul(self.graph.abar, H)
+
+        if self.model is not None:
+            H = self.model(H)
+        return H
+
+    def __call__(self):
+        return SpectralDGCN.get_embeddings(self)
 
 
 class SDGCN(DGCN, SClassifier):

@@ -96,9 +96,13 @@ class SpectralConfig:
         self.load_config(spectral_model)
 
     def load_config(self, spectral_model):
-        self.estimate = spectral_model["estimate"]
         self.spectral_len = spectral_model["spectral_len"]
         self.lanczos_iter = spectral_model["lanczos_iter"]
+        self.method = spectral_model["method"]
+        self.L_type = spectral_model["L_type"]
+        self.regularizer_coef = spectral_model["regularizer_coef"]
+        self.matrix = spectral_model["matrix"]
+        self.decompose = spectral_model["decompose"]
 
 
 class Node2VecConfig:

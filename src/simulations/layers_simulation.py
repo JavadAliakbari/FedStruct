@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     # for partitioning in [config.subgraph.partitioning]:
     for DGCN_layers in range(1, 30):
-        graph.obtain_a(DGCN_layers)
+        graph.calc_abar(DGCN_layers)
         for partitioning in ["random", "louvain", "kmeans"]:
             # for num_subgraphs in [config.subgraph.num_subgraphs]:
             for num_subgraphs in [5]:

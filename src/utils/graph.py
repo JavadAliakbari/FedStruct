@@ -8,19 +8,14 @@ import torch.nn.functional as F
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
 from torch_sparse import SparseTensor
-from torch_geometric.utils import (
-    degree,
-    to_undirected,
-    scatter,
-    remove_self_loops,
-)
+from torch_geometric.utils import degree
 
 from src import *
 from src.GNN.Lanczos import estimate_eigh
 from src.models.GDV import GDV
 from src.utils.data import Data
 from src.models.Node2Vec import find_node2vect_embedings
-from src.utils.utils import create_rw, find_neighbors_, obtain_a
+from src.utils.utils import create_rw, find_neighbors_
 
 dataset_name = config.dataset.dataset_name
 
@@ -75,8 +70,9 @@ class Graph(Data):
         if self.keep_sfvs:
             self.sfvs = {}
 
-        self.abar = None
+        self.DGCN_abar = None
         self.structural_features = None
+        self.L = None
 
     def get_edges(self):
         # return only the original intra edges
@@ -105,17 +101,6 @@ class Graph(Data):
             new_edges = torch.tensor(new_edges, dtype=torch.int64, device=edges.device)
 
         return node_map, new_edges
-
-    def obtain_a(
-        self,
-        num_layers=config.structure_model.DGCN_layers,
-        estimate=False,
-        pruning=False,
-    ):
-        if self.abar is None:
-            self.abar = obtain_a(
-                self.edge_index, self.num_nodes, num_layers, estimate, pruning
-            )
 
     def add_structural_features(
         self,
@@ -265,7 +250,7 @@ class Graph(Data):
             include_node=include_node,
         )
 
-    def create_L(self, normalization=None):
+    def create_L(self, normalization="normal", self_loop=False):
         nodes = self.node_ids
 
         num_nodes = self.x.shape[0]
@@ -276,53 +261,121 @@ class Graph(Data):
         else:
             edges = intra_edges
 
-        # prob_tensor = torch.full((edges.shape[1],), 0.50)
-        # selected_edges = torch.bernoulli(prob_tensor).bool()
-        # edges = edges[:, selected_edges]
-
-        undirected_edges = to_undirected(edges)
-        edge_mask = undirected_edges[0].unsqueeze(1).eq(nodes).any(1)
-        directed_edges = undirected_edges[:, edge_mask]
-        directed_edges, _ = remove_self_loops(directed_edges)
-
-        nodes_ = nodes.unsqueeze(0)
-        self_loops = torch.concat((nodes_, nodes_), dim=0)
-        l_edge_index = torch.concat((directed_edges, self_loops), dim=1)
-
-        edge_weight = torch.ones(
-            directed_edges.size(1), dtype=torch.float32, device=directed_edges.device
-        )
-        row, col = directed_edges[0], directed_edges[1]
-        deg = scatter(edge_weight, row, 0, dim_size=num_nodes, reduce="sum")
-        deg_inv = 1.0 / deg
-        deg_inv.masked_fill_(deg_inv == float("inf"), 0)
-
-        if normalization is None:
-            # D - A
-            l_edge_weight = torch.concat(
-                (-torch.ones_like(directed_edges[0]), deg[self_loops[0]])
-            )
-        elif normalization == "rw":
-            # I - D^-1 A
-            l_edge_weight = torch.concat(
-                (-deg_inv[directed_edges[0]], torch.ones_like(nodes))
-            )
-
-        self.L = torch.sparse_coo_tensor(
-            l_edge_index,
-            l_edge_weight,
-            (num_nodes, num_nodes),
-            dtype=torch.float32,
-            device=intra_edges.device,
+        A = create_adj(
+            edges,
+            normalization=normalization,
+            self_loop=self_loop,
+            num_nodes=self.x.shape[0],
+            nodes=nodes,
         )
 
-    def calc_eignvalues(self, estimate=False):
-        if estimate:
-            self.D, self.U = estimate_eigh(self.L, config.spectral.lanczos_iter)
-            # self.D, self.U = estimate_eigh(self.L, num_nodes)
+        if normalization == "normal":
+            deg = torch.sum(A, dim=1).to_dense()
+            D = sparse_eye(num_nodes, deg, edges.device)
+            self.L = D - A
         else:
-            self.D, self.U = torch.linalg.eigh(self.L.to_dense())
+            I = sparse_eye(num_nodes, dev_=edges.device)
+            self.L = I - A
+        # self.L2 = self.L2.coalesce()
 
-        if config.spectral.spectral_len > 0:
-            self.U = self.U[:, : config.spectral.spectral_len]
-            self.D = self.D[: config.spectral.spectral_len]
+    def calc_abar(
+        self,
+        num_layers=config.structure_model.DGCN_layers,
+        method="DGCN",
+        pruning=False,
+    ):
+        if method in ["DGCN", "CentralDGCN"]:
+            if self.DGCN_abar is not None:
+                abar = self.DGCN_abar
+            else:
+                A = create_adj(
+                    self.edge_index,
+                    normalization="rw",
+                    self_loop=True,
+                    num_nodes=self.num_nodes,
+                    nodes=self.node_ids,
+                )
+                # abar = calc_a2(edge_index, num_nodes, num_layers)
+                abar = calc_a(A, num_layers, pruning)
+                self.DGCN_abar = abar
+        elif method in ["SpectralDGCN", "LanczosDGCN"]:
+            D, U = self.calc_eignvalues(estimate=not (method.startswith("Spectral")))
+            Dbar = D**num_layers
+            abar = U @ torch.diag(Dbar)
+            # abar = U @ torch.diag(Dbar) @ U.T
+            abar = abar.float().to_sparse()
+            # abar = calc_a2(A, num_layers, method)
+        if method == "random_walk":
+            abar = estimate_abar(self.edge_index, self.num_nodes, num_layers)
+
+        return abar
+
+    def calc_eignvalues(self, estimate=False, self_loop=False):
+        if config.spectral.matrix == "lap":
+            self.create_L(
+                normalization=config.spectral.L_type,
+                self_loop=self_loop,
+            )
+            if estimate:
+                D, U = estimate_eigh(
+                    self.L, config.spectral.lanczos_iter, method=config.spectral.method
+                )
+            else:
+                if config.spectral.decompose == "svd":
+                    U, D, V = torch.svd(self.L.to_dense())
+                    # U, D, V = torch.svd_lowrank(self.L, q=config.spectral.spectral_len)
+                else:
+                    D, U = torch.linalg.eigh(self.L.to_dense())
+        elif config.spectral.matrix == "adj":
+            A = create_adj(
+                self.edge_index,
+                normalization=config.spectral.L_type,
+                self_loop=self_loop,
+                num_nodes=self.num_nodes,
+                nodes=self.node_ids,
+            )
+            if estimate:
+                D, U = estimate_eigh(
+                    A, config.spectral.lanczos_iter, method=config.spectral.method
+                )
+            else:
+                if config.spectral.decompose == "svd":
+                    # U, D, V = torch.svd(A.to_dense())
+                    U, D, V = torch.svd_lowrank(A, q=config.spectral.spectral_len)
+                else:
+                    D, U = torch.linalg.eigh(A.to_dense())
+            D = -D
+        elif config.spectral.matrix == "inc":
+            E = create_inc(
+                self.edge_index,
+                normalization=config.spectral.L_type,
+                num_nodes=self.num_nodes,
+                nodes=self.node_ids,
+            )
+            if estimate:
+                D, U, _, _ = estimate_eigh(
+                    E @ E.T, config.spectral.lanczos_iter, method=config.spectral.method
+                )
+            else:
+                U, D, V = torch.svd(E.to_dense())
+                # U, D, V = torch.svd_lowrank(E, q=config.spectral.spectral_len)
+
+        if len(D.shape) == 1:
+            if config.spectral.spectral_len > 0:
+                sorted_eignvals = torch.sort(D, descending=False)
+                sorted_indices = sorted_eignvals[1]
+                sorted_indices = sorted_indices[: config.spectral.spectral_len]
+
+                U = U[:, sorted_indices]
+                D = D[sorted_indices]
+                # self.V_t = self.V_t[:, sorted_indices]
+        elif len(D.shape) == 2:
+            if config.spectral.spectral_len > 0:
+                sorted_eignvals = torch.sort(torch.diagonal(D), descending=False)
+                sorted_indices = sorted_eignvals[1]
+                sorted_indices = sorted_indices[: config.spectral.spectral_len]
+
+                U = U[:, sorted_indices]
+                D = D[sorted_indices, sorted_indices]
+
+        return D, U

@@ -121,7 +121,7 @@ class Classifier:
     def train_step(self, eval_=True):
         label_loss, train_acc = Classifier.calc_mask_metric(self, mask="train")
         structure_loss = self.regularizer()
-        train_loss = 1 * label_loss + 10 * structure_loss
+        train_loss = 1 * label_loss + config.spectral.regularizer_coef * structure_loss
 
         train_loss.backward(retain_graph=True)
 

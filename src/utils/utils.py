@@ -1,3 +1,4 @@
+from copy import deepcopy
 import os
 import random
 import itertools
@@ -12,11 +13,12 @@ import networkx as nx
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
-from torch_geometric.utils import degree, add_self_loops
+from torch_geometric.utils import degree, add_self_loops, scatter, remove_self_loops
 from dotenv import load_dotenv
 from sklearn.manifold import TSNE
 import matplotlib.cm as cm
 
+from src.GNN.Lanczos import estimate_eigh
 from src.utils.config_parser import Config
 from src.utils.logger import getLOGGER
 from src.utils.plot_graph import plot_graph
@@ -44,7 +46,8 @@ else:
     local_dev = dev
 
 
-seed = 65
+seed = int(os.environ.get("seed", 1))
+seed = seed
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -252,18 +255,127 @@ def generate_gif(root_path, name="graph"):
     imageio.mimsave(f"{gif_path}/{name}.gif", images, format="GIF", fps=5)
 
 
-def obtain_a(edge_index, num_nodes, num_layers, estimate=False, pruning=False):
-    if estimate:
-        abar = estimate_a(edge_index, num_nodes, num_layers)
+def create_adj(
+    edge_index,
+    normalization="normal",
+    self_loop=False,
+    num_nodes=None,
+    nodes=None,
+):
+    if num_nodes is None:
+        num_nodes = max(torch.flatten(edge_index)) + 1
+    if nodes is None:
+        nodes = torch.arange(num_nodes)
+    if self_loop:
+        undirected_edges = add_self_loops(edge_index)[0]
     else:
-        abar = calc_a(edge_index, num_nodes, num_layers, pruning)
+        undirected_edges = edge_index
 
-    return abar
+    edge_mask = undirected_edges[0].unsqueeze(1).eq(nodes).any(1)
+    directed_edges = undirected_edges[:, edge_mask]
+    # directed_edges, _ = remove_self_loops(directed_edges)
+
+    edge_weight = torch.ones(
+        directed_edges.size(1), dtype=torch.float32, device=edge_index.device
+    )
+    row, col = directed_edges[0], directed_edges[1]
+    deg = scatter(edge_weight, row, 0, dim_size=num_nodes, reduce="sum")
+
+    if normalization == "rw":
+        # Compute A_norm = -D^{-1} A.
+        deg_inv = 1.0 / deg
+        deg_inv = deg_inv.masked_fill_(deg_inv == float("inf"), 0)
+        edge_weight = deg_inv[row] * edge_weight
+    elif normalization == "sym":
+        # Compute A_norm = -D^{-1/2} A D^{-1/2}.
+        deg_inv_sqrt = deg.pow_(-0.5)
+        deg_inv_sqrt = deg_inv_sqrt.masked_fill_(deg_inv_sqrt == float("inf"), 0)
+        deg2 = scatter(edge_weight, col, 0, dim_size=num_nodes, reduce="sum")
+        deg_inv_sqrt2 = deg2.pow_(-0.5)
+        deg_inv_sqrt2 = deg_inv_sqrt2.masked_fill_(deg_inv_sqrt2 == float("inf"), 0)
+        edge_weight *= deg_inv_sqrt[edge_index[0]] * deg_inv_sqrt2[edge_index[1]]
+
+    adj = torch.sparse_coo_tensor(
+        directed_edges,
+        edge_weight,
+        (num_nodes, num_nodes),
+        dtype=torch.float32,
+        device=edge_index.device,
+    )
+
+    return adj
 
 
-def sparse_eye(n, vals=None, dev="cpu"):
+def create_inc(
+    edge_index,
+    normalization="normal",
+    self_loop=False,
+    num_nodes=None,
+    nodes=None,
+):
+    if num_nodes is None:
+        num_nodes = max(torch.flatten(edge_index)) + 1
+    if nodes is None:
+        nodes = torch.arange(num_nodes)
+    if self_loop:
+        undirected_edges = add_self_loops(edge_index)[0]
+    else:
+        undirected_edges = edge_index
+
+    edge_mask = undirected_edges[0].unsqueeze(1).eq(nodes).any(1)
+    directed_edges = undirected_edges[:, edge_mask]
+    # directed_edges, _ = remove_self_loops(directed_edges)
+
+    edge_weight1 = torch.ones(
+        directed_edges.size(1), dtype=torch.float32, device=edge_index.device
+    )
+    edge_weight2 = -torch.ones(
+        directed_edges.size(1), dtype=torch.float32, device=edge_index.device
+    )
+    row, col = directed_edges[0], directed_edges[1]
+    deg1 = scatter(edge_weight1, row, 0, dim_size=num_nodes, reduce="sum")
+    # deg2 = scatter(edge_weight1, col, 0, dim_size=num_nodes, reduce="sum")
+    ind1 = torch.arange(row.shape[0], dtype=torch.int64, device=edge_index.device)
+    ind2 = torch.arange(row.shape[0], dtype=torch.int64, device=edge_index.device)
+    ind = torch.vstack((torch.hstack((row, col)), torch.hstack((ind1, ind2))))
+
+    # if normalization == "rw":
+    #     # Compute A_norm = -D^{-1} A.
+    #     deg_inv = deg1.pow_(-0.5)
+    #     deg_inv = deg_inv.masked_fill_(deg_inv == float("inf"), 0)
+    #     edge_weight1 *= deg_inv[row]
+    #     edge_weight2 *= deg_inv[row]
+    # elif normalization == "sym":
+    #     # Compute A_norm = -D^{-1/2} A D^{-1/2}.
+    #     deg_inv_sqrt1 = deg1.pow_(-0.5)
+    #     deg_inv_sqrt1 = deg_inv_sqrt1.masked_fill_(deg_inv_sqrt1 == float("inf"), 0)
+    #     deg_inv_sqrt2 = deg2.pow_(-0.5)
+    #     deg_inv_sqrt2 = deg_inv_sqrt2.masked_fill_(deg_inv_sqrt2 == float("inf"), 0)
+    #     edge_weight1 *= deg_inv_sqrt1[row]
+    #     edge_weight2 *= deg_inv_sqrt2[row]
+
+    edge_weight = torch.hstack((edge_weight1, edge_weight2))
+
+    inc = torch.sparse_coo_tensor(
+        ind,
+        edge_weight,
+        (num_nodes, row.shape[0]),
+        dtype=torch.float32,
+        device=edge_index.device,
+    )
+
+    if normalization == "sym":
+        deg_inv = deg1.pow_(-0.5)
+        deg_inv.masked_fill_(deg_inv == float("inf"), 0)
+        D = sparse_eye(num_nodes, deg_inv, dev_=edge_index.device)
+        inc = D @ inc
+
+    return inc
+
+
+def sparse_eye(n, vals=None, dev_="cpu"):
     if vals is None:
-        vals = torch.ones(n, dtype=torch.float32, device=dev)
+        vals = torch.ones(n, dtype=torch.float32, device=dev_)
     eye = torch.Tensor.repeat(torch.arange(n, device=dev), [2, 1])
     sparse_matrix = torch.sparse_coo_tensor(eye, vals, (n, n), device=dev)
 
@@ -273,19 +385,11 @@ def sparse_eye(n, vals=None, dev="cpu"):
 def create_rw(edge_index, num_nodes, num_layers):
     local_dev = "cpu"
 
-    abar = sparse_eye(num_nodes, dev=local_dev)
+    abar = sparse_eye(num_nodes, dev_=local_dev)
 
-    vals = torch.ones(edge_index.shape[1], dtype=torch.float32, device=local_dev)
-    adj = torch.sparse_coo_tensor(
-        edge_index,
-        vals,
-        (num_nodes, num_nodes),
-        device=local_dev,
-    )
-
-    node_degree = 1 / degree(edge_index[0], num_nodes).long()
-    D = sparse_eye(num_nodes, node_degree, local_dev)
-    adj_hat = torch.matmul(adj, D)
+    adj_hat = create_adj(
+        edge_index, normalization="rw", self_loop=True, num_nodes=num_nodes
+    ).to(local_dev)
 
     SE = []
     for i in range(num_layers):
@@ -299,34 +403,16 @@ def create_rw(edge_index, num_nodes, num_layers):
     return SE_rw
 
 
-def calc_a(edge_index, num_nodes, num_layers, pruning=False):
-    # if dev == "mps":
-    #     local_dev = "cpu"
-    # else:
-    #     local_dev = dev
+def calc_a(adj, num_layers, pruning=False):
     local_dev = "cpu"
+    num_nodes = adj.shape[1]
 
-    abar = sparse_eye(num_nodes, dev=local_dev)
-
-    edge_index_ = add_self_loops(edge_index)[0].to(local_dev)
-
-    vals = torch.ones(edge_index_.shape[1], dtype=torch.float32, device=local_dev)
-    adj = torch.sparse_coo_tensor(
-        edge_index_,
-        vals,
-        (num_nodes, num_nodes),
-        device=local_dev,
-    )
-
-    node_degree = 1 / degree(edge_index_[0], num_nodes).long()
-    D = sparse_eye(num_nodes, node_degree, local_dev)
-    adj_hat = torch.matmul(D, adj)
-
-    # abar = sparse_matrix_pow2(adj_hat, num_layers, num_nodes)
+    abar = sparse_eye(num_nodes, dev_=local_dev)
+    adj = adj.to(local_dev)
 
     th = config.subgraph.pruning_th
     for i in range(num_layers):
-        abar = torch.matmul(adj_hat, abar)  # Sparse-dense matrix multiplication
+        abar = torch.matmul(adj, abar)  # Sparse-dense matrix multiplication
         if pruning:
             abar = prune(abar, th)
         # print(f"{i}: {abar.values().shape[0]/(num_nodes*num_nodes)}")
@@ -377,7 +463,7 @@ def plot_abar(abar, edge_index):
     plt.show()
 
 
-def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
+def estimate_abar(edge_index, num_nodes, num_layers, num_expriments=100):
     neighbors = [
         find_neighbors_(node, edge_index, include_node=True)
         for node in range(num_nodes)

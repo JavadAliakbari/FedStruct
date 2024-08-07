@@ -7,7 +7,7 @@ from src.client import Client
 from src.classifier import Classifier
 from src.utils.graph import AGraph, Graph
 from src.GNN.fGNN import FGNN
-from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster
+from src.GNN.DGCN import DGCN, SDGCN, SDGCNMaster, SpectralDGCN
 from src.GNN.sGNN import SClassifier, SGNNMaster, SGNNSlave
 from src.GNN.GNN_classifier import (
     FedDGCN,
@@ -17,6 +17,7 @@ from src.GNN.GNN_classifier import (
     FedLaplaceClassifier,
     FedMLPClassifier,
     FedSlave,
+    FedSpectralDGCN,
     FedSpectralLaplaceClassifier,
 )
 
@@ -30,15 +31,18 @@ class GNNClient(Client):
         self.cf_score_list = []
 
     def create_FDGCN_data(self) -> AGraph:
-        abar = calc_a(
+        A = create_adj(
             self.graph.edge_index,
-            self.graph.num_nodes,
-            config.feature_model.DGCN_layers,
+            normalization="rw",
+            self_loop=True,
+            num_nodes=self.graph.num_nodes,
+            # nodes=self.graph.node_ids,
         )
+        abar = calc_a(A, config.feature_model.DGCN_layers)
 
         graph = AGraph(
             abar=abar,
-            edge_index=self.graph.edge_index,
+            # edge_index=self.graph.edge_index,
             x=self.graph.x,
             y=self.graph.y,
             node_ids=self.graph.node_ids,
@@ -117,6 +121,9 @@ class GNNClient(Client):
             elif smodel_type == "DGCN":
                 graph = self.create_SDGCN_data(**kwargs)
                 self.classifier = SDGCN(graph)
+            elif smodel_type in ["SpectralDGCN", "LanczosDGCN"]:
+                graph = self.create_SDGCN_data(**kwargs)
+                self.classifier = SpectralDGCN(graph)
             elif smodel_type == "CentralDGCN":
                 if self.id == "Server":
                     graph = self.create_SDGCN_data(**kwargs)
@@ -161,6 +168,9 @@ class GNNClient(Client):
             elif smodel_type == "DGCN":
                 sgraph = self.create_SDGCN_data(**kwargs)
                 self.classifier = FedDGCN(fgraph, sgraph)
+            elif smodel_type in ["SpectralDGCN", "LanczosDGCN"]:
+                sgraph = self.create_SDGCN_data(**kwargs)
+                self.classifier = FedSpectralDGCN(fgraph, sgraph)
             elif smodel_type == "CentralDGCN":
                 if self.id == "Server":
                     sgraph = self.create_SDGCN_data(**kwargs)

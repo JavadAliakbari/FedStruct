@@ -31,17 +31,30 @@ class GNNServer(Server, GNNClient):
     ) -> None:
         share = {}
         if data_type in ["structure", "f+s"]:
+            num_spectral_features = None
+            if smodel_type in ["DGCN", "CentralDGCN", "SpectralDGCN", "LanczosDGCN"]:
+                abar = self.graph.calc_abar(method=smodel_type)
+                share["abar"] = abar
+                num_spectral_features = abar.shape[1]
+            elif smodel_type in ["SpectralLaplace", "LanczosLaplace"]:
+                D, U = self.graph.calc_eignvalues(
+                    estimate=not (smodel_type.startswith("Spectral"))
+                )
+                share["D"] = D
+                share["U"] = U
+                num_spectral_features = D.shape[0]
+
+            if smodel_type == "CentralDGCN":
+                share["server_embedding_func"] = self.classifier.get_embeddings_func()
+
             structure_type = kwargs.get(
                 "structure_type", config.structure_model.structure_type
             )
             num_structural_features = kwargs.get(
                 "num_structural_features",
+                # self.graph.num_classes,
                 config.structure_model.num_structural_features,
             )
-            if smodel_type in ["SpectralLaplace", "LanczosLaplace"]:
-                num_spectral_features = config.spectral.spectral_len
-            else:
-                num_spectral_features = None
 
             self.graph.add_structural_features(
                 structure_type=structure_type,
@@ -50,24 +63,6 @@ class GNNServer(Server, GNNClient):
             )
             SFV = self.graph.structural_features
             share["SFV"] = SFV
-
-            if smodel_type in ["DGCN", "CentralDGCN"]:
-                self.graph.obtain_a()
-                share["abar"] = self.graph.abar
-
-            if smodel_type == "CentralDGCN":
-                share["server_embedding_func"] = self.classifier.get_embeddings_func()
-
-            if smodel_type == "SpectralLaplace":
-                self.graph.create_L()
-                self.graph.calc_eignvalues(estimate=False)
-                share["U"] = self.graph.U
-                share["D"] = self.graph.D
-            if smodel_type == "LanczosLaplace":
-                self.graph.create_L()
-                self.graph.calc_eignvalues(estimate=True)
-                share["U"] = self.graph.U
-                share["D"] = self.graph.D
 
         kwargs.update(share)
 

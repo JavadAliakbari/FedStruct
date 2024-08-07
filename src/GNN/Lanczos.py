@@ -1,45 +1,63 @@
 from copy import deepcopy
 
 import torch
+import numpy as np
+from scipy.linalg import schur
 from tqdm import tqdm
 
 from src import *
 
 
-def estimate_eigh(A, m, X=None, prune=False, block=False, p=5):
-    if block:
-        T, V = block_lanczos(A, X, m=m, p=p)
-    else:
+def estimate_eigh(A, m, X=None, method="lanczos", p=5):
+    if method == "lanczos":
         T, V = Lanczos_func(A, m)
-    D_, U_ = torch.linalg.eigh(T)
-    if prune:
-        e = torch.diff(D_)
-        th = torch.min(0.1 * torch.abs(D_[:-1]), torch.full((D_.shape[0] - 1,), 0.01))
-        mask = torch.cat((torch.abs(e) - th > 0, torch.tensor([True])))
-        D_2 = D_[mask]
-        U_2 = U_[:, mask]
-    else:
-        D_2 = D_
-        U_2 = U_
+    elif method == "arnoldi":
+        T, V = arnoldi_iteration(A, m)
+    elif method == "block_lanczos":
+        T, V = block_lanczos(A, X, m=m, p=p)
 
-    U2 = torch.matmul(V, U_2)
+    D, U = torch.linalg.eigh(T)
+
+    # T = T.float()
+    # V = V.float()
+    # D = D.float()
+    # U = U.float()
+    # T_inv = U @ torch.diag(1 / D) @ U.T
+    # V_t = A @ V @ T_inv
+    # U_t = torch.matmul(V_t, U)
+    # A_t = V_t @ T @ V_t.T
+
+    # d = torch.dist(A_t, A)
+    # d2 = torch.mean(torch.abs(A.to_dense() - A_t))
+    # d3 = torch.mean(torch.abs(V - V_t))
+
+    # D_, U_ = schur(T)
+    # D_ = torch.tensor(D_, dtype=torch.double, device=dev)
+    # U_ = torch.tensor(U_, dtype=torch.double, device=dev)
+    # D_ = D_.double()
+    # U_ = U_.double()
+
+    U2 = torch.matmul(V, U)
     U2 = U2.float()
-    D_2 = D_2.float()
+    D2 = D.float()
 
-    # U2 = torch.matmul(V, U_)
-    # D_2 = D_
-
-    return D_2, U2
+    # return T.float(), V.float()
+    return D2, U2
 
 
-def Lanczos_func(A, m=10):
+dev = "cpu"
+
+
+def Lanczos_func(A, m=10, v=None):
     n = A.shape[0]
     A = deepcopy(A).double()
     A = A.to_sparse()
     B = torch.zeros(m - 1, dtype=torch.double, device=dev)
     a = torch.zeros(m, dtype=torch.double, device=dev)
     V = torch.zeros((n, m), dtype=torch.double, device=dev)
-    v = torch.randn(n, dtype=torch.double, device=dev)
+    if v is None:
+        # v = torch.ones(A.shape[0], dtype=torch.double, device=dev)
+        v = torch.randn(n, dtype=torch.double, device=dev)
     v = v / torch.norm(v)
     V[:, 0] = v
     wp = torch.matmul(A, V[:, 0]).to_dense()
@@ -52,10 +70,7 @@ def Lanczos_func(A, m=10):
         if B[j - 1] != 0:
             V[:, j] = w / B[j - 1]
         else:
-            print("wooooo\n")
-            v = torch.rand(n)
-            v = v / torch.norm(v)
-            V[:, j] = v
+            break
         wp = torch.matmul(A, V[:, j]).to_dense()
         # wp = torch.einsum("ij,j->i", A, V[:, j])
         a[j] = torch.einsum("i,i", wp, V[:, j])
@@ -74,6 +89,51 @@ def Lanczos_func(A, m=10):
     T = torch.diag(a) + torch.diag(B, 1) + torch.diag(B, -1)
 
     return T, V
+
+
+def arnoldi_iteration(A, m: int, b=None):
+    """Compute a basis of the (n + 1)-Krylov subspace of the matrix A.
+
+    This is the space spanned by the vectors {b, Ab, ..., A^n b}.
+
+    Parameters
+    ----------
+    A : array_like
+        An m × m array.
+    b : array_like
+        Initial vector (length m).
+    n : int
+        One less than the dimension of the Krylov subspace, or equivalently the *degree* of the Krylov space. Must be >= 1.
+
+    Returns
+    -------
+    Q : numpy.array
+        An m x (n + 1) array, where the columns are an orthonormal basis of the Krylov subspace.
+    h : numpy.array
+        An (n + 1) x n array. A on basis Q. It is upper Hessenberg.
+    """
+    A = deepcopy(A).double()
+    A = A.to_sparse()
+    if b is None:
+        b = torch.ones(A.shape[0], dtype=torch.double, device=dev)
+    # b = torch.randn(A.shape[0], dtype=torch.double, device=dev)
+    eps = 1e-12
+    h = torch.zeros((m, m), dtype=torch.double, device=dev)
+    Q = torch.zeros((A.shape[0], m), dtype=torch.double, device=dev)
+    # Normalize the input vector
+    Q[:, 0] = b / torch.norm(b, 2)  # Use it as the first Krylov vector
+    for k in tqdm(range(1, m)):
+        v = torch.matmul(A, Q[:, k - 1]).to_dense()  # Generate a new candidate vector
+        for j in range(k):  # Subtract the projections on previous vectors
+            h[j, k - 1] = Q[:, j].conj() @ v
+            v = v - h[j, k - 1] * Q[:, j]
+
+        h[k, k - 1] = torch.norm(v, 2)
+        if h[k, k - 1] > eps:  # Add the produced vector to the list, unless
+            Q[:, k] = v / h[k, k - 1]
+        else:  # If that happens, stop iterating.
+            return h, Q
+    return h, Q
 
 
 def block_lanczos(H, X=None, m=10, p=5):

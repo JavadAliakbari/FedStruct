@@ -20,7 +20,7 @@ def set_up_system():
 
     if config.model.smodel_type in ["DGCN", "CentralDGCN"]:
         # graph.obtain_a(config.structure_model.DGCN_layers)
-        graph.obtain_a(
+        graph.calc_abar(
             config.structure_model.DGCN_layers,
             estimate=config.structure_model.estimate,
             pruning=config.subgraph.prune,

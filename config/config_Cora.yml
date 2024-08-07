@@ -17,10 +17,9 @@ model:
   weight_decay: 0.0003
   dropout: 0.7
   gnn_layer_type: sage
-  # smodel_type: Laplace
-  smodel_type: SpectralLaplace
+  smodel_type: SpectralDGCN   # GNN, DGCN, CentralDGCN, Laplace, LanczosLaplace, SpectralLaplace, SpectralDGCN, LanczosDGCN
   fmodel_type: same
-  iterations: 100
+  iterations: 35
   metric: acc
 feature_model:
   gnn_layer_sizes: [128,64]
@@ -29,7 +28,7 @@ feature_model:
   DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64, 32]
-  DGCN_structure_layers_size: [256]
+  DGCN_structure_layers_size: [32]
   DGCN_layers: 10
   # structure_type: degree
   # structure_type: GDV
@@ -37,16 +36,20 @@ structure_model:
   # structure_type: mp
   structure_type: hop2vec
   # structure_type: node2vec
-  num_structural_features: 256
+  num_structural_features: 512
   estimate: False
   num_mp_vectors: 10
   rw_len: 50
   gnn_epochs: 500
   mlp_epochs: 200
 spectral:
-  estimate: True
-  spectral_len: 200
+  spectral_len: 300
   lanczos_iter: 1000
+  L_type: "rw"      # normal rw sym
+  method: "arnoldi" # arnoldi lanczos
+  regularizer_coef: 10
+  matrix: "adj" # adj lap inc
+  decompose: "sym" # svd eigh
 node2vec:
   epochs: 50
   walk_length: 20

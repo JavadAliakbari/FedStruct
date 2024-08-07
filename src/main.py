@@ -25,10 +25,9 @@ def set_up_system():
     graph = define_graph(config.dataset.dataset_name)
 
     if config.model.smodel_type in ["DGCN", "CentralDGCN"]:
-        # graph.obtain_a(config.structure_model.DGCN_layers)
-        graph.obtain_a(
+        graph.calc_abar(
             config.structure_model.DGCN_layers,
-            estimate=config.structure_model.estimate,
+            method=config.model.smodel_type,
             pruning=config.subgraph.prune,
         )
 
@@ -104,6 +103,7 @@ def set_up_system():
     # res = GNN_server.joint_train_g(data_type="structure", FL=True)
     # results[f"FL S GNN"] = round(res["Average"]["Test Acc"], 4)
 
+    # res = GNN_server.joint_train_g(data_type="feature", FL=True)
     # res = GNN_server.joint_train_g(data_type="structure", FL=True)
     res = GNN_server.joint_train_g(data_type="f+s", FL=True)
     results[f"FL F+S GNN"] = round(res["Average"]["Test Acc"], 4)
