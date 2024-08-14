@@ -15,7 +15,7 @@ def find_community(edge_index):
     G = nx.Graph(edge_index.T.tolist())
     community = nx.community.louvain_communities(G)
 
-    return community
+    return [list(comm) for ind, comm in enumerate(community)]
 
 
 def create_community_groups(community_map, node_map=None) -> dict:
@@ -28,6 +28,7 @@ def create_community_groups(community_map, node_map=None) -> dict:
             node_id = ind
         community_groups[community].append(node_id)
 
+    community_groups = [community for community in community_groups.values()]
     return community_groups
 
 
@@ -41,7 +42,7 @@ def make_groups_smaller_than_max(community_groups, group_len_max) -> dict:
             )
 
             community_groups[ind] = l1
-            community_groups[len(community_groups)] = l2
+            community_groups.append(l2)
 
         ind += 1
 
@@ -192,8 +193,8 @@ def kmeans_cut(X, num_subgraphs):
 
     sorted_community_groups = {
         k: v
-        for k, v in sorted(
-            community_groups.items(), key=lambda item: len(item[1]), reverse=True
+        for k, v in enumerate(
+            sorted(community_groups, key=lambda item: len(item), reverse=True)
         )
     }
 
