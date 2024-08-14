@@ -41,11 +41,11 @@ def estimate_eigh(A, m, X=None, method="lanczos", p=5, log=True):
     U2 = U2.float()
     D2 = D.float()
 
-    return T.float(), V.float()
+    # return T.float(), V.float()
     return D2, U2
 
 
-dev = "cpu"
+# dev = "cpu"
 
 
 def Lanczos_func(A, m=10, v=None, log=True):
@@ -115,7 +115,7 @@ def arnoldi_iteration(A, m: int, b=None, log=True):
         An (n + 1) x n array. A on basis Q. It is upper Hessenberg.
     """
     A = deepcopy(A).double()
-    A = A.to_sparse()
+    A = A.to_sparse().to(dev)
     if b is None:
         b = torch.ones(A.shape[0], dtype=torch.double, device=dev)
     # b = torch.randn(A.shape[0], dtype=torch.double, device=dev)

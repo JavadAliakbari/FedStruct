@@ -20,7 +20,6 @@ def set_up_system():
 
     graph.calc_abar(
         config.structure_model.DGCN_layers,
-        estimate=config.structure_model.estimate,
         pruning=config.subgraph.prune,
     )
 
@@ -39,10 +38,10 @@ def set_up_system():
 
     results = {}
 
-    normal_epoch = 150
-    laplace_epoch = 250
+    normal_epoch = 75
+    laplace_epoch = 200
     spectral_epoch1 = laplace_epoch
-    spectral_epoch2 = 75
+    spectral_epoch2 = 45
 
     res = GNN_server.joint_train_g(
         epochs=normal_epoch,
@@ -133,9 +132,9 @@ def set_up_system():
         fmodel_type="DGCN",
         FL=True,
     )
-    results[f"FL F+S Spectral"] = round(res["Average"]["Test Acc"], 4)
-    results[f"FL F+S(F) Spectral"] = round(res["Average"]["Test Acc F"], 4)
-    results[f"FL F+S(S) Spectral"] = round(res["Average"]["Test Acc S"], 4)
+    results[f"FL F+S SpectralLaplace"] = round(res["Average"]["Test Acc"], 4)
+    results[f"FL F+S(F) SpectralLaplace"] = round(res["Average"]["Test Acc F"], 4)
+    results[f"FL F+S(S) SpectralLaplace"] = round(res["Average"]["Test Acc S"], 4)
 
     res = GNN_server.joint_train_g(
         epochs=spectral_epoch2,
@@ -144,9 +143,31 @@ def set_up_system():
         fmodel_type="DGCN",
         FL=True,
     )
-    results[f"FL F+S Lanczos"] = round(res["Average"]["Test Acc"], 4)
-    results[f"FL F+S(F) Lanczos"] = round(res["Average"]["Test Acc F"], 4)
-    results[f"FL F+S(S) Lanczos"] = round(res["Average"]["Test Acc S"], 4)
+    results[f"FL F+S LanczosLaplace"] = round(res["Average"]["Test Acc"], 4)
+    results[f"FL F+S(F) LanczosLaplace"] = round(res["Average"]["Test Acc F"], 4)
+    results[f"FL F+S(S) LanczosLaplace"] = round(res["Average"]["Test Acc S"], 4)
+
+    res = GNN_server.joint_train_g(
+        epochs=spectral_epoch2,
+        data_type="f+s",
+        smodel_type="SpectralDGCN",
+        fmodel_type="DGCN",
+        FL=True,
+    )
+    results[f"FL F+S SpectralDGCN"] = round(res["Average"]["Test Acc"], 4)
+    results[f"FL F+S(F) SpectralDGCN"] = round(res["Average"]["Test Acc F"], 4)
+    results[f"FL F+S(S) SpectralDGCN"] = round(res["Average"]["Test Acc S"], 4)
+
+    res = GNN_server.joint_train_g(
+        epochs=spectral_epoch2,
+        data_type="f+s",
+        smodel_type="LanczosDGCN",
+        fmodel_type="DGCN",
+        FL=True,
+    )
+    results[f"FL F+S LanczosDGCN"] = round(res["Average"]["Test Acc"], 4)
+    results[f"FL F+S(F) LanczosDGCN"] = round(res["Average"]["Test Acc F"], 4)
+    results[f"FL F+S(S) LanczosDGCN"] = round(res["Average"]["Test Acc S"], 4)
 
     LOGGER.info(json.dumps(results, indent=4))
 

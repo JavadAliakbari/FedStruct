@@ -1,4 +1,3 @@
-from copy import deepcopy
 import os
 import random
 import itertools
@@ -18,7 +17,6 @@ from dotenv import load_dotenv
 from sklearn.manifold import TSNE
 import matplotlib.cm as cm
 
-from src.GNN.Lanczos import estimate_eigh
 from src.utils.config_parser import Config
 from src.utils.logger import getLOGGER
 from src.utils.plot_graph import plot_graph
@@ -34,8 +32,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-# elif torch.backends.mps.is_available():
-#     dev = "mps"
+elif torch.backends.mps.is_available():
+    dev = "mps"
 else:
     dev = "cpu"
 device = torch.device(dev)
@@ -265,7 +263,7 @@ def create_adj(
     if num_nodes is None:
         num_nodes = max(torch.flatten(edge_index)) + 1
     if nodes is None:
-        nodes = torch.arange(num_nodes)
+        nodes = torch.arange(num_nodes, device=edge_index.device)
     if self_loop:
         undirected_edges = add_self_loops(edge_index)[0]
     else:
@@ -376,8 +374,8 @@ def create_inc(
 def sparse_eye(n, vals=None, dev_="cpu"):
     if vals is None:
         vals = torch.ones(n, dtype=torch.float32, device=dev_)
-    eye = torch.Tensor.repeat(torch.arange(n, device=dev), [2, 1])
-    sparse_matrix = torch.sparse_coo_tensor(eye, vals, (n, n), device=dev)
+    eye = torch.Tensor.repeat(torch.arange(n, device=dev_), [2, 1])
+    sparse_matrix = torch.sparse_coo_tensor(eye, vals, (n, n), device=dev_)
 
     return sparse_matrix
 
