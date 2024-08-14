@@ -310,7 +310,7 @@ class Graph(Data):
 
         return abar
 
-    def calc_eignvalues(self, estimate=False, self_loop=False):
+    def calc_eignvalues(self, estimate=False, self_loop=True, log=True):
         if config.spectral.matrix == "lap":
             self.create_L(
                 normalization=config.spectral.L_type,
@@ -318,7 +318,10 @@ class Graph(Data):
             )
             if estimate:
                 D, U = estimate_eigh(
-                    self.L, config.spectral.lanczos_iter, method=config.spectral.method
+                    self.L,
+                    config.spectral.lanczos_iter,
+                    method=config.spectral.method,
+                    log=log,
                 )
             else:
                 if config.spectral.decompose == "svd":
@@ -336,7 +339,10 @@ class Graph(Data):
             )
             if estimate:
                 D, U = estimate_eigh(
-                    A, config.spectral.lanczos_iter, method=config.spectral.method
+                    A,
+                    config.spectral.lanczos_iter,
+                    method=config.spectral.method,
+                    log=log,
                 )
             else:
                 if config.spectral.decompose == "svd":
@@ -354,7 +360,10 @@ class Graph(Data):
             )
             if estimate:
                 D, U, _, _ = estimate_eigh(
-                    E @ E.T, config.spectral.lanczos_iter, method=config.spectral.method
+                    E @ E.T,
+                    config.spectral.lanczos_iter,
+                    method=config.spectral.method,
+                    log=log,
                 )
             else:
                 U, D, V = torch.svd(E.to_dense())
@@ -369,13 +378,13 @@ class Graph(Data):
                 U = U[:, sorted_indices]
                 D = D[sorted_indices]
                 # self.V_t = self.V_t[:, sorted_indices]
-        elif len(D.shape) == 2:
-            if config.spectral.spectral_len > 0:
-                sorted_eignvals = torch.sort(torch.diagonal(D), descending=False)
-                sorted_indices = sorted_eignvals[1]
-                sorted_indices = sorted_indices[: config.spectral.spectral_len]
+        # elif len(D.shape) == 2:
+        #     if config.spectral.spectral_len > 0:
+        #         sorted_eignvals = torch.sort(torch.diagonal(D), descending=False)
+        #         sorted_indices = sorted_eignvals[1]
+        #         sorted_indices = sorted_indices[: config.spectral.spectral_len]
 
-                U = U[:, sorted_indices]
-                D = D[sorted_indices, sorted_indices]
+        # U = U[:, sorted_indices]
+        # D = D[sorted_indices, sorted_indices]
 
         return D, U

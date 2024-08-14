@@ -8,13 +8,13 @@ from tqdm import tqdm
 from src import *
 
 
-def estimate_eigh(A, m, X=None, method="lanczos", p=5):
+def estimate_eigh(A, m, X=None, method="lanczos", p=5, log=True):
     if method == "lanczos":
-        T, V = Lanczos_func(A, m)
+        T, V = Lanczos_func(A, m, log=log)
     elif method == "arnoldi":
-        T, V = arnoldi_iteration(A, m)
+        T, V = arnoldi_iteration(A, m, log=log)
     elif method == "block_lanczos":
-        T, V = block_lanczos(A, X, m=m, p=p)
+        T, V = block_lanczos(A, X, m=m, p=p, log=log)
 
     D, U = torch.linalg.eigh(T)
 
@@ -37,18 +37,18 @@ def estimate_eigh(A, m, X=None, method="lanczos", p=5):
     # D_ = D_.double()
     # U_ = U_.double()
 
-    U2 = torch.matmul(V, U)
+    U2 = V @ U
     U2 = U2.float()
     D2 = D.float()
 
-    # return T.float(), V.float()
+    return T.float(), V.float()
     return D2, U2
 
 
 dev = "cpu"
 
 
-def Lanczos_func(A, m=10, v=None):
+def Lanczos_func(A, m=10, v=None, log=True):
     n = A.shape[0]
     A = deepcopy(A).double()
     A = A.to_sparse()
@@ -64,7 +64,8 @@ def Lanczos_func(A, m=10, v=None):
     # wp = torch.einsum("ij,j->i", A, V[:, 0])
     a[0] = torch.einsum("i,i", wp, V[:, 0])
     w = wp - a[0] * V[:, 0]
-    bar = tqdm(total=m - 1)
+    if log:
+        bar = tqdm(total=m - 1)
     for j in range(1, m):
         B[j - 1] = torch.norm(w)
         if B[j - 1] != 0:
@@ -84,14 +85,15 @@ def Lanczos_func(A, m=10, v=None):
         # At = torch.matmul(V, torch.matmul(T, V.T))
         # e = torch.mean(torch.abs(A - At)).item()
         # bar.set_postfix({"e": e})
-        bar.update()
+        if log:
+            bar.update()
 
     T = torch.diag(a) + torch.diag(B, 1) + torch.diag(B, -1)
 
     return T, V
 
 
-def arnoldi_iteration(A, m: int, b=None):
+def arnoldi_iteration(A, m: int, b=None, log=True):
     """Compute a basis of the (n + 1)-Krylov subspace of the matrix A.
 
     This is the space spanned by the vectors {b, Ab, ..., A^n b}.
@@ -122,7 +124,9 @@ def arnoldi_iteration(A, m: int, b=None):
     Q = torch.zeros((A.shape[0], m), dtype=torch.double, device=dev)
     # Normalize the input vector
     Q[:, 0] = b / torch.norm(b, 2)  # Use it as the first Krylov vector
-    for k in tqdm(range(1, m)):
+    if log:
+        bar = tqdm(total=m - 1)
+    for k in range(1, m):
         v = torch.matmul(A, Q[:, k - 1]).to_dense()  # Generate a new candidate vector
         for j in range(k):  # Subtract the projections on previous vectors
             h[j, k - 1] = Q[:, j].conj() @ v
@@ -133,10 +137,12 @@ def arnoldi_iteration(A, m: int, b=None):
             Q[:, k] = v / h[k, k - 1]
         else:  # If that happens, stop iterating.
             return h, Q
+        if log:
+            bar.update()
     return h, Q
 
 
-def block_lanczos(H, X=None, m=10, p=5):
+def block_lanczos(H, X=None, m=10, p=5, log=True):
     n = H.shape[0]
     H = deepcopy(H).double()
     X = deepcopy(X).double()
@@ -148,8 +154,8 @@ def block_lanczos(H, X=None, m=10, p=5):
         p = X.shape[1]
     Qj, _ = torch.linalg.qr(X)
     Q = [Qj]
-
-    bar = tqdm(total=m)
+    if log:
+        bar = tqdm(total=m)
     for j in range(m):
         if j == 0:
             U = H @ Q[-1]
@@ -163,7 +169,8 @@ def block_lanczos(H, X=None, m=10, p=5):
         Q.append(Qj)
         B.append(Bj)
 
-        bar.update()
+        if log:
+            bar.update()
 
     T = (
         torch.block_diag(*A)
