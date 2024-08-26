@@ -88,7 +88,7 @@ class Classifier:
     def get_UD(self):
         return None, None
 
-    def set_UD(self, U, D):
+    def set_QD(self, U, D):
         pass
 
     def get_embeddings(self):
@@ -102,7 +102,10 @@ class Classifier:
 
     def get_prediction(self):
         H = self.get_embeddings()
-        y_pred = torch.nn.functional.softmax(H, dim=1)
+        if config.dataset.multi_label:
+            y_pred = torch.nn.functional.sigmoid(H)
+        else:
+            y_pred = torch.nn.functional.softmax(H, dim=1)
         return y_pred
 
     def get_SFV(self):
@@ -115,20 +118,31 @@ class Classifier:
     def get_D(self):
         return None
 
-    def regularizer(self):
+    def intrinsic_regularizer(self):
+        return 0
+
+    def ambient_regularizer(self):
         return 0
 
     def train_step(self, eval_=True):
         label_loss, train_acc = Classifier.calc_mask_metric(self, mask="train")
-        structure_loss = self.regularizer()
-        train_loss = 1 * label_loss + config.spectral.regularizer_coef * structure_loss
+        intrinsic_loss = self.intrinsic_regularizer()
+        # ambient_loss = self.ambient_regularizer()
+        train_loss = (
+            1 * label_loss
+            + config.spectral.regularizer_coef * intrinsic_loss
+            # + 0 * ambient_loss
+        )
 
         train_loss.backward(retain_graph=True)
 
         if eval_:
             _, test_acc = Classifier.calc_mask_metric(self, mask="test")
-            val_loss, val_acc = Classifier.calc_mask_metric(self, mask="val")
-            return train_loss.item(), train_acc, val_loss.item(), val_acc, test_acc
+            if self.graph.val_mask is not None:
+                val_loss, val_acc = Classifier.calc_mask_metric(self, mask="val")
+                return train_loss.item(), train_acc, val_loss.item(), val_acc, test_acc
+            else:
+                return train_loss.item(), train_acc, 0, 0, test_acc
         else:
             return train_loss.item(), train_acc
 
@@ -147,11 +161,13 @@ class Classifier:
     # @torch.no_grad()
     def calc_metrics(model, y, mask, metric=""):
         y_pred = model.get_prediction()
-        loss, acc = calc_metrics(y, y_pred, mask)
+        loss, acc, f1_score = calc_metrics(y, y_pred, mask)
 
         if metric == "acc":
             return (acc,)
-        # elif metric == "f1":
+        elif metric == "f1":
+            return f1_score
+        # elif metric == "ap":
         #     return f1_score
         elif metric == "loss":
             return (loss.item(),)
