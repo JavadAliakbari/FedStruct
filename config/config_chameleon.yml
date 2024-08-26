@@ -1,5 +1,6 @@
 dataset:
   dataset_name: chameleon
+  multi_label: False
 subgraph:
   num_subgraphs: 10
   delta: 20
@@ -17,7 +18,7 @@ model:
   weight_decay: 0.0003
   dropout: 0.7
   gnn_layer_type: sage
-  smodel_type: SpectralDGCN   # GNN, DGCN, CentralDGCN, Laplace, LanczosLaplace, SpectralLaplace, SpectralDGCN, LanczosDGCN
+  smodel_type: SpectralLaplace   # GNN, DGCN, CentralDGCN, Laplace, LanczosLaplace, SpectralLaplace, SpectralDGCN, LanczosDGCN
   fmodel_type: same
   iterations: 50
   metric: acc

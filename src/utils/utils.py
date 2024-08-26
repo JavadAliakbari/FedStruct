@@ -9,12 +9,14 @@ import torch
 import numpy as np
 import pandas as pd
 import networkx as nx
+from torch_sparse import SparseTensor
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
 from torch_geometric.utils import degree, add_self_loops, scatter, remove_self_loops
 from dotenv import load_dotenv
 from sklearn.manifold import TSNE
+from sklearn.metrics import average_precision_score
 import matplotlib.cm as cm
 
 from src.utils.config_parser import Config
@@ -32,8 +34,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-elif torch.backends.mps.is_available():
-    dev = "mps"
+# elif torch.backends.mps.is_available():
+#     dev = "mps"
 else:
     dev = "cpu"
 device = torch.device(dev)
@@ -85,6 +87,26 @@ def calc_f1_score(pred_y, y):
         labels=torch.unique(pred_y),
     )
     return f1score
+
+
+def calculate_average_precision(y_pred, y_true):
+    """
+    Calculate the average precision for each label, then take the mean.
+
+    Parameters:
+    y_true (torch.Tensor): Ground truth binary labels, shape (n_samples, n_labels)
+    y_pred (torch.Tensor): Predicted probabilities, shape (n_samples, n_labels)
+
+    Returns:
+    float: Mean average precision score across all labels.
+    """
+    # Ensure the inputs are numpy arrays for compatibility with sklearn
+    y_true_np = y_true.cpu().numpy()
+    y_pred_np = y_pred.detach().cpu().numpy()
+
+    # Calculate average precision for each label
+    mean_ap = average_precision_score(y_true_np, y_pred_np)
+    return mean_ap
 
 
 def find_neighbors_(
@@ -441,9 +463,27 @@ def prune(abar, degree):
     return abar
 
 
-def plot_abar(abar, edge_index):
+def split_abar(abar: SparseTensor, nodes):
+    num_nodes = abar.size()[0]
+    # nodes = self.get_nodes().to(local_dev)
+    num_nodes_i = len(nodes)
+    indices = torch.arange(num_nodes_i, dtype=torch.long, device=local_dev)
+    vals = torch.ones(num_nodes_i, dtype=torch.float32, device=local_dev)
+    P = torch.sparse_coo_tensor(
+        torch.vstack([indices, nodes]),
+        vals,
+        (num_nodes_i, num_nodes),
+        device=local_dev,
+    )
+    abar_i = torch.matmul(P, abar)
+    if dev != "cuda:0":
+        abar_i = abar_i.to_dense().to(dev)
+    return abar_i
+
+
+def plot_abar(abar, edge_index, name="graph"):
     dense_abar = abar.to_dense().numpy()
-    dense_abar = np.power(dense_abar, 0.25)
+    dense_abar = np.power(dense_abar, 0.1)
 
     G = nx.Graph(edge_index.T.tolist())
     community = nx.community.louvain_communities(G)
@@ -451,13 +491,24 @@ def plot_abar(abar, edge_index):
     sorted_community_groups = sorted(
         community, key=lambda item: len(item), reverse=True
     )
-    community_based_node_order = itertools.chain.from_iterable(sorted_community_groups)
+    community_based_node_order = list(
+        itertools.chain.from_iterable(sorted_community_groups)
+    )
 
     dense_abar = dense_abar[:, community_based_node_order]
     dense_abar = dense_abar[community_based_node_order, :]
 
-    plt.imshow(dense_abar, cmap="gray", interpolation="nearest")
-    plt.imsave("./models/CiteSeer_True.png", dense_abar)
+    plt.imshow(dense_abar, cmap="gray", interpolation="none")
+    # plt.imshow(dense_abar, cmap="gray", interpolation="nearest")
+    plt.imsave(f"./models/{name}.png", dense_abar)
+    plt.grid(True, which="both", color="black", linestyle="-", linewidth=0.25)
+
+    # Optionally, customize the grid to match the image resolution
+    # ax = plt.gca()
+    # plt.xticks(np.arange(0, abar.shape[1], 1))
+    # plt.yticks(np.arange(0, abar.shape[0], 1))
+    # plt.xticklabels([])
+    # plt.set_yticklabels([])
     plt.show()
 
 
@@ -489,13 +540,21 @@ def calc_metrics(y, y_pred, mask=None):
         y_masked = y[mask]
         y_pred_masked = y_pred[mask]
 
-    criterion = torch.nn.CrossEntropyLoss()
+    if config.dataset.multi_label:
+        criterion = torch.nn.BCEWithLogitsLoss()
+    else:
+        criterion = torch.nn.CrossEntropyLoss()
     loss = criterion(y_pred_masked, y_masked)
+    if config.dataset.multi_label:
+        acc = calculate_average_precision(y_pred_masked, y_masked)
+    else:
+        acc = calc_accuracy(y_pred_masked.argmax(dim=1), y_masked)
+    try:
+        f1_score_ = calc_f1_score(y_pred_masked.argmax(dim=1), y_masked)
+    except:
+        f1_score_ = 0
 
-    acc = calc_accuracy(y_pred_masked.argmax(dim=1), y_masked)
-    # f1_score_ = calc_f1_score(y_pred_masked.argmax(dim=1), y_masked)
-
-    return loss, acc
+    return loss, acc, f1_score_
 
 
 def lod2dol(list_of_dicts):

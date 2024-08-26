@@ -1,5 +1,6 @@
 dataset:
   dataset_name: Cora
+  multi_label: False
 subgraph:
   num_subgraphs: 10
   delta: 20
@@ -17,12 +18,12 @@ model:
   weight_decay: 0.0003
   dropout: 0.7
   gnn_layer_type: sage
-  smodel_type: SpectralDGCN   # GNN, DGCN, CentralDGCN, Laplace, LanczosLaplace, SpectralLaplace, SpectralDGCN, LanczosDGCN
-  fmodel_type: same
+  smodel_type: LanczosLaplace   # GNN, DGCN, CentralDGCN, Laplace, LanczosLaplace, SpectralLaplace, SpectralDGCN, LanczosDGCN
+  fmodel_type: same   #GNN, DGCN, same
   iterations: 35
   metric: acc
 feature_model:
-  gnn_layer_sizes: [128,64]
+  gnn_layer_sizes: [32,16]
   DGCN_layer_sizes: [64]
   mlp_layer_sizes: [64]
   DGCN_layers: 2
@@ -41,15 +42,15 @@ structure_model:
   num_mp_vectors: 10
   rw_len: 50
   gnn_epochs: 500
-  mlp_epochs: 200
+  mlp_epochs: 50
 spectral:
-  spectral_len: 300
+  spectral_len: 200
   lanczos_iter: 1000
   L_type: "rw"      # normal rw sym
   method: "arnoldi" # arnoldi lanczos
   regularizer_coef: 10
   matrix: "adj" # adj lap inc
-  decompose: "sym" # svd eigh
+  decompose: "eigh" # svd eigh
 node2vec:
   epochs: 50
   walk_length: 20

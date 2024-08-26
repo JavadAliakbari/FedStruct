@@ -9,7 +9,13 @@ from torch_geometric.utils import to_networkx, remove_isolated_nodes
 
 
 def plot_graph(
-    edge_index, num_nodes, num_classes, labels, pos=None, correctly_classified=None
+    edge_index,
+    num_nodes,
+    num_classes,
+    labels,
+    pos=None,
+    correctly_classified=None,
+    ax=None,
 ) -> None:
     # edge_index = remove_isolated_nodes(edge_index)[0]
     # graph = Data(edge_index=edge_index, num_nodes=num_nodes)
@@ -20,9 +26,10 @@ def plot_graph(
     G.add_nodes_from(nodes)
     G.add_edges_from(edge_index.T.tolist())
     if pos is None:
-        pos = nx.spectral_layout(G)
+        # pos = nx.spectral_layout(G)
+        pos = nx.spring_layout(G)
     pos_ = {}
-    for i in range(pos.shape[0]):
+    for i in range(len(pos)):
         pos_[i] = list(pos[i])
     cmap = plt.get_cmap("gist_rainbow", num_classes)
     options = {
@@ -47,8 +54,11 @@ def plot_graph(
         pos=pos_,
         arrows=False,
         cmap=cmap,
+        ax=ax,
         **options
     )
+
+    return pos
 
 
 def create_graph() -> Data:

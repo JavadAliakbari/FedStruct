@@ -76,8 +76,8 @@ class FedClassifier(Classifier):
     def get_UD(self):
         return self.smodel.get_UD()
 
-    def set_UD(self, U, D):
-        self.smodel.set_UD(U, D)
+    def set_QD(self, U, D):
+        self.smodel.set_QD(U, D)
 
     def create_smodel(self):
         raise NotImplementedError
@@ -104,8 +104,22 @@ class FedClassifier(Classifier):
         O = H + S
         return O
 
-    def regularizer(self):
-        return self.smodel.regularizer()
+    def __call__(self):
+        return self.get_embeddings()
+
+    def get_prediction(self):
+        H = self.get_embeddings()
+        if config.dataset.multi_label:
+            y_pred = torch.nn.functional.sigmoid(H)
+        else:
+            y_pred = torch.nn.functional.softmax(H, dim=1)
+        return y_pred
+
+    def intrinsic_regularizer(self):
+        return self.smodel.intrinsic_regularizer()
+
+    def ambient_regularizer(self):
+        return self.smodel.ambient_regularizer()
 
     def train_step(self, eval_=True):
         res = super().train_step(eval_=eval_)

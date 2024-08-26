@@ -28,6 +28,7 @@ class DatasetConfig:
 
     def load_config(self, dataset):
         self.dataset_name = dataset["dataset_name"]
+        self.multi_label = dataset["multi_label"]
 
 
 class SubgraphConfig:

@@ -76,7 +76,7 @@ class GNNClient(Client):
 
     def create_SDGCN_data(self, **kwargs) -> AGraph:
         abar = kwargs.get("abar", None)
-        abar_i = self.split_abar(abar)
+        abar_i = split_abar(abar, self.get_nodes())
 
         SFV = kwargs.get("SFV", None)
         SFV_ = torch.tensor(
@@ -140,14 +140,14 @@ class GNNClient(Client):
                 if "U" in kwargs.keys():
                     U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)
-                    self.classifier.set_UD(U, D)
+                    self.classifier.set_QD(U, D)
             elif smodel_type == "LanczosLaplace":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = LanczosLaplace(sgraph)
                 if "U" in kwargs.keys():
                     U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)
-                    self.classifier.set_UD(U, D)
+                    self.classifier.set_QD(U, D)
             elif smodel_type == "MLP":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = SClassifier(sgraph)
@@ -187,36 +187,19 @@ class GNNClient(Client):
                 if "U" in kwargs.keys():
                     U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)
-                    self.classifier.set_UD(U, D)
+                    self.classifier.set_QD(U, D)
             elif smodel_type == "LanczosLaplace":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = FedLanczosLaplaceClassifier(fgraph, sgraph)
                 if "U" in kwargs.keys():
                     U = kwargs.get("U", None)[self.graph.node_ids]
                     D = kwargs.get("D", None)
-                    self.classifier.set_UD(U, D)
+                    self.classifier.set_QD(U, D)
             elif smodel_type == "MLP":
                 sgraph = self.create_SGNN_data(**kwargs)
                 self.classifier = FedMLPClassifier(fgraph, sgraph)
 
         self.classifier.create_optimizer()
-
-    def split_abar(self, abar: SparseTensor):
-        num_nodes = abar.size()[0]
-        nodes = self.get_nodes().to(local_dev)
-        num_nodes_i = self.num_nodes()
-        indices = torch.arange(num_nodes_i, dtype=torch.long, device=local_dev)
-        vals = torch.ones(num_nodes_i, dtype=torch.float32, device=local_dev)
-        P = torch.sparse_coo_tensor(
-            torch.vstack([indices, nodes]),
-            vals,
-            (num_nodes_i, num_nodes),
-            device=local_dev,
-        )
-        abar_i = torch.matmul(P, abar)
-        if dev != "cuda:0":
-            abar_i = abar_i.to_dense().to(dev)
-        return abar_i
 
     def train_local_model(
         self,

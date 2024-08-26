@@ -84,7 +84,10 @@ class SGNNSlave(Classifier):
 
     def get_prediction(self):
         s = self.get_embeddings(self.graph.node_ids)
-        y_pred = torch.nn.functional.softmax(s, dim=1)
+        if config.dataset.multi_label:
+            y_pred = torch.nn.functional.sigmoid(s)
+        else:
+            y_pred = torch.nn.functional.softmax(s, dim=1)
 
         return y_pred
 
@@ -150,6 +153,9 @@ class SGNNMaster(SClassifier):
 
     def get_prediction(self):
         s = self.get_embeddings(self.graph.node_ids)
-        y_pred = torch.nn.functional.softmax(s, dim=1)
+        if config.dataset.multi_label:
+            y_pred = torch.nn.functional.sigmoid(s)
+        else:
+            y_pred = torch.nn.functional.softmax(s, dim=1)
 
         return y_pred

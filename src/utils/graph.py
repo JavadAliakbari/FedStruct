@@ -225,12 +225,9 @@ class Graph(Data):
         return SE_rw_dg
 
     def initialize_random_features(size):
-        return torch.normal(
-            0,
-            0.05,
-            size=size,
-            requires_grad=True,
-        )
+        return torch.normal(0, 0.05, size=size, requires_grad=True)
+
+        # return torch.full(fill_value=0.05, size=size, requires_grad=True)
 
     def reset_parameters(self) -> None:
         if config.structure_model.structure_type == "hop2vec":
@@ -340,17 +337,32 @@ class Graph(Data):
             if estimate:
                 D, U = estimate_eigh(
                     A,
+                    # A @ A.T,
                     config.spectral.lanczos_iter,
                     method=config.spectral.method,
                     log=log,
                 )
             else:
                 if config.spectral.decompose == "svd":
-                    # U, D, V = torch.svd(A.to_dense())
-                    U, D, V = torch.svd_lowrank(A, q=config.spectral.spectral_len)
+                    U, D, V = torch.svd(A.to_dense())
+                    # U, D, V = torch.svd_lowrank(
+                    #     A, q=config.spectral.spectral_len, niter=5
+                    # )
                 else:
                     D, U = torch.linalg.eigh(A.to_dense())
+                    # D2, U2 = torch.linalg.eigh(A.T.to_dense())
+                    # D = torch.hstack([D1, D2])
+                    # U = torch.hstack([U1, U2])
             D = -D
+            # DD = degree(self.edge_index[0], self.num_nodes)
+            # A1 = torch.diag(DD) @ A
+            # # plt.figure()
+            # # plot_abar(1 - A1, self.edge_index, name="A")
+            # plt.figure()
+            # pos = plot_graph(self.edge_index, self.num_nodes, self.num_classes, self.y)
+            # plt.axis("off")
+            # plt.tight_layout()
+
         elif config.spectral.matrix == "inc":
             E = create_inc(
                 self.edge_index,
@@ -359,7 +371,7 @@ class Graph(Data):
                 nodes=self.node_ids,
             )
             if estimate:
-                D, U, _, _ = estimate_eigh(
+                D, U = estimate_eigh(
                     E @ E.T,
                     config.spectral.lanczos_iter,
                     method=config.spectral.method,
@@ -370,10 +382,13 @@ class Graph(Data):
                 # U, D, V = torch.svd_lowrank(E, q=config.spectral.spectral_len)
 
         if len(D.shape) == 1:
+            shift = 0
             if config.spectral.spectral_len > 0:
                 sorted_eignvals = torch.sort(D, descending=False)
                 sorted_indices = sorted_eignvals[1]
-                sorted_indices = sorted_indices[: config.spectral.spectral_len]
+                sorted_indices = sorted_indices[
+                    shift : shift + config.spectral.spectral_len
+                ]
 
                 U = U[:, sorted_indices]
                 D = D[sorted_indices]
@@ -386,5 +401,32 @@ class Graph(Data):
 
         # U = U[:, sorted_indices]
         # D = D[sorted_indices, sorted_indices]
+
+        ss = torch.sign(torch.sum(U, dim=0))
+        # ii = torch.argmax(torch.abs(U), dim=0)
+        # ss = []
+        # for ind, uu in enumerate(ii):
+        #     ss.append(torch.sign(U[uu, ind]))
+        # ss = torch.tensor(ss)
+        # ss = torch.sign(U[0, :])
+        U = torch.einsum("i,ji->ji", ss, U)
+
+        # AA = torch.diag(DD) @ U @ torch.diag(-D) @ U.T
+        # AA[AA > 1] = 1
+        # AA[AA < 0] = 0
+        # # plt.figure()
+        # # plot_abar(1 - AA, self.edge_index, name="AA")
+        # rows, cols = torch.where(AA > 0.5)
+        # edge_index2 = torch.vstack((rows, cols))
+        # edge_index2 = remove_self_loops(edge_index2)[0]
+        # plt.figure()
+        # plot_graph(edge_index2, self.num_nodes, self.num_classes, self.y)
+        # plt.axis("off")
+        # plt.tight_layout()
+        # plt.figure()
+        # plot_graph(edge_index2, self.num_nodes, self.num_classes, self.y, pos=pos)
+        # plt.axis("off")
+        # plt.tight_layout()
+        # plt.show()
 
         return D, U
