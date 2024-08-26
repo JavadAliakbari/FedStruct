@@ -280,6 +280,7 @@ class Graph(Data):
         num_layers=config.structure_model.DGCN_layers,
         method="DGCN",
         pruning=False,
+        spectral_len=0,
     ):
         if method in ["DGCN", "CentralDGCN"]:
             if self.DGCN_abar is not None:
@@ -296,7 +297,9 @@ class Graph(Data):
                 abar = calc_a(A, num_layers, pruning)
                 self.DGCN_abar = abar
         elif method in ["SpectralDGCN", "LanczosDGCN"]:
-            D, U = self.calc_eignvalues(estimate=not (method.startswith("Spectral")))
+            D, U = self.calc_eignvalues(
+                estimate=not (method.startswith("Spectral")), spectral_len=spectral_len
+            )
             Dbar = D**num_layers
             abar = U @ torch.diag(Dbar)
             # abar = U @ torch.diag(Dbar) @ U.T
@@ -307,7 +310,7 @@ class Graph(Data):
 
         return abar
 
-    def calc_eignvalues(self, estimate=False, self_loop=True, log=True):
+    def calc_eignvalues(self, estimate=False, self_loop=True, log=True, spectral_len=0):
         if config.spectral.matrix == "lap":
             self.create_L(
                 normalization=config.spectral.L_type,
@@ -323,7 +326,7 @@ class Graph(Data):
             else:
                 if config.spectral.decompose == "svd":
                     U, D, V = torch.svd(self.L.to_dense())
-                    # U, D, V = torch.svd_lowrank(self.L, q=config.spectral.spectral_len)
+                    # U, D, V = torch.svd_lowrank(self.L, q=spectral_len)
                 else:
                     D, U = torch.linalg.eigh(self.L.to_dense())
         elif config.spectral.matrix == "adj":
@@ -346,7 +349,7 @@ class Graph(Data):
                 if config.spectral.decompose == "svd":
                     U, D, V = torch.svd(A.to_dense())
                     # U, D, V = torch.svd_lowrank(
-                    #     A, q=config.spectral.spectral_len, niter=5
+                    #     A, q=spectral_len, niter=5
                     # )
                 else:
                     D, U = torch.linalg.eigh(A.to_dense())
@@ -379,25 +382,23 @@ class Graph(Data):
                 )
             else:
                 U, D, V = torch.svd(E.to_dense())
-                # U, D, V = torch.svd_lowrank(E, q=config.spectral.spectral_len)
+                # U, D, V = torch.svd_lowrank(E, q=spectral_len)
 
         if len(D.shape) == 1:
             shift = 0
-            if config.spectral.spectral_len > 0:
+            if spectral_len > 0:
                 sorted_eignvals = torch.sort(D, descending=False)
                 sorted_indices = sorted_eignvals[1]
-                sorted_indices = sorted_indices[
-                    shift : shift + config.spectral.spectral_len
-                ]
+                sorted_indices = sorted_indices[shift : shift + spectral_len]
 
                 U = U[:, sorted_indices]
                 D = D[sorted_indices]
                 # self.V_t = self.V_t[:, sorted_indices]
         # elif len(D.shape) == 2:
-        #     if config.spectral.spectral_len > 0:
+        #     if spectral_len > 0:
         #         sorted_eignvals = torch.sort(torch.diagonal(D), descending=False)
         #         sorted_indices = sorted_eignvals[1]
-        #         sorted_indices = sorted_indices[: config.spectral.spectral_len]
+        #         sorted_indices = sorted_indices[: spectral_len]
 
         # U = U[:, sorted_indices]
         # D = D[sorted_indices, sorted_indices]

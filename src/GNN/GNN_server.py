@@ -27,6 +27,7 @@ class GNNServer(Server, GNNClient):
         smodel_type=config.model.smodel_type,
         fmodel_type=config.model.fmodel_type,
         data_type="feature",
+        spectral_len=0,
         **kwargs,
     ) -> None:
         share = {}
@@ -38,7 +39,8 @@ class GNNServer(Server, GNNClient):
                 num_spectral_features = abar.shape[1]
             elif smodel_type in ["SpectralLaplace", "LanczosLaplace"]:
                 D, U = self.graph.calc_eignvalues(
-                    estimate=not (smodel_type.startswith("Spectral"))
+                    estimate=not (smodel_type.startswith("Spectral")),
+                    spectral_len=spectral_len,
                 )
                 share["D"] = D
                 share["U"] = U
@@ -80,12 +82,14 @@ class GNNServer(Server, GNNClient):
         smodel_type=config.model.smodel_type,
         fmodel_type=config.model.fmodel_type,
         data_type="feature",
+        spectral_len=0,
         **kwargs,
     ) -> None:
         share = self.initialize(
             smodel_type=smodel_type,
             fmodel_type=fmodel_type,
             data_type=data_type,
+            spectral_len=spectral_len,
             **kwargs,
         )
 
@@ -110,12 +114,14 @@ class GNNServer(Server, GNNClient):
         log=True,
         plot=True,
         model_type="",
+        spectral_len=config.spectral.spectral_len,
         **kwargs,
     ):
         self.initialize_FL(
             smodel_type=smodel_type,
             fmodel_type=fmodel_type,
             data_type=data_type,
+            spectral_len=spectral_len,
             **kwargs,
         )
         if FL:
@@ -141,12 +147,14 @@ class GNNServer(Server, GNNClient):
         log=True,
         plot=True,
         model_type="",
+        spectral_len=config.spectral.spectral_len,
         **kwargs,
     ):
         self.initialize_FL(
             smodel_type=smodel_type,
             fmodel_type=fmodel_type,
             data_type=data_type,
+            spectral_len=spectral_len,
             **kwargs,
         )
         if FL:
