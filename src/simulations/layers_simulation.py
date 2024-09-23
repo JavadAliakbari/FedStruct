@@ -45,19 +45,19 @@ def run(
 
     # for structure_type in ["hop2vec"]:
     for structure_type in ["degree", "GDV", "node2vec", "hop2vec"]:
-        for propagate_type in ["DGCN"]:
+        for smodel_type in ["DGCN"]:
             res = GNN_server.joint_train_g(
                 epochs=epochs,
-                propagate_type=propagate_type,
+                smodel_type=smodel_type,
                 FL=True,
                 structure=True,
                 structure_type=structure_type,
                 log=False,
                 plot=False,
             )
-            result[f"{structure_type}_sdga_{propagate_type}"] = res
+            result[f"{structure_type}_sdga_{smodel_type}"] = res
             bar.set_postfix_str(
-                f"{structure_type}_sdga_{propagate_type}: {res['Average']['Test Acc']}"
+                f"{structure_type}_sdga_{smodel_type}: {res['Average']['Test Acc']}"
             )
 
     return result

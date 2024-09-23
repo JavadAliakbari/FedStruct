@@ -49,7 +49,7 @@ class Client:
         self.classifier.eval()
 
     def test_classifier(self, metric=config.model.metric):
-        return self.classifier.calc_test_accuracy(metric)
+        return self.classifier.calc_mask_metric(mask="test", metric=metric)
 
     def get_train_results(self, eval_=True):
         res = self.train_step(eval_=eval_)
@@ -59,6 +59,7 @@ class Client:
             "Train Acc",
             "Val Loss",
             "Val Acc",
+            "Test Acc",
             "Val F Acc",
             "Val S Acc",
         ]

@@ -127,7 +127,7 @@ class Graph(Data):
                     self.sfvs[structure_type] = deepcopy(structural_features)
 
         self.structural_features = structural_features
-        self.num_structural_features = num_structural_features
+        self.num_structural_features = structural_features.shape[1]
 
     def add_structural_features_(
         edge_index,

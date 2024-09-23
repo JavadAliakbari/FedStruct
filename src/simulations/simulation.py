@@ -40,6 +40,9 @@ if __name__ == "__main__":
 
     FedPub_server = FedPubServer(graph)
 
+    FedGCN_server1 = FedPubServer(graph)
+    FedGCN_server2 = FedPubServer(graph)
+
     GNN_server_ideal = GNNServer(graph)
 
     rep = 10
@@ -88,6 +91,8 @@ if __name__ == "__main__":
                         GNN_server_ideal,
                         FedSage_server,
                         FedPub_server,
+                        FedGCN_server1,
+                        FedGCN_server2,
                         train_ratio=train_ratio,
                         test_ratio=test_ratio,
                         num_subgraphs=num_subgraphs,
@@ -113,6 +118,23 @@ if __name__ == "__main__":
                         epochs=epochs,
                     )
                     model_results.update(Fedpub_results)
+
+                    Fedgcn_results1 = get_Fedgcn_results(
+                        FedGCN_server1,
+                        bar=bar,
+                        epochs=epochs,
+                        num_hops=1,
+                    )
+                    model_results.update(Fedgcn_results1)
+
+                    Fedgcn_results2 = get_Fedgcn_results(
+                        FedGCN_server2,
+                        bar=bar,
+                        epochs=epochs,
+                        num_hops=2,
+                    )
+                    model_results.update(Fedgcn_results2)
+
                     Fedsage_ideal_results = get_Fedsage_ideal_reults(
                         GNN_server_ideal,
                         bar=bar,
@@ -137,7 +159,7 @@ if __name__ == "__main__":
                         GNN_server,
                         bar=bar,
                         epochs=epochs,
-                        propagate_types=["DGCN"],
+                        smodel_types=["DGCN"],
                     )
                     GNN_result_prune2 = {}
                     for key, val in GNN_result_prune.items():

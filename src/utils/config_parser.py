@@ -13,6 +13,7 @@ class Config:
         self.node2vec = Node2VecConfig(self.config["node2vec"])
         self.fedsage = FedSAGEConfig(self.config["fedsage"])
         self.fedpub = PubMedConfig(self.config["fedpub"])
+        self.fedgcn = FedGCNConfig(self.config["fedgcn"])
 
     def load_config(path):
         with open(path) as f:
@@ -55,7 +56,8 @@ class ModelConfig:
         self.lr = model["lr"]
         self.weight_decay = model["weight_decay"]
         self.gnn_layer_type = model["gnn_layer_type"]
-        self.propagate_type = model["propagate_type"]
+        self.smodel_type = model["smodel_type"]
+        self.fmodel_type = model["fmodel_type"]
         self.dropout = model["dropout"]
         self.iterations = model["iterations"]
         self.metric = model["metric"]
@@ -148,3 +150,18 @@ class PubMedConfig:
         self.n_proxy = fedpub["n_proxy"]
         self.l1 = fedpub["l1"]
         self.loc_l2 = fedpub["loc_l2"]
+
+
+class FedGCNConfig:
+    def __init__(self, fedpub):
+        self.load_config(fedpub)
+
+    def load_config(self, feedgcn):
+        self.lr = feedgcn["lr"]
+        self.weight_decay = feedgcn["weight_decay"]
+        self.args_hidden = feedgcn["args_hidden"]
+        self.global_rounds = feedgcn["global_rounds"]
+        self.local_step = feedgcn["local_step"]
+        self.num_layers = feedgcn["num_layers"]
+        self.num_hops = feedgcn["num_hops"]
+        self.iid_beta = feedgcn["iid_beta"]

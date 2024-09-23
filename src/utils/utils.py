@@ -8,6 +8,7 @@ import torch
 import numpy as np
 import pandas as pd
 import networkx as nx
+from torch_sparse import SparseTensor
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
@@ -28,8 +29,8 @@ plt.rcParams["font.size"] = 20
 
 if torch.cuda.is_available():
     dev = "cuda:0"
-elif torch.backends.mps.is_available():
-    dev = "mps"
+# elif torch.backends.mps.is_available():
+#     dev = "mps"
 else:
     dev = "cpu"
 device = torch.device(dev)
@@ -40,7 +41,7 @@ else:
     local_dev = dev
 
 
-seed = 65
+seed = 45
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -53,7 +54,7 @@ save_path = (
     f"{config.dataset.dataset_name}/"
     f"{config.structure_model.structure_type}/"
     f"{config.subgraph.partitioning}/"
-    f"{config.model.propagate_type}/"
+    f"{config.model.smodel_type}/"
     f"{config.subgraph.num_subgraphs}/all/"
 )
 
@@ -234,6 +235,24 @@ def prune(abar, degree):
     return abar
 
 
+def split_abar(abar: SparseTensor, nodes):
+    num_nodes = abar.size()[0]
+    # nodes = self.get_nodes().to(local_dev)
+    num_nodes_i = len(nodes)
+    indices = torch.arange(num_nodes_i, dtype=torch.long, device=local_dev)
+    vals = torch.ones(num_nodes_i, dtype=torch.float32, device=local_dev)
+    P = torch.sparse_coo_tensor(
+        torch.vstack([indices, nodes]),
+        vals,
+        (num_nodes_i, num_nodes),
+        device=local_dev,
+    )
+    abar_i = torch.matmul(P, abar)
+    if dev != "cuda:0":
+        abar_i = abar_i.to_dense().to(dev)
+    return abar_i
+
+
 def plot_abar(abar, edge_index):
     dense_abar = abar.to_dense().numpy()
     dense_abar = np.power(dense_abar, 0.25)
@@ -274,11 +293,16 @@ def estimate_a(edge_index, num_nodes, num_layers, num_expriments=100):
     return abar
 
 
-def calc_metrics(y, y_pred, mask):
+def calc_metrics(y, y_pred, mask, loss_function="cross_entropy"):
     y_masked = y[mask]
     y_pred_masked = y_pred[mask]
 
-    criterion = torch.nn.CrossEntropyLoss()
+    if loss_function == "cross_entropy":
+        criterion = torch.nn.CrossEntropyLoss()
+    elif loss_function == "log_likelihood":
+        criterion = torch.nn.NLLLoss()
+    elif loss_function == "BCELoss":
+        criterion = torch.nn.BCEWithLogitsLoss()
     loss = criterion(y_pred_masked, y_masked)
 
     acc = calc_accuracy(y_pred_masked.argmax(dim=1), y_masked)

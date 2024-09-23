@@ -45,7 +45,7 @@ def get_GNN_results(
     GNN_server: GNNServer,
     bar: tqdm,
     epochs=config.model.iterations,
-    propagate_types=["GNN", "DGCN"],
+    smodel_types=["GNN", "DGCN"],
 ):
     funcs = {
         "server": GNN_server.train_local_model,
@@ -88,7 +88,7 @@ def get_GNN_results(
     for name, run in GNN_runs.items():
         res = run[0](
             epochs=epochs,
-            propagate_type=run[1],
+            smodel_type=run[1],
             FL=run[2],
             data_type=run[3],
             structure_type=run[4],

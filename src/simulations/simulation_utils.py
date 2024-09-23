@@ -6,10 +6,12 @@ from src import *
 from src.GNN.GNN_server import GNNServer
 from src.MLP.MLP_server import MLPServer
 from src.FedPub.fedpub_server import FedPubServer
+from src.FedGCN.FedGCN_server import FedGCNServer
 from src.fedsage.fedsage_server import FedSAGEServer
 from src.utils.graph import Graph
 from src.utils.graph_partitioning import (
     create_mend_graph,
+    fedGCN_partitioning,
     partition_graph,
 )
 
@@ -21,6 +23,8 @@ def create_clients(
     GNN_server_ideal: GNNServer,
     FedSage_server: FedSAGEServer,
     FedPub_server: FedPubServer,
+    Fedgcn_server1: FedGCNServer,
+    Fedgcn_server2: FedGCNServer,
     train_ratio=config.subgraph.train_ratio,
     test_ratio=config.subgraph.test_ratio,
     num_subgraphs=config.subgraph.num_subgraphs,
@@ -33,6 +37,8 @@ def create_clients(
     GNN_server_ideal.remove_clients()
     FedSage_server.remove_clients()
     FedPub_server.remove_clients()
+    Fedgcn_server1.remove_clients()
+    Fedgcn_server2.remove_clients()
 
     subgraphs = partition_graph(graph, num_subgraphs, partitioning)
 
@@ -43,6 +49,18 @@ def create_clients(
         FedPub_server.add_client(subgraph)
         mend_graph = create_mend_graph(subgraph, graph)
         GNN_server_ideal.add_client(mend_graph)
+
+    fedgcn_subgraphs1 = fedGCN_partitioning(
+        graph, config.subgraph.num_subgraphs, method=partitioning, num_hops=1
+    )
+    for subgraph in fedgcn_subgraphs1:
+        Fedgcn_server1.add_client(subgraph)
+
+    fedgcn_subgraphs2 = fedGCN_partitioning(
+        graph, config.subgraph.num_subgraphs, method=partitioning, num_hops=2
+    )
+    for subgraph in fedgcn_subgraphs2:
+        Fedgcn_server2.add_client(subgraph)
 
 
 def get_MLP_results(
@@ -81,7 +99,6 @@ def get_Fedsage_results(
     result = {}
     res = FedSage_server.train_fedSage_plus(
         epochs=epochs,
-        # propagate_type="GNN",
         model="both",
         log=False,
         plot=False,
@@ -111,6 +128,24 @@ def get_Fedpub_results(
     return result
 
 
+def get_Fedgcn_results(
+    FedGCN_server: FedGCNServer,
+    bar: tqdm,
+    epochs=config.fedgcn.global_rounds,
+    num_hops=2,
+):
+    result = {}
+    res = FedGCN_server.joint_train_w(
+        epochs=epochs,
+        log=False,
+        plot=False,
+    )
+    result[f"fedgcn{num_hops}"] = res
+    bar.set_postfix_str(f"fedgcn{num_hops}: {res['Average']['Test Acc']}")
+
+    return result
+
+
 def get_Fedsage_ideal_reults(
     GNN_server2: GNNServer,
     bar: tqdm,
@@ -120,24 +155,21 @@ def get_Fedsage_ideal_reults(
 
     GNN_runs = {
         # "fedsage_ideal_w": [GNN_server2.joint_train_w, True, False, ""],
-        "fedsage_ideal_g": [GNN_server2.joint_train_g, True, "feature", ""],
+        "fedsage_ideal_g": [GNN_server2.joint_train_g, True, "feature"],
     }
 
-    for propagate_type in ["DGCN", "GNN"]:
+    for fmodel_type in ["DGCN", "GNN"]:
         for name, run in GNN_runs.items():
             res = run[0](
                 epochs=epochs,
-                propagate_type=propagate_type,
+                fmodel_type=fmodel_type,
                 FL=run[1],
                 data_type=run[2],
-                structure_type=run[3],
                 log=False,
                 plot=False,
             )
-            result[f"{name}_{propagate_type}"] = res
-            bar.set_postfix_str(
-                f"{name}_{propagate_type}: {res['Average']['Test Acc']}"
-            )
+            result[f"{name}_{fmodel_type}"] = res
+            bar.set_postfix_str(f"{name}_{fmodel_type}: {res['Average']['Test Acc']}")
 
     return result
 
@@ -146,7 +178,7 @@ def get_GNN_results(
     GNN_server: GNNServer,
     bar: tqdm,
     epochs=config.model.iterations,
-    propagate_types=["DGCN", "GNN"],
+    smodel_types=["DGCN", "GNN"],
 ):
     result = {}
 
@@ -165,31 +197,28 @@ def get_GNN_results(
             name = f"{method}_{structure_type}"
             GNN_runs[name] = [funcs[method], True, "f+s", structure_type]
 
-    for propagate_type in propagate_types:
-        # for propagate_type in ["DGCN"]:
+    for smodel_type in smodel_types:
         res = GNN_server.train_local_model(
             epochs=epochs,
-            propagate_type=propagate_type,
+            smodel_type=smodel_type,
             log=False,
             plot=False,
         )
-        result[f"server_{propagate_type}"] = res
-        bar.set_postfix_str(f"server_{propagate_type}: {res['Test Acc']}")
+        result[f"server_{smodel_type}"] = res
+        bar.set_postfix_str(f"server_{smodel_type}: {res['Test Acc']}")
 
         for name, run in GNN_runs.items():
             res = run[0](
                 epochs=epochs,
-                propagate_type=propagate_type,
+                smodel_type=smodel_type,
                 FL=run[1],
                 data_type=run[2],
                 structure_type=run[3],
                 log=False,
                 plot=False,
             )
-            result[f"{name}_{propagate_type}"] = res
-            bar.set_postfix_str(
-                f"{name}_{propagate_type}: {res['Average']['Test Acc']}"
-            )
+            result[f"{name}_{smodel_type}"] = res
+            bar.set_postfix_str(f"{name}_{smodel_type}: {res['Average']['Test Acc']}")
 
     return result
 

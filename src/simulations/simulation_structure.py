@@ -44,7 +44,7 @@ def get_GNN_results(
     GNN_server: GNNServer,
     bar: tqdm,
     epochs=config.model.iterations,
-    propagate_types=["GNN", "DGCN"],
+    smodel_types=["GNN", "DGCN"],
 ):
     funcs = {
         "server": GNN_server.train_local_model,
@@ -54,48 +54,48 @@ def get_GNN_results(
 
     # for method in ["flwa", "flga"]:
     GNN_runs = {}
-    for propagate_type in propagate_types:
-        GNN_runs[f"server_feature_{propagate_type}"] = [
+    for smodel_type in smodel_types:
+        GNN_runs[f"server_feature_{smodel_type}"] = [
             funcs["server"],
-            propagate_type,
+            smodel_type,
             False,
             "feature",
             "",
         ]
-        GNN_runs[f"local_feature_{propagate_type}"] = [
+        GNN_runs[f"local_feature_{smodel_type}"] = [
             funcs["flga"],
-            propagate_type,
+            smodel_type,
             False,
             "feature",
             "",
         ]
-        GNN_runs[f"flga_feature_{propagate_type}"] = [
+        GNN_runs[f"flga_feature_{smodel_type}"] = [
             funcs["flga"],
-            propagate_type,
+            smodel_type,
             True,
             "feature",
             "",
         ]
         for data_type in ["structure", "f+s"]:
             for structure_type in ["node2vec", "hop2vec"]:
-                GNN_runs[f"server_{data_type}_{structure_type}_{propagate_type}"] = [
+                GNN_runs[f"server_{data_type}_{structure_type}_{smodel_type}"] = [
                     funcs["server"],
-                    propagate_type,
+                    smodel_type,
                     False,
                     data_type,
                     structure_type,
                 ]
 
-                GNN_runs[f"local_{data_type}_{structure_type}_{propagate_type}"] = [
+                GNN_runs[f"local_{data_type}_{structure_type}_{smodel_type}"] = [
                     funcs["flga"],
-                    propagate_type,
+                    smodel_type,
                     False,
                     data_type,
                     structure_type,
                 ]
-                GNN_runs[f"flga_{data_type}_{structure_type}_{propagate_type}"] = [
+                GNN_runs[f"flga_{data_type}_{structure_type}_{smodel_type}"] = [
                     funcs["flga"],
-                    propagate_type,
+                    smodel_type,
                     True,
                     data_type,
                     structure_type,
@@ -105,7 +105,7 @@ def get_GNN_results(
     for name, run in GNN_runs.items():
         res = run[0](
             epochs=epochs,
-            propagate_type=run[1],
+            smodel_type=run[1],
             FL=run[2],
             data_type=run[3],
             structure_type=run[4],
