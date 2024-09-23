@@ -15,6 +15,7 @@ from src.FedGCN.utils import label_dirichlet_partition, get_in_comm_indexes
 def find_community(edge_index):
     G = nx.Graph(edge_index.T.tolist())
     community = nx.community.louvain_communities(G)
+    community = {ind: list(c) for ind, c in enumerate(community)}
 
     return community
 
@@ -162,7 +163,7 @@ def louvain_cut(edge_index, num_nodes, num_subgraphs):
     sorted_community_groups = {
         k: v
         for k, v in sorted(
-            enumerate(community_groups), key=lambda item: len(item[1]), reverse=True
+            community_groups.items(), key=lambda item: len(item[1]), reverse=True
         )
     }
 
@@ -361,6 +362,10 @@ def fedGCN_partitioning(
         subgraph_node_ids = louvain_cut(
             graph.edge_index, graph.num_nodes, num_subgraphs
         )
+        subgraph_node_ids = {
+            key: torch.tensor(node_ids, dtype=torch.int64, device=dev)
+            for key, node_ids in subgraph_node_ids.items()
+        }
     elif method == "random":
         subgraph_node_ids = random_assign(graph.num_nodes, num_subgraphs)
     elif method == "drichlet":
@@ -369,6 +374,10 @@ def fedGCN_partitioning(
         )
     elif method == "kmeans":
         subgraph_node_ids = kmeans_cut(graph.x, num_subgraphs)
+        subgraph_node_ids = {
+            key: torch.tensor(node_ids, dtype=torch.int64, device=dev)
+            for key, node_ids in subgraph_node_ids.items()
+        }
     elif method == "metis":
         subgraph_node_ids = metis_cut(graph.edge_index, graph.num_nodes, num_subgraphs)
 

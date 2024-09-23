@@ -26,7 +26,7 @@ class GNNServer(Server, GNNClient):
         self,
         smodel_type=config.model.smodel_type,
         fmodel_type=config.model.fmodel_type,
-        structure_type=config.structure_model.structure_type,
+        # structure_type=config.structure_model.structure_type,
         data_type="feature",
         **kwargs,
     ) -> None:
