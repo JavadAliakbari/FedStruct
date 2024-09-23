@@ -19,7 +19,7 @@ model:
   gnn_layer_type: sage
   smodel_type: DGCN   # GNN, DGCN
   fmodel_type: same   #GNN, DGCN, same
-  iterations: 75
+  iterations: 50
   metric: acc
 feature_model:
   gnn_layer_sizes: [128,64]
@@ -82,7 +82,7 @@ fedpub:
   final_momentum: 1.0
   n_dims: 128
   agg_norm: exp
-  n_proxy: 5
+  n_proxy: 10
   l1: 0.001
   loc_l2: 0.001
 fedgcn:

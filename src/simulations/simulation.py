@@ -40,8 +40,8 @@ if __name__ == "__main__":
 
     FedPub_server = FedPubServer(graph)
 
-    FedGCN_server1 = FedPubServer(graph)
-    FedGCN_server2 = FedPubServer(graph)
+    FedGCN_server1 = FedGCNServer(graph)
+    FedGCN_server2 = FedGCNServer(graph)
 
     GNN_server_ideal = GNNServer(graph)
 

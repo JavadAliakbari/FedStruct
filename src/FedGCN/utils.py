@@ -230,8 +230,8 @@ def get_in_comm_indexes(
                 del _
                 del __
 
-        communicate_index = communicate_index.to("cpu")
-        current_edge_index = current_edge_index.to("cpu")
+        # communicate_index = communicate_index.to("cpu")
+        # current_edge_index = current_edge_index.to("cpu")
         communicate_indexes.append(communicate_index)
 
         # current_edge_index = torch_sparse.SparseTensor(

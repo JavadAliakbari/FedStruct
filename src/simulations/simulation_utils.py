@@ -32,13 +32,13 @@ def create_clients(
 ):
     graph.add_masks(train_size=train_ratio, test_size=test_ratio)
 
-    MLP_server.remove_clients()
-    GNN_server.remove_clients()
-    GNN_server_ideal.remove_clients()
-    FedSage_server.remove_clients()
-    FedPub_server.remove_clients()
-    Fedgcn_server1.remove_clients()
-    Fedgcn_server2.remove_clients()
+    MLP_server.reset_clients()
+    GNN_server.reset_clients()
+    GNN_server_ideal.reset_clients()
+    FedSage_server.reset_clients()
+    FedPub_server.reset_clients()
+    Fedgcn_server1.reset_clients()
+    Fedgcn_server2.reset_clients()
 
     subgraphs = partition_graph(graph, num_subgraphs, partitioning)
 

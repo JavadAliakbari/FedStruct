@@ -14,7 +14,14 @@ from src.utils.graph import Graph
 class FedPubServer:
     def __init__(self, graph: Graph):
         self.graph = graph
+        self.reset_clients()
 
+    def add_client(self, subgraph):
+        client: FedPubClient = FedPubClient(subgraph, self.num_clients, self.proxy)
+        self.clients.append(client)
+        self.num_clients += 1
+
+    def reset_clients(self):
         self.model = MaskedGCN(
             self.graph.num_features,
             config.fedpub.n_dims,
@@ -28,15 +35,6 @@ class FedPubServer:
         self.update_lists = []
         self.sim_matrices = []
         self.clients = []
-        self.num_clients = 0
-
-    def add_client(self, subgraph):
-        client: FedPubClient = FedPubClient(subgraph, self.num_clients, self.proxy)
-        self.clients.append(client)
-        self.num_clients += 1
-
-    def remove_clients(self):
-        self.clients.clear()
         self.num_clients = 0
 
     def get_proxy_data(self, n_feat):

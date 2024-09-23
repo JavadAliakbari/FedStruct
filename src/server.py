@@ -13,7 +13,7 @@ class Server(Client):
 
         # LOGGER.info(f"Number of features: {self.graph.num_features}")
 
-    def remove_clients(self):
+    def reset_clients(self):
         self.clients.clear()
         self.num_clients = 0
 
