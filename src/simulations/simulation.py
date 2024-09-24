@@ -57,6 +57,8 @@ if __name__ == "__main__":
             for train_ratio in [config.subgraph.train_ratio]:
                 test_ratio = config.subgraph.test_ratio
                 epochs = config.model.iterations
+                fedpub_epochs = config.fedpub.epochs
+                fedgcn_epochs = config.fedgcn.global_rounds
 
                 simulation_path = (
                     "./results/Simulation/"
@@ -115,14 +117,14 @@ if __name__ == "__main__":
                     Fedpub_results = get_Fedpub_results(
                         FedPub_server,
                         bar=bar,
-                        epochs=epochs,
+                        epochs=fedpub_epochs,
                     )
                     model_results.update(Fedpub_results)
 
                     Fedgcn_results1 = get_Fedgcn_results(
                         FedGCN_server1,
                         bar=bar,
-                        epochs=epochs,
+                        epochs=fedgcn_epochs,
                         num_hops=1,
                     )
                     model_results.update(Fedgcn_results1)
@@ -130,7 +132,7 @@ if __name__ == "__main__":
                     Fedgcn_results2 = get_Fedgcn_results(
                         FedGCN_server2,
                         bar=bar,
-                        epochs=epochs,
+                        epochs=fedgcn_epochs,
                         num_hops=2,
                     )
                     model_results.update(Fedgcn_results2)
