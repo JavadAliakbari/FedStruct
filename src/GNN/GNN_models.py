@@ -60,7 +60,11 @@ class GNN(nn.Module):
                 )
             elif self.layer_type == "gcn":
                 layer = GCNConv(
-                    layer_sizes[layer_num], layer_sizes[layer_num + 1], aggr="mean"
+                    layer_sizes[layer_num],
+                    layer_sizes[layer_num + 1],
+                    # aggr="mean",
+                    cached=True,
+                    normalize=True,
                 )
             elif self.layer_type == "gat":
                 layer = GATConv(
@@ -73,6 +77,8 @@ class GNN(nn.Module):
 
         if self.last_layer == "softmax":
             layers.append(nn.Softmax(dim=1))
+        if self.last_layer == "log_softmax":
+            layers.append(nn.LogSoftmax(dim=1))
         elif self.last_layer == "relu":
             layers.append(nn.ReLU())
 
