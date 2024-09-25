@@ -176,8 +176,8 @@ class Server(Client):
                 grads = sum_lod(clients_grads, coef)
                 self.share_grads(grads)
 
+            # if epoch < epochs - 1:
             self.update_models()
-
             if FL:
                 clients_weights = state_dict(self.clients)
                 mean_weights = sum_lod(clients_weights, coef)
@@ -197,6 +197,8 @@ class Server(Client):
 
         if log:
             self.report_server_test()
+        if FL:
+            self.share_weights()
         test_results = self.test_clients()
         average_result = sum_lod(test_results, coef)
         final_results = {}

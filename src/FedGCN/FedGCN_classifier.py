@@ -28,7 +28,7 @@ class FedGCNClassifier(Classifier):
         if len(config.fedgcn.mlp_layer_sizes) > 0:
             mlp_layer_sizes = (
                 [gnn_layer_sizes[-1]]
-                + config.fedgcn.gnn_layer_sizes
+                + config.fedgcn.mlp_layer_sizes
                 + [self.graph.num_classes]
             )
         else:
