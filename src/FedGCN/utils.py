@@ -196,6 +196,7 @@ def get_in_comm_indexes(
     """
     communicate_indexes = []
     in_com_train_data_indexes = []
+    in_com_test_data_indexes = []
     edge_indexes_clients = []
 
     for i in range(num_clients):
@@ -242,20 +243,20 @@ def get_in_comm_indexes(
 
         edge_indexes_clients.append(current_edge_index)
 
-        inter = intersect1d(
+        inter_train = intersect1d(
             split_data_indexes[i], idx_train
         )  ###only count the train data of nodes in current server(not communicate nodes)
+        in_com_train_data_indexes.append(inter_train)
 
-        in_com_train_data_indexes.append(
-            torch.searchsorted(communicate_indexes[i], inter).clone()
-        )  # local id in block matrix
+        # in_com_train_data_indexes.append(
+        # torch.searchsorted(communicate_indexes[i], inter_train).clone()
+        # )  # local id in block matrix
+        inter_test = intersect1d(split_data_indexes[i], idx_test)
+        in_com_test_data_indexes.append(inter_test)
+        # in_com_test_data_indexes.append(
+        # torch.searchsorted(communicate_indexes[i], inter_test).clone()
+        # )
 
-    in_com_test_data_indexes = []
-    for i in range(num_clients):
-        inter = intersect1d(split_data_indexes[i], idx_test)
-        in_com_test_data_indexes.append(
-            torch.searchsorted(communicate_indexes[i], inter).clone()
-        )
     return (
         communicate_indexes,
         in_com_train_data_indexes,

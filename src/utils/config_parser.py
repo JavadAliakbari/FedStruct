@@ -157,14 +157,5 @@ class FedGCNConfig:
         self.load_config(fedpub)
 
     def load_config(self, feedgcn):
-        self.lr = feedgcn["lr"]
-        self.weight_decay = feedgcn["weight_decay"]
-        self.global_rounds = feedgcn["global_rounds"]
-        self.local_step = feedgcn["local_step"]
-        self.gnn_layer_sizes = feedgcn["gnn_layer_sizes"]
-        self.mlp_layer_sizes = feedgcn["mlp_layer_sizes"]
         self.num_hops = feedgcn["num_hops"]
         self.iid_beta = feedgcn["iid_beta"]
-        self.gnn_type = feedgcn["gnn_type"]
-        self.final_activation = feedgcn["final_activation"]
-        self.optimizer = feedgcn["optimizer"]

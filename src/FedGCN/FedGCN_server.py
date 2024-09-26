@@ -1,20 +1,20 @@
 from ast import List
 
-from src.FedGCN.FedGCN_client import FedGCNClient
+from src.GNN.GNN_client import GNNClient
 
 from src import *
 from src.utils.graph import Graph
 from src.server import Server
 
 
-class FedGCNServer(Server, FedGCNClient):
+class FedGCNServer(Server, GNNClient):
     def __init__(self, graph: Graph):
         super().__init__(graph=graph)
 
-        self.clients: List[FedGCNClient] = []
+        self.clients: List[GNNClient] = []
 
     def add_client(self, subgraph):
-        client = FedGCNClient(
+        client = GNNClient(
             graph=subgraph,
             id=self.num_clients,
         )
@@ -23,34 +23,35 @@ class FedGCNServer(Server, FedGCNClient):
         self.num_clients += 1
 
     def initialize(self, **kwargs) -> None:
-        super().initialize(**kwargs)
+        super().initialize(
+            data_type="feature",
+            fmodel_type="GNN",
+            **kwargs,
+        )
 
-    def initialize_FL(
-        self,
-        **kwargs,
-    ) -> None:
+    def initialize_FL(self, **kwargs) -> None:
         self.initialize(**kwargs)
-        client: FedGCNClient
+        client: GNNClient
         for client in self.clients:
-            client.initialize(**kwargs)
+            client.initialize(
+                data_type="feature",
+                fmodel_type="GNN",
+                **kwargs,
+            )
 
     def joint_train_g(
         self,
         epochs=config.model.iterations,
-        FL=True,
         log=True,
         plot=True,
         **kwargs,
     ):
         self.initialize_FL(**kwargs)
-        if FL:
-            model_type = f"FL FedGCN GA"
-        else:
-            model_type = f"Local FedGCN GA"
+        model_type = f"FL FedGCN GA"
 
         return super().joint_train_g(
             epochs=epochs,
-            FL=FL,
+            FL=True,
             log=log,
             plot=plot,
             model_type=model_type,
@@ -59,20 +60,16 @@ class FedGCNServer(Server, FedGCNClient):
     def joint_train_w(
         self,
         epochs=config.model.iterations,
-        FL=True,
         log=True,
         plot=True,
         **kwargs,
     ):
         self.initialize_FL(**kwargs)
-        if FL:
-            model_type = f"FL FedGCN WA"
-        else:
-            model_type = f"Local FedGCN WA"
+        model_type = f"FL FedGCN WA"
 
         return super().joint_train_w(
             epochs=epochs,
-            FL=FL,
+            FL=True,
             log=log,
             plot=plot,
             model_type=model_type,
