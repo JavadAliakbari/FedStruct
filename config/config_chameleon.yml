@@ -72,13 +72,8 @@ fedpub:
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  min_lr: 0.0001
-  momentum_opt: 0.9
   lr: 0.001
   weight_decay: 0.000001
-  warmup_epochs: 10
-  base_momentum: 0.99
-  final_momentum: 1.0
   n_dims: 128
   agg_norm: exp
   n_proxy: 5

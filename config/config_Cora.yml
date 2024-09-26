@@ -5,7 +5,7 @@ subgraph:
   delta: 20
   train_ratio: 0.1
   test_ratio: 0.8
-  partitioning: random
+  partitioning: louvain
   prune: False
   pruning_th: 30
 model:
@@ -68,18 +68,13 @@ fedsage:
   b: 1
   c: 1
 fedpub:
-  epochs: 30
+  epochs: 50
   frac: 1.0
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  min_lr: 0.0001
-  momentum_opt: 0.9
   lr: 0.01
   weight_decay: 0.000001
-  warmup_epochs: 10
-  base_momentum: 0.99
-  final_momentum: 1.0
   n_dims: 128
   agg_norm: exp
   n_proxy: 10
