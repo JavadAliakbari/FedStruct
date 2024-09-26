@@ -5,7 +5,7 @@ subgraph:
   delta: 20
   train_ratio: 0.1
   test_ratio: 0.8
-  partitioning: louvain
+  partitioning: random
   prune: False
   pruning_th: 30
 model:

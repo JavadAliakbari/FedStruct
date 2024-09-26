@@ -67,16 +67,16 @@ fedsage:
   b: 1
   c: 1
 fedpub:
-  epochs: 60
+  epochs: 100
   frac: 1.0
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  lr: 0.001
+  lr: 0.01
   weight_decay: 0.000001
   n_dims: 128
   agg_norm: exp
-  n_proxy: 5
+  n_proxy: 10
   l1: 0.001
   loc_l2: 0.001
 fedgcn:

@@ -53,24 +53,36 @@ def make_groups_smaller_than_max(community_groups, group_len_max) -> dict:
 def assign_nodes_to_subgraphs(community_groups, num_nodes, num_subgraphs):
     max_subgraph_nodes = num_nodes // num_subgraphs
     subgraph_node_ids = {subgraph_id: [] for subgraph_id in range(num_subgraphs)}
-    subgraphs = cycle(subgraph_node_ids.keys())
-    current_subgraph = next(subgraphs)
+    # subgraphs = cycle(subgraph_node_ids.keys())
+    current_ind = 0
 
     counter = 0
 
     for community in community_groups.keys():
         while (
-            len(subgraph_node_ids[current_subgraph]) + len(community_groups[community])
+            len(subgraph_node_ids[current_ind]) + len(community_groups[community])
             > max_subgraph_nodes + config.subgraph.delta
-            or len(subgraph_node_ids[current_subgraph]) >= max_subgraph_nodes
+            or len(subgraph_node_ids[current_ind]) >= max_subgraph_nodes
         ):
-            current_subgraph = next(subgraphs)
+            # current_subgraph = next(subgraphs)
+            current_ind += 1
+            if current_ind == num_subgraphs:
+                current_ind = 0
             # define counter to avoid stuck in the loop forever
             counter += 1
             if counter == num_subgraphs:
-                return subgraph_node_ids
-        subgraph_node_ids[current_subgraph] += community_groups[community]
+                current_ind = np.argmin([len(s) for s in subgraph_node_ids.values()])
+                break
+                # subgraph_node_ids[ind] += community_groups[community]
+                # current_ind += 1
+                # if current_ind == num_subgraphs:
+                #     current_ind = 0
+                # current_subgraph = next(subgraphs)
+                # return subgraph_node_ids
+        subgraph_node_ids[current_ind] += community_groups[community]
         counter = 0
+
+    assert sum([len(s) for s in subgraph_node_ids.values()]) == num_nodes
 
     return subgraph_node_ids
 

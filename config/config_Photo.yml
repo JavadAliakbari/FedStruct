@@ -72,11 +72,11 @@ fedpub:
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  lr: 0.001
+  lr: 0.005
   weight_decay: 0.000001
   n_dims: 128
   agg_norm: exp
-  n_proxy: 5
+  n_proxy: 10
   l1: 0.001
   loc_l2: 0.001
 fedgcn:

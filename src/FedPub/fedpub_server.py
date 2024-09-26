@@ -67,7 +67,7 @@ class FedPubServer:
         for curr_rnd in range(iterations):
             ##################################################
             clients_data, results = self.train_clients(curr_rnd)
-            average_result = sum_lod(results)
+            average_result = sum_lod(results, coef)
             average_result["Epoch"] = curr_rnd + 1
             average_results.append(average_result)
             # LOGGER.info(f"all clients have been uploaded ({time.time()-st:.2f}s)")

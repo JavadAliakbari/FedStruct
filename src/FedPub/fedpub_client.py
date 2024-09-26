@@ -100,6 +100,7 @@ class FedPubClient:
 
             # sparsity = self.get_sparsity()
             val_acc, val_loss = self.validate(mode="valid")
+            test_acc, test_loss = self.validate(mode="test")
             # test_acc, test_loss = self.validate(mode="test")
             # LOGGER.info(
             #     f"[c: {self.client_id}], rnd:{self.curr_rnd+1}, ep:{ep}, "
@@ -111,6 +112,7 @@ class FedPubClient:
             "Train Acc": round(train_acc, 4),
             "Val Loss": round(val_loss.item(), 4),
             "Val Acc": round(val_acc, 4),
+            "Test Acc": round(test_acc, 4),
         }
 
         return result
