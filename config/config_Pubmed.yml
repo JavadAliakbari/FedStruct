@@ -15,11 +15,11 @@ model:
   local_epochs: 1
   lr: 0.008
   weight_decay: 0.001
-  dropout: 0.9
+  dropout: 0.5
   gnn_layer_type: sage
   smodel_type: DGCN   # GNN, DGCN
   fmodel_type: GNN   #GNN, DGCN, same
-  iterations: 35
+  iterations: 50
   metric: acc
 feature_model:
   gnn_layer_sizes: [256,256]
@@ -32,8 +32,8 @@ structure_model:
   DGCN_layers: 10
   # structure_type: degree
   # structure_type: GDV
-  # structure_type: hop2vec
-  structure_type: node2vec
+  structure_type: hop2vec
+  # structure_type: node2vec
   num_structural_features: 256
   estimate: False
   num_mp_vectors: 10
@@ -84,14 +84,5 @@ fedpub:
   l1: 0.001
   loc_l2: 0.001
 fedgcn:
-  lr: 0.008
-  weight_decay: 0.001
-  global_rounds: 40
-  local_step: 2
   num_hops: 2
   iid_beta: 10000
-  gnn_type: "sage"
-  final_activation: "softmax"
-  optimizer: "adam"
-  gnn_layer_sizes: [128,128]
-  mlp_layer_sizes: [64]

@@ -58,12 +58,14 @@ def get_GNN_results(
     GNN_runs[f"server_feature_GNN"] = [
         funcs["server"],
         "GNN",
+        "GNN",
         False,
         "feature",
         "",
     ]
     GNN_runs[f"flga_feature_GNN"] = [
         funcs["flga"],
+        "GNN",
         "GNN",
         True,
         "feature",
@@ -72,16 +74,18 @@ def get_GNN_results(
     GNN_runs[f"server_structure_node2vec_GNN"] = [
         funcs["server"],
         "GNN",
+        "GNN",
         False,
         "structure",
         "node2vec",
     ]
-    GNN_runs[f"flga_f+s_node2vec_DGCN"] = [
+    GNN_runs[f"flga_f+s_hop2vec_DGCN"] = [
         funcs["flga"],
+        "DGCN",
         "DGCN",
         True,
         "f+s",
-        "node2vec",
+        "hop2vec",
     ]
 
     result = {}
@@ -89,9 +93,10 @@ def get_GNN_results(
         res = run[0](
             epochs=epochs,
             smodel_type=run[1],
-            FL=run[2],
-            data_type=run[3],
-            structure_type=run[4],
+            fmodel_type=run[2],
+            FL=run[3],
+            data_type=run[4],
+            structure_type=run[5],
             log=False,
             plot=False,
         )
@@ -116,7 +121,8 @@ if __name__ == "__main__":
     rep = 10
 
     # for partitioning in [config.subgraph.partitioning]:
-    for partitioning in ["random", "louvain", "kmeans"]:
+    for partitioning in ["random"]:
+        # for partitioning in ["random", "louvain", "kmeans"]:
         # for num_subgraphs in [config.subgraph.num_subgraphs]:
         for num_subgraphs in [10]:
             # for num_subgraphs in [5, 10, 20]:
@@ -128,7 +134,7 @@ if __name__ == "__main__":
                 # epochs = int(train_ratio * 100 + 30)
 
                 save_path = (
-                    "./results/Neurips/structure/"
+                    "./results/ICLR/structure/"
                     f"{config.dataset.dataset_name}/"
                     f"{partitioning}/"
                     f"{num_subgraphs}/"

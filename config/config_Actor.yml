@@ -84,15 +84,6 @@ fedpub:
   l1: 0.001
   loc_l2: 0.001
 fedgcn:
-  lr: 0.5
-  weight_decay: 0.0005
-  global_rounds: 100
-  local_step: 3
   num_hops: 2
   iid_beta: 10000
-  gnn_type: "gcn"
-  final_activation: "log_softmax"
-  optimizer: "sgd"
-  gnn_layer_sizes: [16,16]
-  mlp_layer_sizes: []
 

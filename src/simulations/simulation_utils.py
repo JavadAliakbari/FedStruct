@@ -114,7 +114,7 @@ def get_Fedsage_results(
 def get_Fedpub_results(
     FedPub_server: FedPubServer,
     bar: tqdm,
-    epochs=config.model.iterations,
+    epochs=config.fedpub.epochs,
 ):
     result = {}
     res = FedPub_server.start(
@@ -131,7 +131,7 @@ def get_Fedpub_results(
 def get_Fedgcn_results(
     FedGCN_server: FedGCNServer,
     bar: tqdm,
-    epochs=config.fedgcn.global_rounds,
+    epochs=config.model.iterations,
     num_hops=2,
 ):
     result = {}
@@ -201,6 +201,7 @@ def get_GNN_results(
         res = GNN_server.train_local_model(
             epochs=epochs,
             smodel_type=smodel_type,
+            fmodel_type=smodel_type,
             log=False,
             plot=False,
         )
@@ -211,6 +212,7 @@ def get_GNN_results(
             res = run[0](
                 epochs=epochs,
                 smodel_type=smodel_type,
+                fmodel_type=smodel_type,
                 FL=run[1],
                 data_type=run[2],
                 structure_type=run[3],
