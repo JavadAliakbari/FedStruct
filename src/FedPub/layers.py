@@ -479,9 +479,11 @@ class MaskedLinear(torch.nn.Module):
             torch.nn.init.xavier_uniform_(self.mask)
 
         self.bias = torch.nn.Parameter(
-            torch.zeros((1, self.d_o), requires_grad=True, dtype=torch.float32)
+            torch.zeros((self.d_o), requires_grad=True, dtype=torch.float32)
         )
-        torch.nn.init.xavier_uniform_(self.bias)
+        torch.nn.init.xavier_uniform_(self.bias.unsqueeze(0))
+
+        adfs = 9
 
     def set_mask(self):
         return self.mask
@@ -493,12 +495,10 @@ class MaskedLinear(torch.nn.Module):
             pruned = torch.abs(mask) < self.l1
             return mask.masked_fill(pruned, 0)
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         curr_mask = self.set_mask()
         weight = self.weight * self.prune(curr_mask)
-        aa = input @ weight.T + self.bias
-        return aa
-        # return F.linear(input, weight, self.bias)
+        return F.linear(x, weight, self.bias)
 
 
 #####################################################

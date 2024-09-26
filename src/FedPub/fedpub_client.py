@@ -64,6 +64,7 @@ class FedPubClient:
             if "mask" in name:
                 self.masks.append(param)
 
+        criterion = nn.CrossEntropyLoss()
         for ep in range(config.model.local_epochs):
             # st = time.time()
             self.model.train()
@@ -75,7 +76,6 @@ class FedPubClient:
                 y_hat[self.graph.train_mask].argmax(dim=1),
                 self.graph.y[self.graph.train_mask],
             )
-            criterion = nn.CrossEntropyLoss()
             train_loss = criterion(
                 y_hat[self.graph.train_mask], self.graph.y[self.graph.train_mask]
             )
@@ -83,20 +83,22 @@ class FedPubClient:
             #################################################################
             for name, param in self.model.state_dict().items():
                 if "mask" in name:
-                    train_loss += torch.norm(param.float(), 1) * config.fedpub.l1
+                    norm_loss1 = torch.norm(param.float(), 1) * config.fedpub.l1
+                    train_loss += norm_loss1
                 elif "conv" in name or "clsif" in name:
                     if self.curr_rnd == 0:
                         continue
-                    train_loss += (
+                    norm_loss = (
                         torch.norm(param.float() - self.prev_w[name], 2)
                         * config.fedpub.loc_l2
                     )
+                    train_loss += norm_loss
             #################################################################
 
             train_loss.backward()
             self.optimizer.step()
 
-            sparsity = self.get_sparsity()
+            # sparsity = self.get_sparsity()
             val_acc, val_loss = self.validate(mode="valid")
             # test_acc, test_loss = self.validate(mode="test")
             # LOGGER.info(
