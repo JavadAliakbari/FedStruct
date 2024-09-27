@@ -150,6 +150,7 @@ def get_Fedsage_ideal_reults(
     GNN_server2: GNNServer,
     bar: tqdm,
     epochs=config.model.iterations,
+    fmodel_types=["DGCN", "GNN"],
 ):
     result = {}
 
@@ -158,7 +159,7 @@ def get_Fedsage_ideal_reults(
         "fedsage_ideal_g": [GNN_server2.joint_train_g, True, "feature"],
     }
 
-    for fmodel_type in ["DGCN", "GNN"]:
+    for fmodel_type in fmodel_types:
         for name, run in GNN_runs.items():
             res = run[0](
                 epochs=epochs,
@@ -179,6 +180,7 @@ def get_GNN_results(
     bar: tqdm,
     epochs=config.model.iterations,
     smodel_types=["DGCN", "GNN"],
+    structure_types=["degree", "fedstar", "GDV", "node2vec", "hop2vec"],
 ):
     result = {}
 
@@ -193,7 +195,7 @@ def get_GNN_results(
     # for method in ["flwa", "flga"]:
     for method in ["flga"]:
         GNN_runs[f"{method}"] = [funcs[method], True, "feature", ""]
-        for structure_type in ["degree", "fedstar", "GDV", "node2vec", "hop2vec"]:
+        for structure_type in structure_types:
             name = f"{method}_{structure_type}"
             GNN_runs[name] = [funcs[method], True, "f+s", structure_type]
 

@@ -1,4 +1,4 @@
-from itertools import cycle
+from itertools import chain
 from collections import defaultdict
 
 import torch
@@ -12,9 +12,16 @@ from src.utils.graph import Graph
 from src.FedGCN.utils import label_dirichlet_partition, get_in_comm_indexes
 
 
-def find_community(edge_index):
+def find_community(edge_index, num_nodes):
     G = nx.Graph(edge_index.T.tolist())
     community = nx.community.louvain_communities(G)
+    community_noeds = torch.tensor(list(chain.from_iterable(community)))
+
+    node_ids = torch.arange(num_nodes)
+    node_mask = node_ids.unsqueeze(1).eq(community_noeds).any(1)
+    isolated_nodes = node_ids[~node_mask]
+    community.append(isolated_nodes)
+
     community = {ind: list(c) for ind, c in enumerate(community)}
 
     return community
@@ -102,18 +109,9 @@ def create_subgraps(graph: Graph, subgraph_node_ids: dict):
         external_nodes = all_nodes[~all_nodes.unsqueeze(1).eq(node_ids).any(1)]
 
         if edge_index.shape[1] != 0:
-            try:
-                intra_edges = subgraph(
-                    node_ids,
-                    edge_index=edge_index,
-                )[0]
-            except:
-                intra_edges = subgraph(
-                    node_ids, edge_index=edge_index, num_nodes=max(node_ids) + 1
-                )[0]
-
             inter_edge_mask = edge_index.unsqueeze(2).eq(external_nodes).any(2).any(0)
             inter_edges = edge_index[:, inter_edge_mask]
+            intra_edges = edge_index[:, ~inter_edge_mask]
         else:
             intra_edges = edge_index
             inter_edges = edge_index
@@ -166,7 +164,7 @@ def create_subgraps(graph: Graph, subgraph_node_ids: dict):
 
 
 def louvain_cut(edge_index, num_nodes, num_subgraphs):
-    community_groups = find_community(edge_index)
+    community_groups = find_community(edge_index, num_nodes)
 
     group_len_max = num_nodes // num_subgraphs + config.subgraph.delta
 

@@ -99,13 +99,13 @@ class FedPubClient:
             self.optimizer.step()
 
             # sparsity = self.get_sparsity()
-            val_acc, val_loss = self.validate(mode="valid")
-            test_acc, test_loss = self.validate(mode="test")
-            # test_acc, test_loss = self.validate(mode="test")
-            # LOGGER.info(
-            #     f"[c: {self.client_id}], rnd:{self.curr_rnd+1}, ep:{ep}, "
-            #     + f"val_local_loss: {val_local_lss.item():.4f}, val_local_acc: {val_local_acc:.4f}, lr: {self.get_lr()} ({time.time()-st:.2f}s)"
-            # )
+        val_acc, val_loss = self.validate(mode="valid")
+        test_acc, test_loss = self.validate(mode="test")
+        # test_acc, test_loss = self.validate(mode="test")
+        # LOGGER.info(
+        #     f"[c: {self.client_id}], rnd:{self.curr_rnd+1}, ep:{ep}, "
+        #     + f"val_local_loss: {val_local_lss.item():.4f}, val_local_acc: {val_local_acc:.4f}, lr: {self.get_lr()} ({time.time()-st:.2f}s)"
+        # )
 
         result = {
             "Train Loss": round(train_loss.item(), 4),
@@ -145,6 +145,8 @@ class FedPubClient:
     @torch.no_grad()
     def validate(self, mode="test"):
         # loader = self.loader.pa_loader
+        if self.graph.num_nodes == 0:
+            return 0, torch.tensor([0])
 
         with torch.no_grad():
             target, pred, loss = [], [], []
