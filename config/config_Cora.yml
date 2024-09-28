@@ -1,7 +1,7 @@
 dataset:
   dataset_name: Cora
 subgraph:
-  num_subgraphs: 20
+  num_subgraphs: 10
   delta: 20
   train_ratio: 0.1
   test_ratio: 0.8
@@ -24,7 +24,7 @@ model:
 feature_model:
   gnn_layer_sizes: [128,64]
   DGCN_layer_sizes: [64]
-  mlp_layer_sizes: [64]
+  mlp_layer_sizes: [256]
   DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64, 32]
