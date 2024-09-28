@@ -64,15 +64,20 @@ class FedPubServer:
         coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
 
         average_results = []
+        # for client in self.clients:
+        #     client.update(server_weights)
+
+        server_weights = self.get_weights()["model"]
+        almw = [server_weights for _ in self.clients]
         for curr_rnd in range(iterations):
             ##################################################
-            clients_data, results = self.train_clients(curr_rnd)
+            clients_data, results = self.train_clients(curr_rnd, almw)
             average_result = sum_lod(results, coef)
             average_result["Epoch"] = curr_rnd + 1
             average_results.append(average_result)
             # LOGGER.info(f"all clients have been uploaded ({time.time()-st:.2f}s)")
             ###########################################
-            self.update(clients_data)
+            almw = self.update(clients_data)
             ###########################################
             # LOGGER.info(f"[main] round {curr_rnd} done ({time.time()-st:.2f} s)")
             if log:
@@ -136,23 +141,26 @@ class FedPubServer:
         # LOGGER.info(f"global model has been updated ({time.time()-st:.2f}s)")
 
         # st = time.time()
+        almw = []
         for client in self.clients:
             aggr_local_model_weights = aggregate(
                 local_weights, sim_matrix[client.id, :]
             )
-            client.update(aggr_local_model_weights)
+            almw.append(aggr_local_model_weights)
+            # client.update(aggr_local_model_weights)
 
         # self.update_lists.append(updated)
         self.sim_matrices.append(sim_matrix)
+        return almw
         # LOGGER.info(f"local model has been updated ({time.time()-st:.2f}s)")
 
-    def train_clients(self, curr_rnd):
+    def train_clients(self, curr_rnd, almw):
         results = []
         clients_data = []
 
         client: FedPubClient
-        for client in self.clients:
-            data, result = client.get_train_results(curr_rnd)
+        for client, state_dict in zip(self.clients, almw):
+            data, result = client.get_train_results(curr_rnd, state_dict)
             clients_data.append(data)
             results.append(result)
 

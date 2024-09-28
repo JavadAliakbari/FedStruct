@@ -35,8 +35,20 @@ class FedPubClient:
         self.prev_w = convert_np_to_tensor(state_dict)
         set_state_dict(self.model, state_dict, skip_stat=True, skip_mask=True)
 
-    def get_train_results(self, curr_rnd):
+    def load_state(self):
+        model = get_state_dict(self.model)
+        optimizer = self.optimizer.state_dict()
+        set_state_dict(self.model, model)
+        self.optimizer.load_state_dict(optimizer)
+
+    def on_receive_message(self, state_dict):
+        self.update(state_dict)
+        # self.global_w = convert_np_to_tensor(self.sd["global"]["model"], self.gpu_id)
+
+    def get_train_results(self, curr_rnd, state_dict):
         self.curr_rnd = curr_rnd
+        # self.load_state()
+        self.on_receive_message(state_dict)
         results = self.train()
         data = self.transfer_to_server()
 
