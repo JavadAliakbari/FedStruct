@@ -1,7 +1,7 @@
 dataset:
   dataset_name: Cora
 subgraph:
-  num_subgraphs: 10
+  num_subgraphs: 20
   delta: 20
   train_ratio: 0.1
   test_ratio: 0.8
@@ -12,7 +12,7 @@ model:
   num_samples: [5, 10]
   batch: False
   batch_size: 64
-  local_epochs: 1
+  local_epochs: 3
   lr: 0.002
   weight_decay: 0.0005
   dropout: 0.7
@@ -73,7 +73,7 @@ fedpub:
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  lr: 0.01
+  lr: 0.001
   weight_decay: 0.000001
   n_dims: 128
   agg_norm: exp

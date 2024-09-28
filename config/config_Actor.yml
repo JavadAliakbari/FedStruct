@@ -12,7 +12,7 @@ subgraph:
   num_samples: [5, 10]
   batch: False
   batch_size: 64
-  local_epochs: 1
+  local_epochs: 3
   lr: 0.001
   weight_decay: 0.0002
   dropout: 0.7
