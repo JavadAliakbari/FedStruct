@@ -31,16 +31,42 @@ class Data:
         self.val_mask = masks[1]
         self.test_mask = masks[2]
 
+    # def add_masks(self, train_size=0.5, test_size=0.2):
+    #     num_nodes = self.num_nodes
+    #     indices = torch.arange(num_nodes, device=dev)
+
+    #     train_indices, test_indices = model_selection.train_test_split(
+    #         indices,
+    #         train_size=train_size,
+    #         test_size=test_size,
+    #     )
+
+    #     self.train_mask = indices.unsqueeze(1).eq(train_indices).any(1)
+    #     self.test_mask = indices.unsqueeze(1).eq(test_indices).any(1)
+    #     self.val_mask = ~(self.test_mask | self.train_mask)
+
     def add_masks(self, train_size=0.5, test_size=0.2):
         num_nodes = self.num_nodes
-        indices = torch.arange(num_nodes, device=dev)
 
-        train_indices, test_indices = model_selection.train_test_split(
-            indices,
-            train_size=train_size,
-            test_size=test_size,
+        self.train_mask, self.val_mask, self.test_mask = Data.split_indices(
+            num_nodes, train_size, test_size
         )
 
-        self.train_mask = indices.unsqueeze(1).eq(train_indices).any(1)
-        self.test_mask = indices.unsqueeze(1).eq(test_indices).any(1)
-        self.val_mask = ~(self.test_mask | self.train_mask)
+    def split_indices(n, train_ratio=0.5, test_ratio=0.2):
+        indices = torch.arange(n, device=dev)
+        train_size = int(train_ratio * n)
+        test_size = int(test_ratio * n)
+        val_size = n - train_size - test_size
+
+        train_indices, val_indices, test_indices = torch.utils.data.random_split(
+            indices,
+            [train_size, val_size, test_size],
+            # generator=torch.Generator().manual_seed(seed),
+        )
+
+        train_mask = indices.unsqueeze(1).eq(torch.tensor(train_indices).to(dev)).any(1)
+        val_mask = indices.unsqueeze(1).eq(torch.tensor(val_indices).to(dev)).any(1)
+        test_mask = indices.unsqueeze(1).eq(torch.tensor(test_indices).to(dev)).any(1)
+        # self.val_mask = ~(self.test_mask | self.train_mask)
+
+        return train_mask, val_mask, test_mask

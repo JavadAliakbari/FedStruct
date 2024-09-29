@@ -191,6 +191,7 @@ def get_GNN_results(
     GNN_runs = {
         "local": [GNN_server.joint_train_g, False, "feature", ""],
     }
+    GNN_runs[f"flwa"] = [funcs["flwa"], True, "feature", ""]
 
     # for method in ["flwa", "flga"]:
     for method in ["flga"]:
@@ -236,15 +237,18 @@ def calc_average_std_result(results, res_type="Test Acc"):
         method_results = {}
         for client_id, vals in dict_of_clients.items():
             try:
-                final_vals = lod2dol(vals)[res_type]
+                temp = lod2dol(vals)
+                if not res_type in temp.keys():
+                    break
+                final_vals = temp[res_type]
             except:
                 final_vals = vals
             method_results[client_id] = (
                 f"{np.mean(final_vals):0.5f}\u00B1{np.std(final_vals):0.5f}"
             )
             # method_results[client_id] = [np.mean(final_vals), np.std(final_vals)]
-
-        average_result[method] = method_results
+        if len(method_results) > 0:
+            average_result[method] = method_results
 
     return average_result
 

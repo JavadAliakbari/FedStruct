@@ -34,7 +34,7 @@ if __name__ == "__main__":
             # else:
             #     num_subgraphs_list = [10]
             # num_subgraphs_list = [10]
-            num_subgraphs_list = np.arange(5, 45, 5)
+            num_subgraphs_list = np.arange(5, 55, 5)
             for num_subgraphs in num_subgraphs_list:
                 folder_path = f"{base_path}{dataset}/{partioning}/{num_subgraphs}/{training_ratio}/"
                 # folder_path = f"ICML Results/Paper Results48/{dataset}/{partioning}/{num_subgraphs}/0.1/"

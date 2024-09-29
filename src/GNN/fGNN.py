@@ -19,9 +19,7 @@ class FGNN(Classifier):
         gnn_layer_sizes = [
             self.graph.num_features
         ] + config.feature_model.gnn_layer_sizes
-        mlp_layer_sizes = [config.feature_model.gnn_layer_sizes[-1]] + [
-            self.graph.num_classes
-        ]
+        mlp_layer_sizes = [gnn_layer_sizes[-1]] + [self.graph.num_classes]
 
         model_specs = [
             ModelSpecs(

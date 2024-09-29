@@ -20,14 +20,16 @@ if __name__ == "__main__":
     plot_data = []
 
     models = [
-        # "server_GNN",
+        "server_GNN_true",
         "local_GNN_true",
         "flga_GNN_true",
         # "flga_node2vec_DGCN_true",
         "flga_fedstar_DGCN_true",
+        "flga_fedstar_DGCN_prune",
         "flga_hop2vec_DGCN_true",
-        # "node2vec_sdga_GNN",
+        "flga_hop2vec_DGCN_prune",
         "flga_degree_DGCN_true",
+        "flga_degree_DGCN_prune",
         # "flga_DGCN",
         # "hop2vec_sdga_GNN",
         # "flga_GNN",
@@ -49,11 +51,11 @@ if __name__ == "__main__":
         0.35,
         0.4,
         0.45,
-        0.5,
+        # 0.5,
         # 0.55,
         # 0.6,
     ]
-    base_path = f"results/Neurips/ratio/{dataset}/{partioning}/{num_subgraphs}/"
+    base_path = f"results/Training/{dataset}/{partioning}/{num_subgraphs}/"
     for train_ratio in train_ratio_list:
         folder_path = f"{base_path}{train_ratio}/"
         filenames = listdir(folder_path)
@@ -71,15 +73,15 @@ if __name__ == "__main__":
         #     for line in data:
         #         fid.write(f"{line}\n")
 
-    models.append("server GNN")
-    plot_data = np.array(plot_data)
-    a = np.array([78.64, 82.13, 84.23, 85.08, 85.69, 86.07, 86.41, 86.8, 87.36, 87.46])
+    # models.append("server GNN")
+    # plot_data = np.array(plot_data)
+    # a = np.array([78.64, 82.13, 84.23, 85.08, 85.69, 86.07, 86.41, 86.8, 87.36, 87.46])
     # np.append(plot_data, a, axis=0)
-    plot_data = np.concatenate((plot_data, a[:, np.newaxis]), axis=1)
+    # plot_data = np.concatenate((plot_data, a[:, np.newaxis]), axis=1)
     df = pd.DataFrame(plot_data, columns=models, index=train_ratio_list)
     df.to_csv(f"{base_path}{dataset}_ratio.csv")
 
-    plt.plot(train_ratio_list, plot_data, label=models)
+    plt.plot(train_ratio_list, plot_data, "-*", label=models)
     plt.legend()
     plt.xlabel("training ratio")
     plt.ylabel("accuracy")

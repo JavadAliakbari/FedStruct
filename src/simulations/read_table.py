@@ -15,12 +15,12 @@ if __name__ == "__main__":
     datas = []
     base_path = f"results/Simulation/"
     for dataset in [
-        # "Cora",
+        "Cora",
         # "CiteSeer",
         # "PubMed",
-        "chameleon",
-        "Photo",
-        "Amazon-ratings",
+        # "chameleon",
+        # "Photo",
+        # "Amazon-ratings",
     ]:
         for partioning in [
             "louvain",
@@ -44,11 +44,10 @@ if __name__ == "__main__":
                 path = f"{folder_path}{filename}"
                 df = pd.read_csv(path, index_col="Unnamed: 0")
                 rows = [
-                    # "flwa_GNN_true",
+                    "flwa_GNN_true",
                     "flga_GNN_true",
-                    # "flwa_DGCN_true",
+                    "flwa_DGCN_true",
                     "flga_DGCN_true",
-                    # "fedsage_ideal_g_GNN",
                     "flwa_MLP",
                     "flga_MLP",
                     "fedsage+_GA",
@@ -62,16 +61,6 @@ if __name__ == "__main__":
                     "local_GNN_true",
                     "local_DGCN_true",
                     "local_MLP",
-                    # "flga_GDV_DGCN_true",
-                    # "flga_node2vec_DGCN_true",
-                    # "flga_hop2vec_GNN_true",
-                    # "flga_GDV_GNN_true",
-                    # "flga_node2vec_GNN_true",
-                    # "flga_MLP",
-                    # "server_MLP",
-                    # "flwa_GNN_true",
-                    # "flga_DGCN_prune",
-                    # "flwa_DGCN_true",
                 ]
 
                 df2 = df.loc[rows, "0"].tolist()
@@ -80,7 +69,7 @@ if __name__ == "__main__":
                 data = [rf"{x[0]:0.2f}$\pm$ {x[1]:0.2f}" for x in data]
                 datas.append(data)
 
-    with open(f"{base_path}paper_DGCN4.txt", "w") as fid:
+    with open(f"{base_path}paper_DGCN_Cora2.txt", "w") as fid:
         for i in range(len(rows)):
             s = ""
             for line in datas:
