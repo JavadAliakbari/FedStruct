@@ -13,7 +13,7 @@ class Server(Client):
 
         # LOGGER.info(f"Number of features: {self.graph.num_features}")
 
-    def remove_clients(self):
+    def reset_clients(self):
         self.clients.clear()
         self.num_clients = 0
 
@@ -214,8 +214,8 @@ class Server(Client):
                 grads = sum_lod(clients_grads, coef)
                 self.share_grads(grads)
 
+            # if epoch < epochs - 1:
             self.update_models()
-
             if FL:
                 clients_weights = self.get_weights()
                 mean_weights = sum_lod(clients_weights, coef)
@@ -235,6 +235,8 @@ class Server(Client):
 
         if log:
             self.report_server_test()
+        if FL:
+            self.share_weights()
         test_results = self.test_clients()
         average_result = sum_lod(test_results, coef)
         final_results = {}

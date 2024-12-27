@@ -175,6 +175,14 @@ class FedGNNMaster(FedClassifier):
     def get_embeddings_func(self):
         return self.smodel.get_embeddings
 
+    def state_dict(self):
+        weights = {}
+        weights["fmodel"] = self.fmodel.state_dict()
+        return weights
+
+    def load_state_dict(self, weights):
+        self.fmodel.load_state_dict(weights["fmodel"])
+
 
 class FedDGCN(FedClassifier):
     def create_smodel(self, sgraph: AGraph):

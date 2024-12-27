@@ -18,8 +18,8 @@ model:
   weight_decay: 0.0005
   dropout: 0.7
   gnn_layer_type: sage
-  smodel_type: DGCN
-  fmodel_type: same
+  smodel_type: DGCN   # GNN, DGCN
+  fmodel_type: same   #GNN, DGCN, same
   iterations: 100
   metric: acc
 feature_model:
@@ -80,15 +80,13 @@ fedpub:
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  min_lr: 0.0001
-  momentum_opt: 0.9
   lr: 0.001
   weight_decay: 0.000001
-  warmup_epochs: 10
-  base_momentum: 0.99
-  final_momentum: 1.0
   n_dims: 128
   agg_norm: exp
   n_proxy: 5
   l1: 0.001
   loc_l2: 0.001
+fedgcn:
+  num_hops: 2
+  iid_beta: 10000

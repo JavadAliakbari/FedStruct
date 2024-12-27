@@ -137,7 +137,7 @@ class Classifier:
         train_loss.backward(retain_graph=True)
 
         if eval_:
-            _, test_acc = Classifier.calc_mask_metric(self, mask="test")
+            (test_acc,) = Classifier.calc_mask_metric(self, mask="test", metric="acc")
             if self.graph.val_mask is not None:
                 val_loss, val_acc = Classifier.calc_mask_metric(self, mask="val")
                 return train_loss.item(), train_acc, val_loss.item(), val_acc, test_acc
@@ -146,7 +146,7 @@ class Classifier:
         else:
             return train_loss.item(), train_acc
 
-    def calc_mask_metric(self, mask="test", metric=""):
+    def calc_mask_metric(self, mask="test", metric="", loss_function="cross_entropy"):
         if mask == "train":
             self.train()
             metric_mask = self.graph.train_mask
@@ -156,12 +156,15 @@ class Classifier:
         elif mask == "test":
             self.eval()
             metric_mask = self.graph.test_mask
-        return Classifier.calc_metrics(self, self.graph.y, metric_mask, metric)
+        return Classifier.calc_metrics(
+            self, self.graph.y, metric_mask, metric, loss_function=loss_function
+        )
 
     # @torch.no_grad()
-    def calc_metrics(model, y, mask, metric=""):
+    def calc_metrics(model, y, mask, metric="", loss_function="cross_entropy"):
+        # model.eval()
         y_pred = model.get_prediction()
-        loss, acc, f1_score = calc_metrics(y, y_pred, mask)
+        loss, acc, f1_score = calc_metrics(y, y_pred, mask, loss_function=loss_function)
 
         if metric == "acc":
             return (acc,)

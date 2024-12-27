@@ -481,6 +481,24 @@ def split_abar(abar: SparseTensor, nodes):
     return abar_i
 
 
+def split_abar(abar: SparseTensor, nodes):
+    num_nodes = abar.size()[0]
+    # nodes = self.get_nodes().to(local_dev)
+    num_nodes_i = len(nodes)
+    indices = torch.arange(num_nodes_i, dtype=torch.long, device=local_dev)
+    vals = torch.ones(num_nodes_i, dtype=torch.float32, device=local_dev)
+    P = torch.sparse_coo_tensor(
+        torch.vstack([indices, nodes]),
+        vals,
+        (num_nodes_i, num_nodes),
+        device=local_dev,
+    )
+    abar_i = torch.matmul(P, abar)
+    if dev != "cuda:0":
+        abar_i = abar_i.to_dense().to(dev)
+    return abar_i
+
+
 def sigmoid(z):
     return 1 / (1 + np.exp(-z))
 
@@ -584,7 +602,7 @@ def estimate_abar(edge_index, num_nodes, num_layers, num_expriments=100):
     return abar
 
 
-def calc_metrics(y, y_pred, mask=None):
+def calc_metrics(y, y_pred, mask=None, loss_function="cross_entropy"):
     if mask is None:
         y_masked = y
         y_pred_masked = y_pred
@@ -592,10 +610,12 @@ def calc_metrics(y, y_pred, mask=None):
         y_masked = y[mask]
         y_pred_masked = y_pred[mask]
 
-    if config.dataset.multi_label:
-        criterion = torch.nn.BCEWithLogitsLoss()
-    else:
+    if loss_function == "cross_entropy":
         criterion = torch.nn.CrossEntropyLoss()
+    elif loss_function == "log_likelihood":
+        criterion = torch.nn.NLLLoss()
+    elif loss_function == "BCELoss":
+        criterion = torch.nn.BCEWithLogitsLoss()
     loss = criterion(y_pred_masked, y_masked)
     if config.dataset.multi_label:
         acc = calculate_average_precision(y_pred_masked, y_masked)

@@ -25,7 +25,7 @@ model:
 feature_model:
   gnn_layer_sizes: [32,16]
   DGCN_layer_sizes: [64]
-  mlp_layer_sizes: [64]
+  mlp_layer_sizes: [256]
   DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64, 32]
@@ -77,20 +77,19 @@ fedsage:
   b: 1
   c: 1
 fedpub:
-  epochs: 30
+  epochs: 50
   frac: 1.0
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  min_lr: 0.0001
-  momentum_opt: 0.9
-  lr: 0.01
+  lr: 0.001
   weight_decay: 0.000001
-  warmup_epochs: 10
-  base_momentum: 0.99
-  final_momentum: 1.0
   n_dims: 128
   agg_norm: exp
-  n_proxy: 5
+  n_proxy: 10
   l1: 0.001
   loc_l2: 0.001
+fedgcn:
+  num_hops: 2
+  iid_beta: 10000
+

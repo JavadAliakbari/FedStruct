@@ -39,21 +39,21 @@ class MLPClassifier(Classifier):
         if self.graph.train_mask is None:
             self.graph.add_masks()
 
-        train_x = self.graph.x[self.graph.train_mask]
-        train_y = self.graph.y[self.graph.train_mask]
-        val_x = self.graph.x[self.graph.val_mask]
-        val_y = self.graph.y[self.graph.val_mask]
-        test_x = self.graph.x[self.graph.test_mask]
-        test_y = self.graph.y[self.graph.test_mask]
+        # train_x = self.graph.x[self.graph.train_mask]
+        # train_y = self.graph.y[self.graph.train_mask]
+        # val_x = self.graph.x[self.graph.val_mask]
+        # val_y = self.graph.y[self.graph.val_mask]
+        # test_x = self.graph.x[self.graph.test_mask]
+        # test_y = self.graph.y[self.graph.test_mask]
 
-        self.train_loader = DataLoader(
-            list(zip(train_x, train_y)), batch_size=batch_size, shuffle=True
-        )
-        self.val_loader = DataLoader(
-            list(zip(val_x, val_y)), batch_size=batch_size, shuffle=False
-        )
+        # self.train_loader = DataLoader(
+        #     list(zip(train_x, train_y)), batch_size=batch_size, shuffle=True
+        # )
+        # self.val_loader = DataLoader(
+        #     list(zip(val_x, val_y)), batch_size=batch_size, shuffle=False
+        # )
 
-        self.test_data = [test_x, test_y]
+        # self.test_data = [test_x, test_y]
 
     def get_embeddings(self):
         H = self.model(self.graph.x)

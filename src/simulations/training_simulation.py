@@ -45,22 +45,20 @@ if __name__ == "__main__":
 
     GNN_server_ideal = GNNServer(graph)
 
-    rep = 10
+    rep = 50
 
-    for partitioning in ["random", "louvain", "kmeans"]:
-        if partitioning == "random":
-            num_subgraphs_list = [5, 10, 20]
-        else:
-            num_subgraphs_list = [10]
+    for partitioning in ["random"]:
+        num_subgraphs_list = [10]
 
         for num_subgraphs in num_subgraphs_list:
-            for train_ratio in [config.subgraph.train_ratio]:
-                test_ratio = config.subgraph.test_ratio
+            training_ratios = np.arange(0.35, 0.55, 0.05)
+            for train_ratio in training_ratios:
+                test_ratio = 0.9 - train_ratio
                 epochs = config.model.iterations
                 fedpub_epochs = config.fedpub.epochs
 
                 simulation_path = (
-                    "./results/Simulation/"
+                    "./results/Training/"
                     f"{config.dataset.dataset_name}/"
                     f"{partitioning}/"
                     f"{num_subgraphs}/"
@@ -101,12 +99,12 @@ if __name__ == "__main__":
                     )
                     model_results = {}
 
-                    MLP_results = get_MLP_results(
-                        MLP_server,
-                        bar=bar,
-                        epochs=epochs,
-                    )
-                    model_results.update(MLP_results)
+                    # MLP_results = get_MLP_results(
+                    #     MLP_server,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    # )
+                    # model_results.update(MLP_results)
                     Fedsage_results = get_Fedsage_results(
                         FedSage_server,
                         bar=bar,
@@ -136,12 +134,12 @@ if __name__ == "__main__":
                     )
                     model_results.update(Fedgcn_results2)
 
-                    Fedsage_ideal_results = get_Fedsage_ideal_reults(
-                        GNN_server_ideal,
-                        bar=bar,
-                        epochs=epochs,
-                    )
-                    model_results.update(Fedsage_ideal_results)
+                    # Fedsage_ideal_results = get_Fedsage_ideal_reults(
+                    #     GNN_server_ideal,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    # )
+                    # model_results.update(Fedsage_ideal_results)
 
                     graph.abar = true_abar
                     GNN_result_true = get_GNN_results(

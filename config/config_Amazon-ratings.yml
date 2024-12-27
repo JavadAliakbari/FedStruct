@@ -18,10 +18,9 @@ model:
   weight_decay: 0.0002
   dropout: 0.7
   gnn_layer_type: sage
-  # smodel_type: Laplace
-  smodel_type: SpectralLaplace
-  fmodel_type: same
-  iterations: 100
+  smodel_type: DGCN   # GNN, DGCN
+  fmodel_type: same   #GNN, DGCN, same
+  iterations: 70
   metric: acc
 feature_model:
   gnn_layer_sizes: [256,256,128]
@@ -76,21 +75,19 @@ fedsage:
   b: 1
   c: 1
 fedpub:
-  epochs: 50
+  epochs: 100
   frac: 1.0
   clsf_mask_one: True
   laye_mask_one: True
   norm_scale: 3
-  min_lr: 0.0001
-  momentum_opt: 0.9
-  lr: 0.001
+  lr: 0.005
   weight_decay: 0.000001
-  warmup_epochs: 10
-  base_momentum: 0.99
-  final_momentum: 1.0
   n_dims: 128
   agg_norm: exp
-  n_proxy: 5
+  n_proxy: 10
   l1: 0.001
   loc_l2: 0.001
+fedgcn:
+  num_hops: 2
+  iid_beta: 10000
 

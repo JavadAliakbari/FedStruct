@@ -1,4 +1,4 @@
-from itertools import cycle
+from itertools import chain
 from collections import defaultdict
 
 import torch
@@ -9,11 +9,20 @@ from torch_geometric.utils import subgraph
 
 from src import *
 from src.utils.graph import Graph
+from src.FedGCN.utils import label_dirichlet_partition, get_in_comm_indexes
 
 
-def find_community(edge_index):
+def find_community(edge_index, num_nodes):
     G = nx.Graph(edge_index.T.tolist())
     community = nx.community.louvain_communities(G)
+    community_noeds = torch.tensor(list(chain.from_iterable(community)))
+
+    node_ids = torch.arange(num_nodes)
+    node_mask = node_ids.unsqueeze(1).eq(community_noeds).any(1)
+    isolated_nodes = node_ids[~node_mask]
+    community.append(isolated_nodes)
+
+    community = {ind: list(c) for ind, c in enumerate(community)}
 
     return [list(comm) for ind, comm in enumerate(community)]
 
@@ -52,24 +61,36 @@ def make_groups_smaller_than_max(community_groups, group_len_max) -> dict:
 def assign_nodes_to_subgraphs(community_groups, num_nodes, num_subgraphs):
     max_subgraph_nodes = num_nodes // num_subgraphs
     subgraph_node_ids = {subgraph_id: [] for subgraph_id in range(num_subgraphs)}
-    subgraphs = cycle(subgraph_node_ids.keys())
-    current_subgraph = next(subgraphs)
+    # subgraphs = cycle(subgraph_node_ids.keys())
+    current_ind = 0
 
     counter = 0
 
     for community in community_groups.keys():
         while (
-            len(subgraph_node_ids[current_subgraph]) + len(community_groups[community])
+            len(subgraph_node_ids[current_ind]) + len(community_groups[community])
             > max_subgraph_nodes + config.subgraph.delta
-            or len(subgraph_node_ids[current_subgraph]) >= max_subgraph_nodes
+            or len(subgraph_node_ids[current_ind]) >= max_subgraph_nodes
         ):
-            current_subgraph = next(subgraphs)
+            # current_subgraph = next(subgraphs)
+            current_ind += 1
+            if current_ind == num_subgraphs:
+                current_ind = 0
             # define counter to avoid stuck in the loop forever
             counter += 1
             if counter == num_subgraphs:
-                return subgraph_node_ids
-        subgraph_node_ids[current_subgraph] += community_groups[community]
+                current_ind = np.argmin([len(s) for s in subgraph_node_ids.values()])
+                break
+                # subgraph_node_ids[ind] += community_groups[community]
+                # current_ind += 1
+                # if current_ind == num_subgraphs:
+                #     current_ind = 0
+                # current_subgraph = next(subgraphs)
+                # return subgraph_node_ids
+        subgraph_node_ids[current_ind] += community_groups[community]
         counter = 0
+
+    assert sum([len(s) for s in subgraph_node_ids.values()]) == num_nodes
 
     return subgraph_node_ids
 
@@ -89,18 +110,9 @@ def create_subgraps(graph: Graph, subgraph_node_ids: dict):
         external_nodes = all_nodes[~all_nodes.unsqueeze(1).eq(node_ids).any(1)]
 
         if edge_index.shape[1] != 0:
-            try:
-                intra_edges = subgraph(
-                    node_ids,
-                    edge_index=edge_index,
-                )[0]
-            except:
-                intra_edges = subgraph(
-                    node_ids, edge_index=edge_index, num_nodes=max(node_ids) + 1
-                )[0]
-
             inter_edge_mask = edge_index.unsqueeze(2).eq(external_nodes).any(2).any(0)
             inter_edges = edge_index[:, inter_edge_mask]
+            intra_edges = edge_index[:, ~inter_edge_mask]
         else:
             intra_edges = edge_index
             inter_edges = edge_index
@@ -153,7 +165,7 @@ def create_subgraps(graph: Graph, subgraph_node_ids: dict):
 
 
 def louvain_cut(edge_index, num_nodes, num_subgraphs):
-    community_groups = find_community(edge_index)
+    community_groups = find_community(edge_index, num_nodes)
 
     group_len_max = num_nodes // num_subgraphs + config.subgraph.delta
 
@@ -162,7 +174,7 @@ def louvain_cut(edge_index, num_nodes, num_subgraphs):
     sorted_community_groups = {
         k: v
         for k, v in sorted(
-            enumerate(community_groups), key=lambda item: len(item[1]), reverse=True
+            community_groups.items(), key=lambda item: len(item[1]), reverse=True
         )
     }
 
@@ -176,7 +188,10 @@ def louvain_cut(edge_index, num_nodes, num_subgraphs):
 def random_assign(num_nodes, num_subgraphs):
     subgraph_id = np.random.choice(num_subgraphs, num_nodes, replace=True)
     subgraph_node_ids = {
-        value: np.where(subgraph_id == value)[0] for value in range(num_subgraphs)
+        value: torch.tensor(
+            np.where(subgraph_id == value)[0], dtype=torch.int64, device=dev
+        )
+        for value in range(num_subgraphs)
     }
 
     return subgraph_node_ids
@@ -216,6 +231,18 @@ def metis_cut(edge_index, num_nodes, num_subgraphs):
     community_groups = create_community_groups(community_map=community_map)
 
     return community_groups
+
+
+def drichlet_cut(labels, num_nodes, num_subgraphs, num_classes):
+    subgraph_node_ids = label_dirichlet_partition(
+        labels.cpu().numpy(),
+        num_nodes,
+        num_classes,
+        num_subgraphs,
+        beta=config.fedgcn.iid_beta,
+    )
+    subgraph_node_ids = [torch.tensor(node_ids) for node_ids in subgraph_node_ids]
+    return subgraph_node_ids
 
 
 def create_mend_graph(subgraph: Graph, graph: Graph, val=1):
@@ -268,6 +295,60 @@ def create_mend_graph(subgraph: Graph, graph: Graph, val=1):
     return mend_graph
 
 
+def create_comm_indexes(graph: Graph, subgraph_node_ids: Graph, num_hops=2):
+    # edge_index, subgraph_node_ids, train_mask, test_mask):
+    train_mask = graph.train_mask
+    test_mask = graph.test_mask
+    edge_index = graph.edge_index
+    idx = torch.arange(train_mask.shape[0])
+    idx_train = graph.node_ids[train_mask]
+    idx_test = graph.node_ids[test_mask]
+    num_subgraphs = len(subgraph_node_ids)
+    (
+        communicate_indexes,
+        in_com_train_data_indexes,
+        in_com_test_data_indexes,
+        edge_indexes_clients,
+    ) = get_in_comm_indexes(
+        edge_index,
+        subgraph_node_ids,
+        num_subgraphs,
+        num_hops,
+        idx_train,
+        idx_test,
+    )
+
+    subgraphs = []
+    for i in range(len(communicate_indexes)):
+        node_mask = graph.node_ids.unsqueeze(1).eq(communicate_indexes[i]).any(1)
+        x = graph.x[node_mask]
+        y = graph.y[node_mask]
+        subgraph_train_mask = (
+            communicate_indexes[i].unsqueeze(1).eq(in_com_train_data_indexes[i]).any(1)
+        )
+        subgraph_test_mask = (
+            communicate_indexes[i].unsqueeze(1).eq(in_com_test_data_indexes[i]).any(1)
+        )
+        subgraph_val_mask = ~(subgraph_train_mask | subgraph_test_mask)
+
+        subgraph = Graph(
+            x=x,
+            y=y,
+            edge_index=edge_indexes_clients[i],
+            # node_ids=communicate_indexes[i],
+            # external_nodes=external_nodes,
+            # inter_edges=inter_edges,
+            train_mask=subgraph_train_mask,
+            test_mask=subgraph_test_mask,
+            val_mask=subgraph_val_mask,
+            num_classes=graph.num_classes,
+        )
+
+        subgraphs.append(subgraph)
+
+    return subgraphs
+
+
 def partition_graph(graph: Graph, num_subgraphs, method="random"):
     if method == "louvain":
         subgraph_node_ids = louvain_cut(
@@ -281,5 +362,36 @@ def partition_graph(graph: Graph, num_subgraphs, method="random"):
         subgraph_node_ids = metis_cut(graph.edge_index, graph.num_nodes, num_subgraphs)
 
     subgraphs = create_subgraps(graph, subgraph_node_ids)
+
+    return subgraphs
+
+
+def fedGCN_partitioning(
+    graph: Graph, num_subgraphs, method="drichlet", num_hops=config.fedgcn.num_hops
+):
+    if method == "louvain":
+        subgraph_node_ids = louvain_cut(
+            graph.edge_index, graph.num_nodes, num_subgraphs
+        )
+        subgraph_node_ids = {
+            key: torch.tensor(node_ids, dtype=torch.int64, device=dev)
+            for key, node_ids in subgraph_node_ids.items()
+        }
+    elif method == "random":
+        subgraph_node_ids = random_assign(graph.num_nodes, num_subgraphs)
+    elif method == "drichlet":
+        subgraph_node_ids = drichlet_cut(
+            graph.y, graph.num_nodes, num_subgraphs, graph.num_classes
+        )
+    elif method == "kmeans":
+        subgraph_node_ids = kmeans_cut(graph.x, num_subgraphs)
+        subgraph_node_ids = {
+            key: torch.tensor(node_ids, dtype=torch.int64, device=dev)
+            for key, node_ids in subgraph_node_ids.items()
+        }
+    elif method == "metis":
+        subgraph_node_ids = metis_cut(graph.edge_index, graph.num_nodes, num_subgraphs)
+
+    subgraphs = create_comm_indexes(graph, subgraph_node_ids, num_hops=num_hops)
 
     return subgraphs

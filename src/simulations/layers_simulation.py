@@ -34,7 +34,7 @@ def run(
 ):
     graph.add_masks(train_ratio=train_ratio, test_ratio=test_ratio)
 
-    GNN_server.remove_clients()
+    GNN_server.reset_clients()
 
     subgraphs = partition_graph(graph, num_subgraphs, partitioning)
 
@@ -42,23 +42,35 @@ def run(
         GNN_server.add_client(subgraph)
 
     result = {}
+    res = GNN_server.joint_train_g(
+        epochs=epochs,
+        data_type="feature",
+        fmodel_type="GNN",
+        FL=True,
+        log=False,
+        plot=False,
+    )
+    result["flga_GNN"] = res
+    bar.set_postfix_str(f"flga_GNN: {res['Average']['Test Acc']}")
 
     # for structure_type in ["hop2vec"]:
-    for structure_type in ["degree", "GDV", "node2vec", "hop2vec"]:
+    for structure_type in ["degree", "fedstar", "node2vec", "hop2vec"]:
         for smodel_type in ["DGCN"]:
-            res = GNN_server.joint_train_g(
-                epochs=epochs,
-                smodel_type=smodel_type,
-                FL=True,
-                structure=True,
-                structure_type=structure_type,
-                log=False,
-                plot=False,
-            )
-            result[f"{structure_type}_sdga_{smodel_type}"] = res
-            bar.set_postfix_str(
-                f"{structure_type}_sdga_{smodel_type}: {res['Average']['Test Acc']}"
-            )
+            for data_type in ["f+s", "structure"]:
+                res = GNN_server.joint_train_g(
+                    epochs=epochs,
+                    data_type=data_type,
+                    smodel_type=smodel_type,
+                    fmodel_type=smodel_type,
+                    structure_type=structure_type,
+                    FL=True,
+                    log=False,
+                    plot=False,
+                )
+                result[f"flga_{structure_type}_{smodel_type}_{data_type}"] = res
+                bar.set_postfix_str(
+                    f"flga_{structure_type}_{smodel_type}_{data_type}: {res['Average']['Test Acc']}"
+                )
 
     return result
 
@@ -68,12 +80,14 @@ if __name__ == "__main__":
 
     GNN_server = GNNServer(graph)
 
-    rep = 10
+    rep = 50
 
     # for partitioning in [config.subgraph.partitioning]:
-    for DGCN_layers in range(1, 30):
-        graph.calc_abar(DGCN_layers)
-        for partitioning in ["random", "louvain", "kmeans"]:
+    for DGCN_layers in range(0, 51):
+        abar = calc_a(graph.edge_index, graph.num_nodes, DGCN_layers, pruning=False)
+        graph.abar = abar
+        config.feature_model.gnn_layer_sizes = [64] * DGCN_layers
+        for partitioning in ["kmeans"]:
             # for num_subgraphs in [config.subgraph.num_subgraphs]:
             for num_subgraphs in [5]:
                 for train_ratio in [config.subgraph.train_ratio]:
@@ -84,7 +98,7 @@ if __name__ == "__main__":
                     # epochs = int(train_ratio * 100 + 30)
 
                     save_path = (
-                        "./results/Paper Results layers/"
+                        "./results/layers/no_pruning/"
                         f"{config.dataset.dataset_name}/"
                         f"{partitioning}/"
                         f"{num_subgraphs}/"

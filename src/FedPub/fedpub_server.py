@@ -14,7 +14,14 @@ from src.utils.graph import Graph
 class FedPubServer:
     def __init__(self, graph: Graph):
         self.graph = graph
+        self.reset_clients()
 
+    def add_client(self, subgraph):
+        client: FedPubClient = FedPubClient(subgraph, self.num_clients, self.proxy)
+        self.clients.append(client)
+        self.num_clients += 1
+
+    def reset_clients(self):
         self.model = MaskedGCN(
             self.graph.num_features,
             config.fedpub.n_dims,
@@ -30,17 +37,7 @@ class FedPubServer:
         self.clients = []
         self.num_clients = 0
 
-    def add_client(self, subgraph):
-        client: FedPubClient = FedPubClient(subgraph, self.num_clients, self.proxy)
-        self.clients.append(client)
-        self.num_clients += 1
-
-    def remove_clients(self):
-        self.clients.clear()
-        self.num_clients = 0
-
     def get_proxy_data(self, n_feat):
-
         num_graphs, num_nodes = config.fedpub.n_proxy, 100
         data = from_networkx(
             nx.random_partition_graph(
@@ -49,12 +46,6 @@ class FedPubServer:
         )
         data.x = torch.normal(mean=0, std=1, size=(num_nodes * num_graphs, n_feat))
         return data.to(device)
-
-    def create_workers(self, proxy):
-        self.clients = []
-        for client_id in range(config.subgraph.num_subgraphs):
-            client: FedPubClient = FedPubClient(client_id, proxy)
-            self.clients.append(client)
 
     def num_nodes(self):
         return self.graph.num_nodes
@@ -73,15 +64,20 @@ class FedPubServer:
         coef = [client.num_nodes() / self.num_nodes() for client in self.clients]
 
         average_results = []
+        # for client in self.clients:
+        #     client.update(server_weights)
+
+        server_weights = self.get_weights()["model"]
+        almw = [server_weights for _ in self.clients]
         for curr_rnd in range(iterations):
             ##################################################
-            clients_data, results = self.train_clients(curr_rnd)
-            average_result = sum_lod(results)
+            clients_data, results = self.train_clients(curr_rnd, almw)
+            average_result = sum_lod(results, coef)
             average_result["Epoch"] = curr_rnd + 1
             average_results.append(average_result)
             # LOGGER.info(f"all clients have been uploaded ({time.time()-st:.2f}s)")
             ###########################################
-            self.update(clients_data)
+            almw = self.update(clients_data)
             ###########################################
             # LOGGER.info(f"[main] round {curr_rnd} done ({time.time()-st:.2f} s)")
             if log:
@@ -123,7 +119,7 @@ class FedPubServer:
 
         n_connected = round(self.num_clients * config.fedpub.frac)
         assert n_connected == len(local_functional_embeddings)
-        sim_matrix = np.empty(shape=(n_connected, n_connected))
+        sim_matrix = torch.empty(size=(n_connected, n_connected))
         for i in range(n_connected):
             for j in range(n_connected):
                 lfe_i = local_functional_embeddings[i]
@@ -134,34 +130,37 @@ class FedPubServer:
                 # print(f"a: {a}, b: {b}")
 
         if config.fedpub.agg_norm == "exp":
-            sim_matrix = np.exp(config.fedpub.norm_scale * sim_matrix)
-
-        row_sums = sim_matrix.sum(axis=1)
-        sim_matrix = sim_matrix / row_sums[:, np.newaxis]
+            sim_matrix = torch.softmax(config.fedpub.norm_scale * sim_matrix, dim=1)
+        else:
+            row_sums = sim_matrix.sum(axis=1)
+            sim_matrix = sim_matrix / row_sums[:, torch.newaxis]
 
         # st = time.time()
-        ratio = (np.array(local_train_sizes) / np.sum(local_train_sizes)).tolist()
+        ratio = (torch.tensor(local_train_sizes) / sum(local_train_sizes)).tolist()
         self.set_weights(self.model, aggregate(local_weights, ratio))
         # LOGGER.info(f"global model has been updated ({time.time()-st:.2f}s)")
 
         # st = time.time()
+        almw = []
         for client in self.clients:
             aggr_local_model_weights = aggregate(
                 local_weights, sim_matrix[client.id, :]
             )
-            client.update(aggr_local_model_weights)
+            almw.append(aggr_local_model_weights)
+            # client.update(aggr_local_model_weights)
 
         # self.update_lists.append(updated)
         self.sim_matrices.append(sim_matrix)
+        return almw
         # LOGGER.info(f"local model has been updated ({time.time()-st:.2f}s)")
 
-    def train_clients(self, curr_rnd):
+    def train_clients(self, curr_rnd, almw):
         results = []
         clients_data = []
 
         client: FedPubClient
-        for client in self.clients:
-            data, result = client.get_train_results(curr_rnd)
+        for client, state_dict in zip(self.clients, almw):
+            data, result = client.get_train_results(curr_rnd, state_dict)
             clients_data.append(data)
             results.append(result)
 

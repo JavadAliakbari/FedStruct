@@ -14,6 +14,7 @@ class Config:
         self.node2vec = Node2VecConfig(self.config["node2vec"])
         self.fedsage = FedSAGEConfig(self.config["fedsage"])
         self.fedpub = PubMedConfig(self.config["fedpub"])
+        self.fedgcn = FedGCNConfig(self.config["fedgcn"])
 
     def load_config(path):
         with open(path) as f:
@@ -153,15 +154,19 @@ class PubMedConfig:
         self.clsf_mask_one = fedpub["clsf_mask_one"]
         self.laye_mask_one = fedpub["laye_mask_one"]
         self.norm_scale = fedpub["norm_scale"]
-        self.min_lr = fedpub["min_lr"]
-        self.momentum_opt = fedpub["momentum_opt"]
         self.lr = fedpub["lr"]
         self.weight_decay = fedpub["weight_decay"]
-        self.warmup_epochs = fedpub["warmup_epochs"]
-        self.base_momentum = fedpub["base_momentum"]
-        self.final_momentum = fedpub["final_momentum"]
         self.n_dims = fedpub["n_dims"]
         self.agg_norm = fedpub["agg_norm"]
         self.n_proxy = fedpub["n_proxy"]
         self.l1 = fedpub["l1"]
         self.loc_l2 = fedpub["loc_l2"]
+
+
+class FedGCNConfig:
+    def __init__(self, fedpub):
+        self.load_config(fedpub)
+
+    def load_config(self, feedgcn):
+        self.num_hops = feedgcn["num_hops"]
+        self.iid_beta = feedgcn["iid_beta"]

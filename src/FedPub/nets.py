@@ -53,4 +53,5 @@ class MaskedGCN(nn.Module):
         x = F.relu(x)
         x = F.dropout(x, training=self.training)
         x = self.clsif(x)
+        # x = F.softmax(x, dim=-1)
         return x

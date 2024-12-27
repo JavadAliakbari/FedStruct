@@ -11,17 +11,17 @@ class ModelSpecs:
         type="GNN",
         layer_sizes=[],
         final_activation_function="linear",  # can be None, "layer", "batch", "instance"
-        # dropout=0.5,
+        dropout=config.model.dropout,
         normalization=None,
-        # gnn_layer_type="sage",
+        gnn_layer_type=config.model.gnn_layer_type,
         num_layers=None,
     ):
         self.type = type
         self.layer_sizes = layer_sizes
         self.final_activation_function = final_activation_function
-        # self.dropout = dropout
+        self.dropout = dropout
         self.normalization = normalization
-        # self.gnn_layer_type = gnn_layer_type
+        self.gnn_layer_type = gnn_layer_type
         if num_layers is None:
             self.num_layers = len(self.layer_sizes) - 1
         else:
@@ -49,15 +49,15 @@ class ModelBinder(nn.Module):
                 model = GNN(
                     layer_sizes=model_propertises.layer_sizes,
                     last_layer=model_propertises.final_activation_function,
-                    layer_type=config.model.gnn_layer_type,
-                    dropout=config.model.dropout,
+                    layer_type=model_propertises.gnn_layer_type,
+                    dropout=model_propertises.dropout,
                     normalization=model_propertises.normalization,
                 )
             elif model_propertises.type == "MLP":
                 model = MLP(
                     layer_sizes=model_propertises.layer_sizes,
                     last_layer=model_propertises.final_activation_function,
-                    dropout=config.model.dropout,
+                    dropout=model_propertises.dropout,
                     normalization=model_propertises.normalization,
                 )
             elif model_propertises.type == "DGCN":

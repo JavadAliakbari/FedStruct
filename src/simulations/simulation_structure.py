@@ -32,7 +32,7 @@ def create_clients(
 ):
     graph.add_masks(train_ratio=train_ratio, test_ratio=test_ratio)
 
-    GNN_server.remove_clients()
+    GNN_server.reset_clients()
 
     subgraphs = partition_graph(graph, num_subgraphs, partitioning)
 
