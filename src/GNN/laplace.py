@@ -126,6 +126,7 @@ class SpectralLaplace(SClassifier):
     def intrinsic_regularizer(self):
         W = self.get_W()
         if len(self.D.shape) == 1:
+            # r1 = torch.diag(1 / self.D) @ W
             r1 = torch.einsum("i,ij->ij", self.D, W)
             # r1 = torch.einsum(
             #     "i,ij->ij", (self.D) ** (config.structure_model.DGCN_layers), Q
@@ -136,6 +137,7 @@ class SpectralLaplace(SClassifier):
         s = torch.trace(r) / torch.trace(torch.matmul(W.T, W))
         # s = torch.trace(r) / Q.shape[1]
 
+        # return 1 / s
         return s
 
     def ambient_regularizer(self):
@@ -144,9 +146,12 @@ class SpectralLaplace(SClassifier):
 
     def get_embeddings(self):
         W = self.get_W()
-        SFV = torch.matmul(self.Q, W)
-        torch.nn.functional.relu(SFV, inplace=True)
-        H = self.model(SFV)
+        Q = self.Q
+
+        Z = Q @ W
+        # Z = self.Q @ torch.diag(self.D ** (0.5)) @ W
+        torch.nn.functional.relu(Z, inplace=True)
+        H = self.model(Z)
         return H
 
 

@@ -1,6 +1,6 @@
 dataset:
   dataset_name: "Photo"
-  # dataset_name: "Cora"
+  multi_label: False
 subgraph:
   num_subgraphs: 10
   delta: 20

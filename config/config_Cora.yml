@@ -14,13 +14,13 @@ model:
   batch: False
   batch_size: 64
   local_epochs: 1
-  lr: 0.002
-  weight_decay: 0.0003
-  dropout: 0.7
+  lr: 0.005
+  weight_decay: 0.0005
+  dropout: 0.75
   gnn_layer_type: sage
   smodel_type: LanczosLaplace   # GNN, DGCN, CentralDGCN, Laplace, LanczosLaplace, SpectralLaplace, SpectralDGCN, LanczosDGCN
   fmodel_type: same   #GNN, DGCN, same
-  iterations: 35
+  iterations: 50
   metric: acc
 feature_model:
   gnn_layer_sizes: [32,16]
@@ -29,7 +29,7 @@ feature_model:
   DGCN_layers: 2
 structure_model:
   GNN_structure_layers_sizes: [128, 64, 32]
-  DGCN_structure_layers_size: [32]
+  DGCN_structure_layers_size: [64]
   DGCN_layers: 10
   # structure_type: degree
   # structure_type: GDV
@@ -45,11 +45,11 @@ structure_model:
   mlp_epochs: 50
 spectral:
   spectral_len: 200
-  lanczos_iter: 1000
+  lanczos_iter: 500
   L_type: "rw"      # normal rw sym
   method: "arnoldi" # arnoldi lanczos
   regularizer_coef: 10
-  matrix: "adj" # adj lap inc
+  matrix: "lap" # adj lap inc
   decompose: "eigh" # svd eigh
 node2vec:
   epochs: 50

@@ -78,9 +78,9 @@ def set_up_system():
     # res = MLP_server.joint_train_g(FL=True)
     # results[f"flga MLP"] = round(res["Average"]["Test Acc"], 4)
 
-    # LOGGER.info("GNN")
-    # res = GNN_server.train_local_model(data_type="feature")
-    # results[f"Server F GNN"] = round(res["Test Acc"], 4)
+    LOGGER.info("GNN")
+    res = GNN_server.train_local_model(data_type="feature")
+    results[f"Server F GNN"] = round(res["Test Acc"], 4)
 
     # res = GNN_server.train_local_model(data_type="structure")
     # results[f"Server S GNN"] = round(res["Test Acc"], 4)

@@ -177,6 +177,10 @@ class Server(Client):
         if log:
             self.report_test_results(final_results)
 
+        # for client in self.clients:
+        #     acc, acc2 = client.guess(self.graph.y)
+        #     LOGGER.info(f"Client {client.id} guess: {acc}, {acc2}")
+
         return final_results
 
     def joint_train_w(

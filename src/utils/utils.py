@@ -314,14 +314,14 @@ def create_adj(
         deg_inv_sqrt2 = deg2.pow_(-0.5)
         deg_inv_sqrt2 = deg_inv_sqrt2.masked_fill_(deg_inv_sqrt2 == float("inf"), 0)
         edge_weight *= deg_inv_sqrt[edge_index[0]] * deg_inv_sqrt2[edge_index[1]]
-
-    adj = torch.sparse_coo_tensor(
-        directed_edges,
-        edge_weight,
-        (num_nodes, num_nodes),
-        dtype=torch.float32,
-        device=edge_index.device,
-    )
+    if dev != "mps":
+        adj = torch.sparse_coo_tensor(
+            directed_edges,
+            edge_weight,
+            (num_nodes, num_nodes),
+            dtype=torch.float32,
+            device=edge_index.device,
+        )
 
     return adj
 
@@ -481,12 +481,32 @@ def split_abar(abar: SparseTensor, nodes):
     return abar_i
 
 
-def plot_abar(abar, edge_index, name="graph"):
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+
+def plot_abar(abar, edge_index, name="graph", save=False, power=1000, cmap="plasma"):
     dense_abar = abar.to_dense().numpy()
-    dense_abar = np.power(dense_abar, 0.1)
+    dense_abar = (dense_abar - np.min(dense_abar)) / (
+        np.max(dense_abar) - np.min(dense_abar)
+    )
+    dense_abar = sigmoid(power * (dense_abar))
+
+    # dense_abar[dense_abar < 0.0001] = 0
+    # dense_abar[dense_abar > 0.0001] = 1
+    # dense_abar = np.log10(dense_abar)
+    # dense_abar = np.power(dense_abar, power)
+    dense_abar = (dense_abar - np.min(dense_abar)) / (
+        np.max(dense_abar) - np.min(dense_abar)
+    )
 
     G = nx.Graph(edge_index.T.tolist())
     community = nx.community.louvain_communities(G)
+    comminity_label = np.zeros(abar.shape[0], dtype=np.int32)
+    for id, c in enumerate(community):
+        for node in c:
+            comminity_label[node] = id
+    idx = np.argsort(comminity_label)
 
     sorted_community_groups = sorted(
         community, key=lambda item: len(item), reverse=True
@@ -495,12 +515,44 @@ def plot_abar(abar, edge_index, name="graph"):
         itertools.chain.from_iterable(sorted_community_groups)
     )
 
+    # dense_abar = dense_abar[:, idx]
+    # dense_abar = dense_abar[idx, :]
     dense_abar = dense_abar[:, community_based_node_order]
     dense_abar = dense_abar[community_based_node_order, :]
+    plt.imshow(dense_abar, cmap="gray", interpolation="none")
+    # plt.imshow(dense_abar, cmap="gray", interpolation="nearest")
+    if save:
+        plt.imsave(f"./models/{name}.png", dense_abar, cmap=cmap)
+    plt.grid(True, which="both", color="black", linestyle="-", linewidth=0.25)
+
+    # Optionally, customize the grid to match the image resolution
+    # ax = plt.gca()
+    # plt.xticks(np.arange(0, abar.shape[1], 1))
+    # plt.yticks(np.arange(0, abar.shape[0], 1))
+    # plt.xticklabels([])
+    # plt.set_yticklabels([])
+    # plt.show()
+
+
+def plot_abar2(abar, labels, name="graph", save=False):
+    dense_abar = abar.to_dense().numpy()
+    dense_abar = (dense_abar - np.min(dense_abar)) / (
+        np.max(dense_abar) - np.min(dense_abar)
+    )
+    # dense_abar = np.log10(dense_abar)
+    dense_abar = np.power(dense_abar, 0.25)
+    dense_abar = (dense_abar - np.min(dense_abar)) / (
+        np.max(dense_abar) - np.min(dense_abar)
+    )
+    idx = np.argsort(labels)
+
+    dense_abar = dense_abar[:, idx]
+    dense_abar = dense_abar[idx, :]
 
     plt.imshow(dense_abar, cmap="gray", interpolation="none")
     # plt.imshow(dense_abar, cmap="gray", interpolation="nearest")
-    plt.imsave(f"./models/{name}.png", dense_abar)
+    if save:
+        plt.imsave(f"./models/{name}.png", dense_abar)
     plt.grid(True, which="both", color="black", linestyle="-", linewidth=0.25)
 
     # Optionally, customize the grid to match the image resolution

@@ -1,5 +1,6 @@
 dataset:
   dataset_name: CiteSeer
+  multi_label: False
 subgraph:
   num_subgraphs: 10
   delta: 20

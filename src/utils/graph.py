@@ -225,9 +225,9 @@ class Graph(Data):
         return SE_rw_dg
 
     def initialize_random_features(size):
-        return torch.normal(0, 0.05, size=size, requires_grad=True)
+        return torch.normal(0, 0.05, size=size, requires_grad=True, device=dev)
 
-        # return torch.full(fill_value=0.05, size=size, requires_grad=True)
+        # return torch.full(fill_value=0.05, size=size, requires_grad=True, device=dev)
 
     def reset_parameters(self) -> None:
         if config.structure_model.structure_type == "hop2vec":
@@ -403,6 +403,7 @@ class Graph(Data):
         # U = U[:, sorted_indices]
         # D = D[sorted_indices, sorted_indices]
 
+        # ss = torch.sign(torch.sum(torch.sign(U), dim=0))
         ss = torch.sign(torch.sum(U, dim=0))
         # ii = torch.argmax(torch.abs(U), dim=0)
         # ss = []
