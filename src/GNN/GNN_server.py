@@ -46,9 +46,6 @@ class GNNServer(Server, GNNClient):
                 share["U"] = U
                 num_spectral_features = D.shape[0]
 
-            if smodel_type == "CentralDGCN":
-                share["server_embedding_func"] = self.classifier.get_embeddings_func()
-
             structure_type = kwargs.get(
                 "structure_type", config.structure_model.structure_type
             )
@@ -74,6 +71,9 @@ class GNNServer(Server, GNNClient):
             data_type=data_type,
             **kwargs,
         )
+
+        if smodel_type in ["CentralDGCN", "GNN"]:
+            share["server_embedding_func"] = self.classifier.get_embeddings_func()
 
         return share
 
