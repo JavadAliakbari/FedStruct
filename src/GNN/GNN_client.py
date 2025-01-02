@@ -38,7 +38,7 @@ class GNNClient(Client):
             num_nodes=self.graph.num_nodes,
             # nodes=self.graph.node_ids,
         )
-        abar = calc_a(A, config.feature_model.DGCN_layers)
+        abar = calc_abar(A, config.feature_model.DGCN_layers)
 
         graph = AGraph(
             abar=abar,

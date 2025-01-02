@@ -423,7 +423,7 @@ def create_rw(edge_index, num_nodes, num_layers):
     return SE_rw
 
 
-def calc_a(adj, num_layers, pruning=False):
+def calc_abar(adj, num_layers, pruning=False):
     local_dev = "cpu"
     num_nodes = adj.shape[1]
 

@@ -19,18 +19,15 @@ from src.fedsage.fedsage_server import FedSAGEServer
 
 if __name__ == "__main__":
     graph = define_graph(config.dataset.dataset_name)
-    true_abar = calc_a(
+    A = create_adj(
         graph.edge_index,
-        graph.num_nodes,
-        config.structure_model.DGCN_layers,
-        pruning=False,
+        normalization="rw",
+        self_loop=True,
+        num_nodes=graph.num_nodes,
+        # nodes=self.graph.node_ids,
     )
-    prune_abar = calc_a(
-        graph.edge_index,
-        graph.num_nodes,
-        config.structure_model.DGCN_layers,
-        pruning=True,
-    )
+    abar = calc_abar(A, config.feature_model.DGCN_layers, pruning=True)
+    graph.abar = abar
 
     MLP_server = MLPServer(graph)
 
@@ -107,65 +104,73 @@ if __name__ == "__main__":
                         epochs=epochs,
                     )
                     model_results.update(MLP_results)
-                    Fedsage_results = get_Fedsage_results(
-                        FedSage_server,
-                        bar=bar,
-                        epochs=epochs,
-                    )
-                    model_results.update(Fedsage_results)
-                    Fedpub_results = get_Fedpub_results(
-                        FedPub_server,
-                        bar=bar,
-                        epochs=fedpub_epochs,
-                    )
-                    model_results.update(Fedpub_results)
+                    # Fedsage_results = get_Fedsage_results(
+                    #     FedSage_server,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    # )
+                    # model_results.update(Fedsage_results)
+                    # Fedpub_results = get_Fedpub_results(
+                    #     FedPub_server,
+                    #     bar=bar,
+                    #     epochs=fedpub_epochs,
+                    # )
+                    # model_results.update(Fedpub_results)
 
-                    Fedgcn_results1 = get_Fedgcn_results(
-                        FedGCN_server1,
-                        bar=bar,
-                        epochs=epochs,
-                        num_hops=1,
-                    )
-                    model_results.update(Fedgcn_results1)
+                    # Fedgcn_results1 = get_Fedgcn_results(
+                    #     FedGCN_server1,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    #     num_hops=1,
+                    # )
+                    # model_results.update(Fedgcn_results1)
 
-                    Fedgcn_results2 = get_Fedgcn_results(
-                        FedGCN_server2,
-                        bar=bar,
-                        epochs=epochs,
-                        num_hops=2,
-                    )
-                    model_results.update(Fedgcn_results2)
+                    # Fedgcn_results2 = get_Fedgcn_results(
+                    #     FedGCN_server2,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    #     num_hops=2,
+                    # )
+                    # model_results.update(Fedgcn_results2)
 
-                    Fedsage_ideal_results = get_Fedsage_ideal_reults(
-                        GNN_server_ideal,
-                        bar=bar,
-                        epochs=epochs,
-                    )
-                    model_results.update(Fedsage_ideal_results)
+                    # Fedsage_ideal_results = get_Fedsage_ideal_reults(
+                    #     GNN_server_ideal,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    # )
+                    # model_results.update(Fedsage_ideal_results)
 
-                    graph.abar = true_abar
-                    GNN_result_true = get_GNN_results(
+                    # graph.abar = true_abar
+                    GNN_result = get_GNN_results(
                         GNN_server,
                         bar=bar,
                         epochs=epochs,
+                        structure_types=["hop2vec"],
+                        smodel_types=[
+                            "GNN",
+                            "DGCN",
+                            "Laplace",
+                            "LanczosLaplace",
+                            "SpectralLaplace",
+                        ],
                     )
 
-                    GNN_result_true2 = {}
-                    for key, val in GNN_result_true.items():
-                        GNN_result_true2[f"{key}_true"] = val
-                    model_results.update(GNN_result_true2)
+                    GNN_result = {}
+                    for key, val in GNN_result.items():
+                        GNN_result[f"{key}"] = val
+                    model_results.update(GNN_result)
 
-                    graph.abar = prune_abar
-                    GNN_result_prune = get_GNN_results(
-                        GNN_server,
-                        bar=bar,
-                        epochs=epochs,
-                        smodel_types=["DGCN"],
-                    )
-                    GNN_result_prune2 = {}
-                    for key, val in GNN_result_prune.items():
-                        GNN_result_prune2[f"{key}_prune"] = val
-                    model_results.update(GNN_result_prune2)
+                    # graph.abar = prune_abar
+                    # GNN_result_prune = get_GNN_results(
+                    #     GNN_server,
+                    #     bar=bar,
+                    #     epochs=epochs,
+                    #     smodel_types=["DGCN"],
+                    # )
+                    # GNN_result_prune2 = {}
+                    # for key, val in GNN_result_prune.items():
+                    #     GNN_result_prune2[f"{key}_prune"] = val
+                    # model_results.update(GNN_result_prune2)
 
                     LOGGER2.info(f"Run id: {i}")
                     LOGGER2.info(json.dumps(model_results, indent=4))

@@ -101,6 +101,8 @@ def Lanczos_func(A, m=10, v=None, log=True):
 
 
 def arnoldi_iteration(A, m: int, b=None, log=True):
+    local_dev = "cpu"
+    # local_dev = dev
     """Compute a basis of the (n + 1)-Krylov subspace of the matrix A.
 
     This is the space spanned by the vectors {b, Ab, ..., A^n b}.
@@ -122,21 +124,21 @@ def arnoldi_iteration(A, m: int, b=None, log=True):
         An (n + 1) x n array. A on basis Q. It is upper Hessenberg.
     """
     A = deepcopy(A).double()
-    A = A.to_sparse().to(dev)
+    A = A.to_sparse().to(local_dev)
     if b is None:
         # b = torch.ones(A.shape[0], dtype=torch.double, device=dev)
-        b = torch.randn(A.shape[0], dtype=torch.double, device=dev)
+        b = torch.randn(A.shape[0], dtype=torch.double, device=local_dev)
         if torch.sum(b) < 0:
             b = -b
     eps = 1e-12
-    h = torch.zeros((m, m), dtype=torch.double, device=dev)
-    Q = torch.zeros((A.shape[0], m), dtype=torch.double, device=dev)
+    h = torch.zeros((m, m), dtype=torch.double, device=local_dev)
+    Q = torch.zeros((A.shape[0], m), dtype=torch.double, device=local_dev)
     # Normalize the input vector
     Q[:, 0] = b / torch.norm(b, 2)  # Use it as the first Krylov vector
     if log:
         bar = tqdm(total=m - 1)
     for k in range(1, m):
-        v = torch.matmul(A, Q[:, k - 1]).to_dense()  # Generate a new candidate vector
+        v = A @ Q[:, k - 1]  # Generate a new candidate vector
         for j in range(k):  # Subtract the projections on previous vectors
             h[j, k - 1] = Q[:, j].conj() @ v
             v = v - h[j, k - 1] * Q[:, j]
@@ -148,6 +150,9 @@ def arnoldi_iteration(A, m: int, b=None, log=True):
             return h, Q
         if log:
             bar.update()
+
+    h = h.to(dev)
+    Q = Q.to(dev)
     return h, Q
 
 

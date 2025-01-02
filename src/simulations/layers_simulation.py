@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     # for partitioning in [config.subgraph.partitioning]:
     for DGCN_layers in range(0, 51):
-        abar = calc_a(graph.edge_index, graph.num_nodes, DGCN_layers, pruning=False)
+        abar = calc_abar(graph.edge_index, graph.num_nodes, DGCN_layers, pruning=False)
         graph.abar = abar
         config.feature_model.gnn_layer_sizes = [64] * DGCN_layers
         for partitioning in ["kmeans"]:

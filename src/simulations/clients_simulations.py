@@ -19,13 +19,13 @@ from src.fedsage.fedsage_server import FedSAGEServer
 
 if __name__ == "__main__":
     graph = define_graph(config.dataset.dataset_name)
-    true_abar = calc_a(
+    true_abar = calc_abar(
         graph.edge_index,
         graph.num_nodes,
         config.structure_model.DGCN_layers,
         pruning=False,
     )
-    prune_abar = calc_a(
+    prune_abar = calc_abar(
         graph.edge_index,
         graph.num_nodes,
         config.structure_model.DGCN_layers,

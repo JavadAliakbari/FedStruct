@@ -2,8 +2,10 @@ import os
 from copy import deepcopy
 from operator import itemgetter
 
+from scipy import sparse
 import torch
 import numpy as np
+import scipy as sp
 import torch.nn.functional as F
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.nn import MessagePassing
@@ -281,6 +283,7 @@ class Graph(Data):
         method="DGCN",
         pruning=False,
         spectral_len=0,
+        log=True,
     ):
         if method in ["DGCN", "CentralDGCN"]:
             if self.DGCN_abar is not None:
@@ -294,7 +297,7 @@ class Graph(Data):
                     nodes=self.node_ids,
                 )
                 # abar = calc_a2(edge_index, num_nodes, num_layers)
-                abar = calc_a(A, num_layers, pruning)
+                abar = calc_abar(A, num_layers, pruning)
                 self.DGCN_abar = abar
         elif method in ["SpectralDGCN", "LanczosDGCN"]:
             D, U = self.calc_eignvalues(
@@ -325,7 +328,15 @@ class Graph(Data):
                 )
             else:
                 if config.spectral.decompose == "svd":
-                    U, D, V = torch.svd(self.L.to_dense())
+                    L = sparse.csr_matrix(self.L.to_dense().cpu().numpy())
+                    if spectral_len <=0:
+                        k =min(L.shape)-1
+                    else:
+                        k = spectral_len
+                    U, D, V = sp.sparse.linalg.svds(L, k=k)
+                    U = torch.tensor(U.copy(), dtype=torch.float32, device=dev)
+                    D = torch.tensor(D.copy(), dtype=torch.float32, device=dev)
+                    # U, D, V = torch.svd(self.L.to_dense())
                     # U, D, V = torch.svd_lowrank(self.L, q=spectral_len)
                 else:
                     D, U = torch.linalg.eigh(self.L.to_dense())
@@ -347,7 +358,15 @@ class Graph(Data):
                 )
             else:
                 if config.spectral.decompose == "svd":
-                    U, D, V = torch.svd(A.to_dense())
+                    L = sparse.csr_matrix(A.to_dense().cpu().numpy())
+                    if spectral_len <=0:
+                        k =min(A.shape)-1
+                    else:
+                        k = spectral_len
+                    U, D, V = sp.sparse.linalg.svds(L, k=k)
+                    U = torch.tensor(U.copy(), dtype=torch.float32, device=dev)
+                    D = torch.tensor(D.copy(), dtype=torch.float32, device=dev)
+                    # U, D, V = torch.svd(A.to_dense())
                     # U, D, V = torch.svd_lowrank(
                     #     A, q=spectral_len, niter=5
                     # )

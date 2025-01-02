@@ -118,7 +118,7 @@ def set_up_system():
 
     # res = GNN_server.joint_train_g(data_type="feature", FL=True)
     # res = GNN_server.joint_train_g(data_type="structure", FL=True)
-    res = GNN_server.joint_train_g(data_type="f+s", FL=True)
+    res = GNN_server.joint_train_g(data_type="f+s", FL=True,spectral_len=0)
     results[f"FL F+S GNN"] = round(res["Average"]["Test Acc"], 4)
     results[f"FL F+S(F) GNN"] = round(res["Average"]["Test Acc F"], 4)
     results[f"FL F+S(S) GNN"] = round(res["Average"]["Test Acc S"], 4)
@@ -129,11 +129,12 @@ def set_up_system():
 
     # res = fedpub_server.start()
     # results[f"fedpub"] = round(res["Average"]["Test Acc"], 4)
-    res = GNN_server3.joint_train_w(data_type="feature", fmodel_type="GNN", FL=True)
-    results[f"FedSage Ideal"] = round(res["Average"]["Test Acc"], 4)
+    # res = GNN_server3.joint_train_w(data_type="feature", fmodel_type="GNN", FL=True)
+    # results[f"FedSage Ideal"] = round(res["Average"]["Test Acc"], 4)
 
-    res = fedgcn_server.joint_train_w()
-    results[f"fedgcn"] = round(res["Average"]["Test Acc"], 4)
+    # res = fedgcn_server.joint_train_w()
+    # results[f"fedgcn"] = round(res["Average"]["Test Acc"], 4)
+
     LOGGER.info(json.dumps(results, indent=4))
 
 

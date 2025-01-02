@@ -28,6 +28,7 @@ class GNNServer(Server, GNNClient):
         fmodel_type=config.model.fmodel_type,
         data_type="feature",
         spectral_len=0,
+        log=True,
         **kwargs,
     ) -> None:
         share = {}
@@ -41,6 +42,7 @@ class GNNServer(Server, GNNClient):
                 D, U = self.graph.calc_eignvalues(
                     estimate=not (smodel_type.startswith("Spectral")),
                     spectral_len=spectral_len,
+                    log=log,
                 )
                 share["D"] = D
                 share["U"] = U
@@ -122,6 +124,7 @@ class GNNServer(Server, GNNClient):
             fmodel_type=fmodel_type,
             data_type=data_type,
             spectral_len=spectral_len,
+            log=log,
             **kwargs,
         )
         if FL:
